@@ -1,10 +1,11 @@
 using System.Globalization;
+using Zombies.Engine.Core.Debugging;
 using Zombies.Engine.Platform;
 using Zombies.Engine.Render;
 
 namespace Zombies.Client;
 
-internal sealed record ClientOptions(bool NoVSync, int Frames, string? CapturePath, bool Smoke)
+internal sealed record ClientOptions(bool NoVSync, int Frames, string? CapturePath, bool Smoke, string? SessionPath = null)
 {
     public static ClientOptions Parse(string[] args)
     {
@@ -12,6 +13,7 @@ internal sealed record ClientOptions(bool NoVSync, int Frames, string? CapturePa
         var frames = 0;
         string? capture = null;
         var smoke = false;
+        string? session = null;
         for (var i = 0; i < args.Length; i++)
         {
             switch (args[i])
@@ -28,12 +30,15 @@ internal sealed record ClientOptions(bool NoVSync, int Frames, string? CapturePa
                 case "--smoke":
                     smoke = true;
                     break;
+                case "--session" when i + 1 < args.Length:
+                    session = args[++i];
+                    break;
                 default:
                     throw new ArgumentException($"Unknown argument '{args[i]}'.");
             }
         }
 
-        return new ClientOptions(noVSync, frames, capture, smoke);
+        return new ClientOptions(noVSync, frames, capture, smoke, session);
     }
 }
 
@@ -207,5 +212,36 @@ internal sealed class SmokeScript(SdlWindow window)
 
         Console.WriteLine(problems.Count == 0 ? "SMOKE OK" : "SMOKE FAILED");
         return problems.Count == 0 ? 0 : 1;
+    }
+}
+
+/// <summary>Lets a smoke run say what it is and where it is, so a human watching the window knows why it is flickering.</summary>
+internal static class SmokeSession
+{
+    private static readonly string[] StepTitles = ["Input events", "Resize window", "Minimize and restore", "Capture frame"];
+    private static readonly int[] StepStarts = [0, 30, 60, 90];
+
+    public static SessionState Describe(SmokeScript? smoke, int frame)
+    {
+        if (smoke is null)
+        {
+            return SessionState.None;
+        }
+
+        var current = StepStarts.Count(start => frame >= start) - 1;
+        var steps = StepTitles
+            .Select((title, i) => new SessionStep(title, i < current ? StepState.Done : i == current ? StepState.Running : StepState.Pending))
+            .ToList();
+        return new SessionState(
+            new DebugSession
+            {
+                Title = "Smoke check",
+                Reason = "Proves the window and renderer survive resize, minimize, and restore. The game closes by itself when done.",
+                StartedBy = "--smoke",
+                Steps = steps,
+                Facts = [new SessionFact("Frame", frame.ToString(System.Globalization.CultureInfo.InvariantCulture))],
+            },
+            null,
+            0);
     }
 }

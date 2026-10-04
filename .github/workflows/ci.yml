@@ -1,0 +1,28 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  build-test:
+    name: build-test (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, ubuntu-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+      - name: Restore
+        run: dotnet restore Zombies.slnx
+      - name: Build
+        run: dotnet build Zombies.slnx --configuration Release --no-restore
+      - name: Test
+        run: dotnet test --solution Zombies.slnx --configuration Release --no-build
+      - name: SimHarness
+        run: dotnet run --project tools/SimHarness --configuration Release --no-build

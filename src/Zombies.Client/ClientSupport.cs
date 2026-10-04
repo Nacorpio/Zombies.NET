@@ -56,6 +56,17 @@ internal static class DemoScene
         sprites.DrawText("SCALE 1 TEXT FOR SMALL LABELS", 40, 350, 1, new Rgba(200, 200, 200));
         sprites.DrawText("SCALE 4", 40, 370, 4, new Rgba(255, 200, 80));
 
+        // Every built-in icon at 3x with its name, to check the art by eye.
+        for (var i = 0; i < Icons.Count; i++)
+        {
+            var column = i % 8;
+            var row = i / 8;
+            var cellX = 40 + (column * 96);
+            var cellY = 420 + (row * 84);
+            sprites.DrawIcon(Icons.Names[i], cellX, cellY, 3, Rgba.White);
+            sprites.DrawText(Icons.Names[i], cellX, cellY + 52, 1, new Rgba(170, 200, 230));
+        }
+
         // A box that moves, so a live run shows the frame loop is running.
         var x = 40 + (frame * 3 % Math.Max(1, width - 120));
         sprites.FillRect(x, Math.Max(0, height - 80), 60, 40, new Rgba(120, 240, 140));

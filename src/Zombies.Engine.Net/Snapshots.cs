@@ -9,14 +9,18 @@ internal sealed class SnapshotFrame
 
     public ulong Tick { get; private set; }
 
+    /// <summary>The newest player input the Server had processed when it took this snapshot, or 0.</summary>
+    public uint AckedInput { get; private set; }
+
     public int Count { get; private set; }
 
     public ReadOnlySpan<EntityState> Entities => _entities.AsSpan(0, Count);
 
-    public void Reset(uint sequence, ulong tick)
+    public void Reset(uint sequence, ulong tick, uint ackedInput)
     {
         Sequence = sequence;
         Tick = tick;
+        AckedInput = ackedInput;
         Count = 0;
     }
 
@@ -60,10 +64,10 @@ internal sealed class SnapshotHistory
         return frame.Sequence == sequence ? frame : null;
     }
 
-    public SnapshotFrame Begin(uint sequence, ulong tick)
+    public SnapshotFrame Begin(uint sequence, ulong tick, uint ackedInput)
     {
         var frame = _frames[sequence % Capacity];
-        frame.Reset(sequence, tick);
+        frame.Reset(sequence, tick, ackedInput);
         return frame;
     }
 }
@@ -84,6 +88,7 @@ internal static class SnapshotCodec
         writer.WriteByte((byte)MessageType.Snapshot);
         writer.WriteUInt32(current.Sequence);
         writer.WriteUInt64(current.Tick);
+        writer.WriteUInt32(current.AckedInput);
         writer.WriteUInt32(baseline?.Sequence ?? 0);
         var countAt = writer.ReserveUInt16();
         var count = 0;
@@ -157,8 +162,9 @@ internal static class SnapshotCodec
         writer.PatchUInt16(countAt, (ushort)count);
     }
 
-    /// <summary>Reads the header after the message type. Returns the sequence, tick, and baseline sequence.</summary>
-    public static (uint Sequence, ulong Tick, uint Baseline) ReadHeader(ref NetReader reader) => (reader.ReadUInt32(), reader.ReadUInt64(), reader.ReadUInt32());
+    /// <summary>Reads the header after the message type. Returns the sequence, tick, acknowledged input, and baseline sequence.</summary>
+    public static (uint Sequence, ulong Tick, uint AckedInput, uint Baseline) ReadHeader(ref NetReader reader) =>
+        (reader.ReadUInt32(), reader.ReadUInt64(), reader.ReadUInt32(), reader.ReadUInt32());
 
     /// <summary>Applies the entries after the header to <paramref name="baseline"/> and writes the result into <paramref name="target"/>.</summary>
     public static void ReadEntries(ref NetReader reader, SnapshotFrame? baseline, SnapshotFrame target)

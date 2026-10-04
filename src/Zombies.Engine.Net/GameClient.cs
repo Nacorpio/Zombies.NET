@@ -1,3 +1,4 @@
+using System.Numerics;
 using Zombies.Engine.Core;
 
 namespace Zombies.Engine.Net;
@@ -24,6 +25,9 @@ public sealed class ReplicatedWorld
     /// <summary>The Server tick the newest snapshot was taken on.</summary>
     public ulong ServerTick => _latest?.Tick ?? 0;
 
+    /// <summary>The newest player input the Server had processed when it took the newest snapshot, or 0.</summary>
+    public uint AckedInput => _latest?.AckedInput ?? 0;
+
     public ReadOnlySpan<EntityState> Entities => _latest is null ? [] : _latest.Entities;
 
     public bool TryGet(uint id, out EntityState state)
@@ -44,7 +48,7 @@ public sealed class ReplicatedWorld
     /// <summary>Decodes one snapshot message after its type byte. Returns false when it is stale or its baseline is gone.</summary>
     internal bool Apply(ref NetReader reader)
     {
-        var (sequence, tick, baselineSequence) = SnapshotCodec.ReadHeader(ref reader);
+        var (sequence, tick, ackedInput, baselineSequence) = SnapshotCodec.ReadHeader(ref reader);
         if (sequence <= Sequence)
         {
             return false;
@@ -56,7 +60,7 @@ public sealed class ReplicatedWorld
             return false;
         }
 
-        var frame = _history.Begin(sequence, tick);
+        var frame = _history.Begin(sequence, tick, ackedInput);
         try
         {
             SnapshotCodec.ReadEntries(ref reader, baseline, frame);
@@ -70,6 +74,111 @@ public sealed class ReplicatedWorld
 
         _latest = frame;
         return true;
+    }
+}
+
+/// <summary>One input the client sent and has not yet seen confirmed, kept so it can be replayed after a correction.</summary>
+public readonly record struct PredictedInput(uint Sequence, PlayerInput Input);
+
+/// <summary>
+/// The local player as the client sees it: the position it predicted, the inputs still in flight, and the lean amount.
+/// The Server's snapshots confirm or correct it; see <see cref="GameClient"/>.
+/// </summary>
+public sealed class LocalPlayer
+{
+    /// <summary>How many predicted states are kept so a correction can rewind to the acknowledged input.</summary>
+    private const int HistoryCapacity = 128;
+
+    private readonly List<PredictedInput> _pending = new(64);
+    private readonly uint[] _historySequence = new uint[HistoryCapacity];
+    private readonly PlayerMoveState[] _historyState = new PlayerMoveState[HistoryCapacity];
+    private PlayerMoveState _initial;
+
+    /// <summary>Where the client currently draws the player, after prediction and any reconciliation.</summary>
+    public PlayerMoveState State { get; private set; }
+
+    /// <summary>How far the camera leans sideways, in blocks. Cosmetic, so it is never reconciled.</summary>
+    public float Lean { get; private set; }
+
+    /// <summary>Inputs sent but not yet confirmed by a snapshot.</summary>
+    public int PendingCount => _pending.Count;
+
+    /// <summary>How many times the Server's state disagreed with the prediction and the client had to replay.</summary>
+    public int ReconciliationCount { get; private set; }
+
+    /// <summary>The largest correction applied, in blocks. Zero means the prediction matched the Server exactly.</summary>
+    public float LastCorrectionDistance { get; private set; }
+
+    /// <summary>The largest correction ever applied, in blocks. Useful for spotting a prediction that keeps drifting.</summary>
+    public float MaxCorrectionDistance { get; private set; }
+
+    /// <summary>How many inputs were replayed by the last reconciliation.</summary>
+    public int LastReplayedInputs { get; private set; }
+
+    public void Reset(in PlayerMoveState state)
+    {
+        State = state;
+        _initial = state;
+        Lean = 0f;
+        LastCorrectionDistance = 0f;
+        MaxCorrectionDistance = 0f;
+        ReconciliationCount = 0;
+        _pending.Clear();
+        Array.Clear(_historySequence);
+    }
+
+    /// <summary>
+    /// Predicts one step from an input, records it as in flight under the command sequence it will be sent with, and
+    /// returns that sequence. The Server names the same sequence when it acknowledges the input.
+    /// </summary>
+    public uint Predict(uint sequence, in PlayerInput input, IPlayerCollision collision)
+    {
+        State = PlayerMovement.Step(State, input, PlayerMovement.StepSeconds, collision);
+        Lean = PlayerMovement.StepLean(Lean, input, PlayerMovement.StepSeconds);
+        _pending.Add(new PredictedInput(sequence, input));
+        _historySequence[sequence % HistoryCapacity] = sequence;
+        _historyState[sequence % HistoryCapacity] = State;
+        return sequence;
+    }
+
+    /// <summary>
+    /// Takes the Server's authoritative position for the newest input it has processed and replays every input after it.
+    /// The replay starts from the state the client itself predicted at that input, so the velocity and ground state are
+    /// the ones the Server also had; only the position is corrected. A prediction that matched is left untouched.
+    /// </summary>
+    public void Reconcile(Vector3 serverPosition, float serverYaw, uint acknowledgedSequence, IPlayerCollision collision)
+    {
+        while (_pending.Count > 0 && _pending[0].Sequence <= acknowledgedSequence)
+        {
+            _pending.RemoveAt(0);
+        }
+
+        var predicted = State.Position;
+        var baseState = StateAt(acknowledgedSequence) with { Position = serverPosition, Yaw = serverYaw };
+        var state = baseState;
+        foreach (var pending in _pending)
+        {
+            state = PlayerMovement.Step(state, pending.Input, PlayerMovement.StepSeconds, collision);
+        }
+
+        State = state;
+
+        // The correction is how far the replay moved the player from where it had predicted it would be. When the
+        // prediction was right this is zero, even though the Server's snapshot was several ticks behind.
+        LastCorrectionDistance = Vector3.Distance(predicted, state.Position);
+        MaxCorrectionDistance = MathF.Max(MaxCorrectionDistance, LastCorrectionDistance);
+        LastReplayedInputs = _pending.Count;
+        if (LastCorrectionDistance > 1e-4f)
+        {
+            ReconciliationCount++;
+        }
+    }
+
+    /// <summary>The state the client predicted after the given input, or the state it started from when that is older.</summary>
+    private PlayerMoveState StateAt(uint sequence)
+    {
+        var slot = sequence % HistoryCapacity;
+        return _historySequence[slot] == sequence ? _historyState[slot] : _initial;
     }
 }
 
@@ -110,6 +219,12 @@ public sealed class GameClient : ITickable
 
     public ReplicatedWorld World { get; } = new();
 
+    /// <summary>The local player, predicted from input and reconciled against the Server's snapshots.</summary>
+    public LocalPlayer Local { get; } = new();
+
+    /// <summary>Resolves the local player's moves. Defaults to a flat floor; the game passes a Jolt world.</summary>
+    public IPlayerCollision Collision { get; set; } = FlatFloorCollision.Instance;
+
     public long SnapshotsReceived { get; private set; }
 
     public CommandRejected? LastRejection { get; private set; }
@@ -121,8 +236,28 @@ public sealed class GameClient : ITickable
 
     public void Poll() => _transport.Poll(_handler);
 
+    /// <summary>
+    /// Predicts one fixed step from the player's input, sends it, and returns its sequence. The Server runs the same step,
+    /// so the next snapshot confirms the prediction instead of correcting it.
+    /// </summary>
+    public uint SendInput(in PlayerInput input)
+    {
+        var sequence = _nextCommand++;
+        Local.Predict(sequence, input, Collision);
+        SendWithSequence(sequence, new PlayerInputCommand(input));
+        return sequence;
+    }
+
     /// <summary>Sends a Domain command and returns its sequence, which a rejection names.</summary>
     public uint Send<TCommand>(in TCommand command)
+        where TCommand : INetCommand<TCommand>
+    {
+        var sequence = _nextCommand++;
+        SendWithSequence(sequence, command);
+        return sequence;
+    }
+
+    private void SendWithSequence<TCommand>(uint sequence, in TCommand command)
         where TCommand : INetCommand<TCommand>
     {
         if (State != ClientState.Joined)
@@ -130,14 +265,12 @@ public sealed class GameClient : ITickable
             throw new InvalidOperationException("Join before sending commands.");
         }
 
-        var sequence = _nextCommand++;
         _writer.Clear();
         _writer.WriteByte((byte)MessageType.Command);
         _writer.WriteUInt32(sequence);
         _writer.WriteUInt16(TCommand.CommandId);
         command.Write(_writer);
         _transport.Send(ConnectionId.Server, _writer.Written, Delivery.ReliableOrdered);
-        return sequence;
     }
 
     /// <summary>Sends raw bytes as a message, for tests that play a broken or hostile client.</summary>
@@ -165,6 +298,9 @@ public sealed class GameClient : ITickable
                     reader.ReadUInt64();
                     reader.ReadByte();
                     reader.ReadByte();
+                    var spawn = new Vector3(reader.ReadSingle(), reader.ReadSingle(), reader.ReadSingle());
+                    var yaw = reader.ReadSingle();
+                    Local.Reset(PlayerMoveState.At(spawn, yaw));
                     State = ClientState.Joined;
                     break;
                 case MessageType.JoinRefused when State == ClientState.Connecting:
@@ -180,6 +316,7 @@ public sealed class GameClient : ITickable
                     if (World.Apply(ref reader))
                     {
                         SnapshotsReceived++;
+                        Reconcile();
                         _writer.Clear();
                         _writer.WriteByte((byte)MessageType.SnapshotAck);
                         _writer.WriteUInt32(World.Sequence);
@@ -201,6 +338,21 @@ public sealed class GameClient : ITickable
         {
             State = ClientState.Disconnected;
         }
+    }
+
+    /// <summary>
+    /// Takes the Server's state for this client's own player and replays the inputs it has not confirmed yet. The Server
+    /// runs the same movement step, so a prediction that matched is confirmed and the local position does not move.
+    /// </summary>
+    private void Reconcile()
+    {
+        if (!World.TryGet(PlayerEntityId, out var entity))
+        {
+            return;
+        }
+
+        // The Server's snapshot is the truth for position and yaw; the rest of the state is the client's own.
+        Local.Reconcile(entity.Position, entity.Yaw, World.AckedInput, Collision);
     }
 
     private sealed class Handler(GameClient client) : ITransportHandler

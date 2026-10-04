@@ -17,7 +17,7 @@ public enum MessageType : byte
 public static class NetProtocol
 {
     /// <summary>Bump whenever any message layout changes, so old clients are refused instead of misreading.</summary>
-    public const ushort Version = 1;
+    public const ushort Version = 2;
 }
 
 /// <summary>Why the Server refused a join.</summary>

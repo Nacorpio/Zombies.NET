@@ -29,8 +29,17 @@ public sealed class PlayerSession
 
     public uint EntityId { get; internal set; }
 
+    /// <summary>The Server's authoritative movement state for this player, advanced one fixed step per input command.</summary>
+    public PlayerMoveState Movement { get; internal set; }
+
+    /// <summary>This player's character controller, created when they join.</summary>
+    public IPlayerCollision Collision { get; internal set; } = FlatFloorCollision.Instance;
+
     /// <summary>The newest snapshot the client said it decoded, or 0. Snapshots are deltas against it.</summary>
     public uint AckedSnapshot { get; internal set; }
+
+    /// <summary>The newest player input command the Server has processed, or 0. Snapshots carry it so the client can reconcile.</summary>
+    public uint AckedInput { get; internal set; }
 
     internal SnapshotHistory History { get; } = new();
 
@@ -71,11 +80,15 @@ public sealed class GameServer : ITickable
         Options = options;
         _handler = new Handler(this);
         Commands.Register<MovePlayer>(MovePlayer.Handle);
+        Commands.Register<PlayerInputCommand>(PlayerInputCommand.Handle);
     }
 
     public ServerOptions Options { get; }
 
     public ServerWorld World { get; } = new();
+
+    /// <summary>Resolves player moves against the world. Defaults to a flat floor; a Server with terrain passes a Jolt world.</summary>
+    public IPlayerCollisionSource Collision { get; set; } = FlatFloorCollision.Instance;
 
     public CommandRegistry Commands { get; } = new();
 
@@ -88,6 +101,23 @@ public sealed class GameServer : ITickable
     public long SnapshotBytesSent { get; private set; }
 
     public bool TryGetPlayer(ConnectionId connection, out PlayerSession session) => _sessions.TryGetValue(connection.Value, out session!);
+
+    /// <summary>
+    /// Moves a player without an input command, as a knock-back, a respawn, or an admin teleport would. The client sees the
+    /// new position in the next snapshot and reconciles to it.
+    /// </summary>
+    public bool Teleport(PlayerSession session, Vector3 position, float yaw)
+    {
+        ArgumentNullException.ThrowIfNull(session);
+        if (!World.TryGet(session.EntityId, out _))
+        {
+            return false;
+        }
+
+        session.Movement = session.Movement with { Position = position, Velocity = Vector3.Zero, Yaw = yaw };
+        World.Move(session.EntityId, position, yaw);
+        return true;
+    }
 
     public void Tick(long tick)
     {
@@ -121,7 +151,7 @@ public sealed class GameServer : ITickable
 
         // The baseline is the newest snapshot the client decoded, if it is still in history.
         var baseline = sequence - session.AckedSnapshot < SnapshotHistory.Capacity ? session.History.Find(session.AckedSnapshot) : null;
-        var frame = session.History.Begin(sequence, (ulong)_tick);
+        var frame = session.History.Begin(sequence, (ulong)_tick, session.AckedInput);
         var radius = Options.InterestRadiusChunks;
         int cx = player.ChunkX, cz = player.ChunkZ;
         foreach (ref readonly var entity in World.Entities)
@@ -205,6 +235,8 @@ public sealed class GameServer : ITickable
         session.IsJoined = true;
         session.Name = name;
         session.EntityId = World.Spawn(EntityKind.Player, Options.SpawnPoint, 0f);
+        session.Movement = PlayerMoveState.At(Options.SpawnPoint);
+        session.Collision = Collision.Create(Options.SpawnPoint, PlayerMovement.StandingHeight);
         PlayerCount++;
 
         _writer.WriteByte((byte)MessageType.JoinAccepted);
@@ -213,6 +245,10 @@ public sealed class GameServer : ITickable
         _writer.WriteUInt64((ulong)_tick);
         _writer.WriteByte(Simulation.TickRateHz);
         _writer.WriteByte((byte)Options.SnapshotRateHz);
+        _writer.WriteSingle(Options.SpawnPoint.X);
+        _writer.WriteSingle(Options.SpawnPoint.Y);
+        _writer.WriteSingle(Options.SpawnPoint.Z);
+        _writer.WriteSingle(0f);
         _transport.Send(session.Connection, _writer.Written, Delivery.ReliableOrdered);
     }
 
@@ -223,6 +259,11 @@ public sealed class GameServer : ITickable
         var result = Commands.Handle(commandId, ref reader, new CommandContext(this, session));
         if (result.IsAccepted)
         {
+            if (commandId == PlayerInputCommand.CommandId)
+            {
+                session.AckedInput = sequence;
+            }
+
             return;
         }
 

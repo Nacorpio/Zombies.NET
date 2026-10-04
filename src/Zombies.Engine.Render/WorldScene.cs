@@ -25,13 +25,20 @@ public sealed record ShadowSettings(int Cascades = 3, int Resolution = 2048, flo
     public bool Enabled => Cascades > 0;
 }
 
+/// <summary>One player body to draw this frame: where it stands and which way it faces.</summary>
+public sealed record BodyInstance(Vector3 Position, float Yaw, bool Crouched);
+
 /// <summary>Everything needed to draw the world for one frame.</summary>
 public sealed record WorldScene(
     Camera Camera,
     SunState Sun,
     IReadOnlyCollection<GpuChunk> Chunks,
     int ViewDistanceChunks,
-    ShadowSettings Shadows);
+    ShadowSettings Shadows)
+{
+    /// <summary>Remote players to draw as simple bodies. Empty when playing alone.</summary>
+    public IReadOnlyList<BodyInstance> Bodies { get; init; } = [];
+}
 
 /// <summary>The part of a graphics backend that holds chunk meshes. Uploading and releasing are cheap, and must happen on the render thread.</summary>
 public interface IWorldRenderer
@@ -41,4 +48,7 @@ public interface IWorldRenderer
 
     /// <summary>Gives a chunk's GPU memory back. It stays in use for a few frames, so a frame already being drawn is never disturbed.</summary>
     void ReleaseChunk(GpuChunk chunk);
+
+    /// <summary>Uploads the one body mesh every remote player is drawn with. Call once, before the first frame that draws bodies.</summary>
+    void SetBodyMesh(BodyMesh mesh);
 }

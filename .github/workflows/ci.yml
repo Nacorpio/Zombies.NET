@@ -35,5 +35,7 @@ jobs:
         run: dotnet run --project tools/SimHarness --configuration Release --no-build -- worldgen 12345 4 --budget-ms 12
       - name: SimHarness runs a Server with two fake clients
         run: dotnet run --project tools/SimHarness --configuration Release --no-build -- net 300 mods
+      - name: SimHarness drops a player onto terrain and steps up a ledge
+        run: dotnet run --project tools/SimHarness --configuration Release --no-build -- physics 12345 mods
       - name: Dedicated Server starts and ticks headless
         run: dotnet run --project src/Zombies.Server --configuration Release --no-build -- --port 0 --ticks 30

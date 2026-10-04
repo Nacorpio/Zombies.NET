@@ -74,7 +74,16 @@ public sealed unsafe partial class VulkanRenderer
     private Pipeline _terrainPipeline;
     private PipelineLayout _shadowLayout;
     private Pipeline _shadowPipeline;
+    private PipelineLayout _bodyLayout;
+    private Pipeline _bodyPipeline;
 
+    private Buffer _bodyVertexBuffer;
+    private DeviceMemory _bodyVertexMemory;
+    private nint _bodyVertexMapped;
+    private Buffer _bodyIndexBuffer;
+    private DeviceMemory _bodyIndexMemory;
+    private nint _bodyIndexMapped;
+    private int _bodyIndexCount;
     private long _frameCounter;
 
     /// <summary>Frames a released chunk's memory waits before reuse: past every frame that could still be reading it.</summary>
@@ -88,6 +97,34 @@ public sealed unsafe partial class VulkanRenderer
 
     /// <summary>Sections drawn in the last frame's main pass, after culling.</summary>
     public int VisibleSectionCount => _visible.Count;
+
+    /// <summary>Player bodies drawn in the last frame.</summary>
+    public int VisibleBodyCount { get; private set; }
+
+    /// <summary>
+    /// Uploads the one body mesh every remote player is drawn with. Call once, before the first frame that draws bodies.
+    /// </summary>
+    public void SetBodyMesh(BodyMesh mesh)
+    {
+        ArgumentNullException.ThrowIfNull(mesh);
+        if (_bodyVertexBuffer.Handle != 0)
+        {
+            _vk.UnmapMemory(_device, _bodyVertexMemory);
+            _vk.UnmapMemory(_device, _bodyIndexMemory);
+            _vk.DestroyBuffer(_device, _bodyVertexBuffer, null);
+            _vk.FreeMemory(_device, _bodyVertexMemory, null);
+            _vk.DestroyBuffer(_device, _bodyIndexBuffer, null);
+            _vk.FreeMemory(_device, _bodyIndexMemory, null);
+        }
+
+        var vertices = mesh.Vertices.Span;
+        var indices = mesh.Indices.Span;
+        CreateMappedBuffer((ulong)vertices.Length * (ulong)sizeof(BodyVertex), BufferUsageFlags.VertexBufferBit, out _bodyVertexBuffer, out _bodyVertexMemory, out _bodyVertexMapped);
+        CreateMappedBuffer((ulong)indices.Length * sizeof(uint), BufferUsageFlags.IndexBufferBit, out _bodyIndexBuffer, out _bodyIndexMemory, out _bodyIndexMapped);
+        vertices.CopyTo(new Span<BodyVertex>((void*)_bodyVertexMapped, vertices.Length));
+        indices.CopyTo(new Span<uint>((void*)_bodyIndexMapped, indices.Length));
+        _bodyIndexCount = indices.Length;
+    }
 
     private readonly record struct DrawItem(Vector4 Origin, int VertexStart, int IndexStart, int IndexCount);
 
@@ -288,6 +325,37 @@ public sealed unsafe partial class VulkanRenderer
             origin[3] = 0;
             _vk.CmdPushConstants(cmd, _terrainLayout, ShaderStageFlags.VertexBit, 0, 16, origin);
             _vk.CmdDrawIndexed(cmd, (uint)item.IndexCount, 1, (uint)item.IndexStart, item.VertexStart, 0);
+        }
+    }
+
+    /// <summary>Draws every remote player as the shared body mesh, one draw per body with its position and yaw pushed.</summary>
+    private void RecordBodies(CommandBuffer cmd, WorldFrame world)
+    {
+        VisibleBodyCount = 0;
+        if (_bodyIndexCount == 0 || world.Scene.Bodies.Count == 0)
+        {
+            return;
+        }
+
+        _vk.CmdBindPipeline(cmd, PipelineBindPoint.Graphics, _bodyPipeline);
+        var set = _worldSets[_frame];
+        _vk.CmdBindDescriptorSets(cmd, PipelineBindPoint.Graphics, _bodyLayout, 0, 1, &set, 0, null);
+
+        var vertexBuffer = _bodyVertexBuffer;
+        ulong offset = 0;
+        _vk.CmdBindVertexBuffers(cmd, 0, 1, &vertexBuffer, &offset);
+        _vk.CmdBindIndexBuffer(cmd, _bodyIndexBuffer, 0, IndexType.Uint32);
+
+        var push = stackalloc float[4];
+        foreach (var body in world.Scene.Bodies)
+        {
+            push[0] = body.Position.X;
+            push[1] = body.Position.Y;
+            push[2] = body.Position.Z;
+            push[3] = body.Yaw;
+            _vk.CmdPushConstants(cmd, _bodyLayout, ShaderStageFlags.VertexBit, 0, 16, push);
+            _vk.CmdDrawIndexed(cmd, (uint)_bodyIndexCount, 1, 0, 0, 0);
+            VisibleBodyCount++;
         }
     }
 
@@ -765,6 +833,77 @@ public sealed unsafe partial class VulkanRenderer
             Pipeline shadow;
             Check(_vk.CreateGraphicsPipelines(_device, default, 1, &shadowInfo, null, &shadow), "creating the shadow pipeline");
             _shadowPipeline = shadow;
+
+            // Body: position, normal, and colour, lit like the terrain and drawn after it.
+            var bodyVertex = CreateShader("body.vert.spv");
+            var bodyFragment = CreateShader("body.frag.spv");
+            try
+            {
+                var bodyBinding = new VertexInputBindingDescription { Binding = 0, Stride = (uint)sizeof(BodyVertex), InputRate = VertexInputRate.Vertex };
+                var bodyAttributes = stackalloc VertexInputAttributeDescription[3];
+                bodyAttributes[0] = new VertexInputAttributeDescription { Location = 0, Binding = 0, Format = Format.R32G32B32Sfloat, Offset = 0 };
+                bodyAttributes[1] = new VertexInputAttributeDescription { Location = 1, Binding = 0, Format = Format.R32G32B32Sfloat, Offset = 12 };
+                bodyAttributes[2] = new VertexInputAttributeDescription { Location = 2, Binding = 0, Format = Format.R8G8B8A8Uint, Offset = 24 };
+
+                var bodyInput = new PipelineVertexInputStateCreateInfo
+                {
+                    SType = StructureType.PipelineVertexInputStateCreateInfo,
+                    VertexBindingDescriptionCount = 1,
+                    PVertexBindingDescriptions = &bodyBinding,
+                    VertexAttributeDescriptionCount = 3,
+                    PVertexAttributeDescriptions = bodyAttributes,
+                };
+                var bodyRaster = new PipelineRasterizationStateCreateInfo
+                {
+                    SType = StructureType.PipelineRasterizationStateCreateInfo,
+                    PolygonMode = PolygonMode.Fill,
+                    CullMode = CullModeFlags.BackBit,
+                    FrontFace = FrontFace.CounterClockwise,
+                    LineWidth = 1,
+                };
+                var bodyStages = stackalloc PipelineShaderStageCreateInfo[2];
+                bodyStages[0] = new PipelineShaderStageCreateInfo { SType = StructureType.PipelineShaderStageCreateInfo, Stage = ShaderStageFlags.VertexBit, Module = bodyVertex, PName = entry };
+                bodyStages[1] = new PipelineShaderStageCreateInfo { SType = StructureType.PipelineShaderStageCreateInfo, Stage = ShaderStageFlags.FragmentBit, Module = bodyFragment, PName = entry };
+
+                var bodyPush = new PushConstantRange { StageFlags = ShaderStageFlags.VertexBit, Offset = 0, Size = 16 };
+                var bodyLayoutInfo = new PipelineLayoutCreateInfo
+                {
+                    SType = StructureType.PipelineLayoutCreateInfo,
+                    SetLayoutCount = 1,
+                    PSetLayouts = &setLayout,
+                    PushConstantRangeCount = 1,
+                    PPushConstantRanges = &bodyPush,
+                };
+                PipelineLayout bodyLayout;
+                Check(_vk.CreatePipelineLayout(_device, &bodyLayoutInfo, null, &bodyLayout), "creating the body pipeline layout");
+                _bodyLayout = bodyLayout;
+
+                var bodyInfo = new GraphicsPipelineCreateInfo
+                {
+                    SType = StructureType.GraphicsPipelineCreateInfo,
+                    StageCount = 2,
+                    PStages = bodyStages,
+                    PVertexInputState = &bodyInput,
+                    PInputAssemblyState = &inputAssembly,
+                    PViewportState = &viewportState,
+                    PRasterizationState = &bodyRaster,
+                    PMultisampleState = &multisample,
+                    PDepthStencilState = &depthTest,
+                    PColorBlendState = &terrainBlend,
+                    PDynamicState = &dynamic,
+                    Layout = _bodyLayout,
+                    RenderPass = _renderPass,
+                    Subpass = 0,
+                };
+                Pipeline body;
+                Check(_vk.CreateGraphicsPipelines(_device, default, 1, &bodyInfo, null, &body), "creating the body pipeline");
+                _bodyPipeline = body;
+            }
+            finally
+            {
+                _vk.DestroyShaderModule(_device, bodyVertex, null);
+                _vk.DestroyShaderModule(_device, bodyFragment, null);
+            }
         }
         finally
         {
@@ -781,8 +920,20 @@ public sealed unsafe partial class VulkanRenderer
         _vk.DestroyPipelineLayout(_device, _terrainLayout, null);
         _vk.DestroyPipeline(_device, _shadowPipeline, null);
         _vk.DestroyPipelineLayout(_device, _shadowLayout, null);
+        _vk.DestroyPipeline(_device, _bodyPipeline, null);
+        _vk.DestroyPipelineLayout(_device, _bodyLayout, null);
         _vk.DestroyDescriptorPool(_device, _worldDescriptorPool, null);
         _vk.DestroyDescriptorSetLayout(_device, _worldSetLayout, null);
+
+        if (_bodyVertexBuffer.Handle != 0)
+        {
+            _vk.UnmapMemory(_device, _bodyVertexMemory);
+            _vk.UnmapMemory(_device, _bodyIndexMemory);
+            _vk.DestroyBuffer(_device, _bodyVertexBuffer, null);
+            _vk.FreeMemory(_device, _bodyVertexMemory, null);
+            _vk.DestroyBuffer(_device, _bodyIndexBuffer, null);
+            _vk.FreeMemory(_device, _bodyIndexMemory, null);
+        }
 
         foreach (var framebuffer in _shadowFramebuffers)
         {

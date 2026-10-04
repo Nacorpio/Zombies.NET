@@ -3,6 +3,7 @@ using System.Globalization;
 using System.Numerics;
 using Zombies.Client;
 using Zombies.Engine.Core.Debugging;
+using Zombies.Engine.Net;
 using Zombies.Engine.Platform;
 using Zombies.Engine.Render;
 using Zombies.Engine.Render.Vulkan;
@@ -37,6 +38,12 @@ if (options.CameraPose is { } pose)
     camera.Position = new Vector3(pose[0], pose[1], pose[2]);
     camera.Yaw = pose[3] * MathF.PI / 180f;
     camera.Pitch = pose[4] * MathF.PI / 180f;
+}
+
+// The body mesh every remote player is drawn with. Built once; a body is a position and a yaw.
+if (world is not null)
+{
+    renderer.SetBodyMesh(PlayerBodyMesh.Build(PlayerBodyMesh.DefaultColors));
 }
 
 var clock = new DayClock(options.TimeOfDay, secondsPerDay: 24f * 60f) { Paused = options.FreezeTime };
@@ -133,7 +140,7 @@ while (!window.CloseRequested)
     {
         benchmark!.Advance(camera, seconds);
     }
-    else if (benchmark is null)
+    else if (benchmark is null && world is null)
     {
         FlyController.Update(camera, input, seconds, mouseCaptured);
     }
@@ -143,7 +150,21 @@ while (!window.CloseRequested)
     var updateMilliseconds = 0.0;
     if (world is not null)
     {
+        // The player's input drives the Server and the local prediction; the camera follows the predicted player.
+        if (benchmark is null)
+        {
+            if (mouseCaptured)
+            {
+                camera.Look(input.MouseDeltaX, input.MouseDeltaY);
+            }
+
+            var playerInput = PlayerController.Read(input, camera.Yaw, camera.Pitch, mouseCaptured);
+            world.Solo.Client.SendInput(playerInput);
+        }
+
         world.Solo.Advance(TimeSpan.FromSeconds(seconds));
+        world.StepPhysics(TimeSpan.FromSeconds(seconds));
+
         var updateStart = Stopwatch.GetTimestamp();
         if (!streamingFrozen)
         {
@@ -151,13 +172,23 @@ while (!window.CloseRequested)
             streamingFrozen = options.FreezeStreaming && world.Manager.PendingCount == 0 && world.Manager.LoadedCount > 0;
         }
 
+        world.SyncPhysicsTerrain();
         updateMilliseconds = Stopwatch.GetElapsedTime(updateStart).TotalMilliseconds;
+
+        if (benchmark is null)
+        {
+            PlayerController.ApplyToCamera(camera, world.Solo.Client.Local.State, world.Solo.Client.Local.Lean);
+        }
+
         scene = new WorldScene(
             camera,
             sun,
             world.Manager.Chunks,
             world.ViewDistance,
-            new ShadowSettings(options.ShadowCascades, options.ShadowResolution, Math.Min(150f, world.ViewDistance * 16f)));
+            new ShadowSettings(options.ShadowCascades, options.ShadowResolution, Math.Min(150f, world.ViewDistance * 16f)))
+        {
+            Bodies = RemoteBodies(world, options, camera),
+        };
     }
     else
     {
@@ -299,3 +330,28 @@ if (smoke is not null)
 }
 
 return options.ShotPath is not null && shotRequestedAt < 0 ? 1 : 0;
+
+/// <summary>The other players in the replicated world, as bodies to draw. The local player is left out; the camera is their body.</summary>
+static IReadOnlyList<BodyInstance> RemoteBodies(WorldSession world, ClientOptions options, Camera camera)
+{
+    var client = world.Solo.Client;
+    var bodies = new List<BodyInstance>();
+    foreach (ref readonly var entity in client.World.Entities)
+    {
+        if (entity.Id != client.PlayerEntityId && entity.Kind == EntityKind.Player)
+        {
+            bodies.Add(new BodyInstance(entity.Position, entity.Yaw, false));
+        }
+    }
+
+    // Diagnostic: stand-in bodies in front of the camera, so the body render path can be checked without a second player.
+    for (var i = 0; i < options.DummyBodies; i++)
+    {
+        var forward = new Vector3(MathF.Sin(camera.Yaw), 0, -MathF.Cos(camera.Yaw));
+        var right = new Vector3(MathF.Cos(camera.Yaw), 0, MathF.Sin(camera.Yaw));
+        var feet = camera.Position with { Y = camera.Position.Y - PlayerMovement.EyeHeight };
+        bodies.Add(new BodyInstance(feet + (forward * 4f) + (right * ((i - (options.DummyBodies / 2f)) * 1.2f)), camera.Yaw + MathF.PI, false));
+    }
+
+    return bodies;
+}

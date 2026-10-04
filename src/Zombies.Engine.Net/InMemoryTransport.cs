@@ -18,6 +18,12 @@ public sealed class InMemoryNetwork
     /// <summary>When above zero, every Nth unreliable message is dropped, to test that snapshots survive loss.</summary>
     public int DropEveryNthUnreliable { get; set; }
 
+    /// <summary>
+    /// When above zero, every message is held for this many polls before it is delivered, so a test can play at a
+    /// simulated latency. One poll is one simulation tick, so 5 is about 150 ms at 30 Hz.
+    /// </summary>
+    public int LatencyPolls { get; set; }
+
     public ITransport CreateServer()
     {
         if (_server is not null)
@@ -82,6 +88,8 @@ public sealed class InMemoryNetwork
     private sealed class Endpoint(InMemoryNetwork network, ConnectionId id, bool isServer) : ITransport
     {
         private readonly Queue<Envelope> _inbox = new(64);
+        private readonly Queue<(long DueAt, Envelope Envelope)> _delayed = new();
+        private long _polls;
 
         public ConnectionId Id { get; } = id;
 
@@ -91,12 +99,25 @@ public sealed class InMemoryNetwork
         {
             var buffer = payload.IsEmpty ? [] : ArrayPool<byte>.Shared.Rent(payload.Length);
             payload.CopyTo(buffer);
-            _inbox.Enqueue(new Envelope(kind, from, buffer, payload.Length, delivery));
+            var envelope = new Envelope(kind, from, buffer, payload.Length, delivery);
+            if (network.LatencyPolls > 0)
+            {
+                _delayed.Enqueue((_polls + network.LatencyPolls, envelope));
+            }
+            else
+            {
+                _inbox.Enqueue(envelope);
+            }
         }
 
         public void Poll(ITransportHandler handler)
         {
             ArgumentNullException.ThrowIfNull(handler);
+            _polls++;
+            while (_delayed.Count > 0 && _delayed.Peek().DueAt <= _polls)
+            {
+                _inbox.Enqueue(_delayed.Dequeue().Envelope);
+            }
 
             // Only what is queued now: messages sent while handling arrive at the next poll, like a real network.
             for (var count = _inbox.Count; count > 0 && _inbox.TryDequeue(out var envelope); count--)

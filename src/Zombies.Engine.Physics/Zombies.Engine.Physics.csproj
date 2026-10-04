@@ -1,7 +1,13 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <ItemGroup>
+    <PackageReference Include="JoltPhysicsSharp" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="../Zombies.Engine.Core/Zombies.Engine.Core.csproj" />
+    <ProjectReference Include="../Zombies.Engine.Net/Zombies.Engine.Net.csproj" />
+    <ProjectReference Include="../Zombies.Engine.Voxel/Zombies.Engine.Voxel.csproj" />
   </ItemGroup>
 
 </Project>

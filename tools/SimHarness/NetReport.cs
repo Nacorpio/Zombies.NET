@@ -1,5 +1,4 @@
 using System.Globalization;
-using System.Numerics;
 using Zombies.Domain.Mods;
 using Zombies.Engine.Core;
 using Zombies.Engine.Core.Modding;
@@ -30,7 +29,7 @@ internal static class NetReport
         using var bobTransport = network.Connect();
         var alice = new GameClient(aliceTransport, identity, "alice");
         var bob = new GameClient(bobTransport, identity, "bob");
-        var simulation = new Simulation(new Walker(alice, server.Options.SpawnPoint), server, alice, bob);
+        var simulation = new Simulation(new Walker(alice), server, alice, bob);
 
         var allocated = AllocationProbe.MeasureSteadyState(simulation, warmupTicks: 60, ticks: ticks);
         simulation.Run(3);
@@ -53,9 +52,20 @@ internal static class NetReport
             failures.Add($"the steady-state tick allocated {allocated} bytes");
         }
 
+        // The client predicts the same movement the Server runs, so its own player matches the Server exactly.
+        if (server.World.TryGet(alice.PlayerEntityId, out var truth) && truth.Position != alice.Local.State.Position)
+        {
+            failures.Add($"the client predicted {alice.Local.State.Position} but the Server has {truth.Position}");
+        }
+
+        if (alice.Local.ReconciliationCount != 0)
+        {
+            failures.Add($"the prediction needed {alice.Local.ReconciliationCount} corrections");
+        }
+
         Console.WriteLine(string.Create(
             CultureInfo.InvariantCulture,
-            $"SimHarness net: {server.PlayerCount} players, {server.World.Count} entities, {server.SnapshotsSent} snapshots averaging {server.SnapshotBytesSent / Math.Max(1, server.SnapshotsSent)} bytes over {simulation.CurrentTick} ticks, steady-state allocation {allocated} bytes"));
+            $"SimHarness net: {server.PlayerCount} players, {server.World.Count} entities, {server.SnapshotsSent} snapshots averaging {server.SnapshotBytesSent / Math.Max(1, server.SnapshotsSent)} bytes over {simulation.CurrentTick} ticks, steady-state allocation {allocated} bytes, prediction corrections {alice.Local.ReconciliationCount}"));
         foreach (var failure in failures)
         {
             Console.Error.WriteLine($"SimHarness net FAILED: {failure}");
@@ -64,16 +74,14 @@ internal static class NetReport
         return failures.Count == 0 ? 0 : 1;
     }
 
-    private sealed class Walker(GameClient client, Vector3 start) : ITickable
+    private sealed class Walker(GameClient client) : ITickable
     {
-        private Vector3 _position = start;
-
         public void Tick(long tick)
         {
             if (client.State == ClientState.Joined)
             {
-                _position += new Vector3(0.15f, 0, 0.05f);
-                client.Send(new MovePlayer(_position, tick * 0.02f));
+                // Walk forward and turn slowly, so the harness exercises prediction and reconciliation, not just replication.
+                client.SendInput(new PlayerInput(1f, 0f, tick * 0.01f, 0f, false, false, false, false, false));
             }
         }
     }

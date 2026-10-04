@@ -126,6 +126,24 @@ _Avoid_: Zombie data, blueprint
 A weighted definition of what clothing, headwear, and backpacks a zombie type can spawn wearing.
 _Avoid_: Loadout
 
+## Creatures and Status Effects
+
+**Creature**:
+Anything alive in the world that has a body: a player, a zombie, an animal, or an NPC.
+_Avoid_: Entity, actor, mob
+
+**Status effect**:
+A lasting state on a creature, such as infection or a painkiller, that runs for a duration, may progress through stages, and may apply modifiers or periodic changes until it ends or is cured.
+_Avoid_: Buff, debuff, condition, ailment, status
+
+**Animal**:
+A non-hostile or predatory wild creature defined by a type, a behavior archetype, and the habitats it lives in.
+_Avoid_: Wildlife, critter, fauna
+
+**Habitat**:
+A kind of living environment, named by a tag on a biome, that decides which animals may spawn there.
+_Avoid_: Biome (a habitat is a tag, not the whole biome), ecosystem
+
 ## Survival and Skills
 
 **Need**:
@@ -141,8 +159,8 @@ An upgrade bought with points earned from a skill level, found in that skill's p
 _Avoid_: Talent, trait
 
 **Modifier**:
-A JSON-defined change to a stat, recipe availability, or interaction, granted by a perk, item, or condition.
-_Avoid_: Buff, effect
+A JSON-defined change to a stat, recipe availability, or interaction, granted by a perk, an attachment, or a status effect, and removed when its source is removed.
+_Avoid_: Buff, bonus, boost
 
 ## World
 
@@ -163,8 +181,20 @@ A prefab voxel construction stamped into the world during generation.
 _Avoid_: Building, prefab
 
 **Settlement**:
-A generated cluster of structures with a faction, population, and trade stock.
+A generated cluster of structures with a faction, population, and trade stock, or an abandoned one with none.
 _Avoid_: Town, base
+
+**Settlement type**:
+A JSON definition of a kind of settlement: its structures, area types, zombie spawns, danger range, rarity, and whether it is inhabited or abandoned.
+_Avoid_: Settlement template, preset
+
+**Area**:
+A room or labelled part of a structure, with an area type that decides what its containers hold.
+_Avoid_: Zone, room, region
+
+**Area type**:
+A JSON definition, such as kitchen or armory, that maps container kinds to loot tables, optionally shifted by danger level.
+_Avoid_: Room type, zone type
 
 **Danger level**:
 How hostile a region is, which scales the level of zombies spawned there.

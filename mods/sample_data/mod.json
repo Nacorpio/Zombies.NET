@@ -1,0 +1,9 @@
+{
+  "id": "sample_data",
+  "name": "Sample Data Mod",
+  "version": "1.0.0",
+  "side": "both",
+  "dependencies": [
+    { "id": "base", "minVersion": "0.1.0" }
+  ]
+}

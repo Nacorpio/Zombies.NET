@@ -1,0 +1,8 @@
+{
+  "id": "base:loot/medical",
+  "rolls": { "min": 1, "max": 2 },
+  "entries": [
+    { "item": "base:item/bandage", "weight": 10, "count": { "min": 1, "max": 4 } },
+    { "item": "base:item/water_bottle", "weight": 2 }
+  ]
+}

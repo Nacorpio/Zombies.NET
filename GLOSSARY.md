@@ -46,6 +46,20 @@ _Avoid_: Bag, storage, slot
 Properties of an item that change through use: wetness, blood, condition.
 _Avoid_: Damage, dirtiness
 
+## Loot
+
+**Loot table**:
+A weighted set of entries that is rolled a random number of times to decide what a place contains.
+_Avoid_: Drop table, spawn table
+
+**Loot entry**:
+One item a loot table can produce, with a weight and a count range.
+_Avoid_: Drop, slot
+
+**Seed**:
+The number that makes a roll repeatable: the same table and seed always produce the same loot.
+_Avoid_: Random state, salt
+
 ## Clothing and Armor
 
 **Layer**:

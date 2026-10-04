@@ -1,0 +1,17 @@
+using Zombies.Domain.Crafting;
+using Zombies.Domain.Items;
+
+namespace Zombies.Engine.Core.Modding;
+
+/// <summary>
+/// The definition kinds the game knows, mapped to the C# type that describes each.
+/// This is the one place that sees every context, so contexts stay independent of each other.
+/// </summary>
+public static class BaseDefinitionKinds
+{
+    public static IReadOnlyDictionary<string, Type> All { get; } = new Dictionary<string, Type>
+    {
+        ["item"] = typeof(ItemDefinitionDto),
+        ["loot"] = typeof(LootTableDto),
+    };
+}

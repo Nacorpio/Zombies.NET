@@ -1,6 +1,5 @@
 using System.Globalization;
 using System.Text.Json;
-using System.Text.Json.Serialization;
 using UnitsNet;
 
 namespace Zombies.Domain.Items;
@@ -29,13 +28,6 @@ public sealed record ItemDefinitionDto
 /// <summary>Parses an Item definition from JSON.</summary>
 public static class ItemDefinitionJson
 {
-    public static readonly JsonSerializerOptions SerializerOptions = new(JsonSerializerDefaults.Web)
-    {
-        NumberHandling = JsonNumberHandling.Strict,
-        RespectNullableAnnotations = true,
-        RespectRequiredConstructorParameters = true,
-    };
-
     public static ItemDefinition Parse(string json)
     {
         ArgumentNullException.ThrowIfNull(json);
@@ -43,7 +35,7 @@ public static class ItemDefinitionJson
         ItemDefinitionDto? dto;
         try
         {
-            dto = JsonSerializer.Deserialize<ItemDefinitionDto>(json, SerializerOptions);
+            dto = JsonSerializer.Deserialize<ItemDefinitionDto>(json, DefinitionJson.Options);
         }
         catch (JsonException ex)
         {

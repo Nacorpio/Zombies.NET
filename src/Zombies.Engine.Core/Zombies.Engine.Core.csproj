@@ -2,6 +2,7 @@
 
   <ItemGroup>
     <ProjectReference Include="../Zombies.Domain.Mods/Zombies.Domain.Mods.csproj" />
+    <ProjectReference Include="../Zombies.Domain.Crafting/Zombies.Domain.Crafting.csproj" />
   </ItemGroup>
 
 </Project>

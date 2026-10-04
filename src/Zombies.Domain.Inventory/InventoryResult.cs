@@ -16,6 +16,10 @@ public enum InventoryError
     SameStack,
     SameContainer,
     DuplicateContainer,
+    NotWearable,
+    LayerOccupied,
+    NotWorn,
+    InvalidWearState,
 }
 
 /// <summary>Outcome of a Domain command: either an error with no state change, or the events raised.</summary>

@@ -1,4 +1,5 @@
 using System.Globalization;
+using Zombies.Engine.Core.Debugging;
 using Zombies.Engine.Platform;
 using Zombies.Engine.Render;
 
@@ -51,6 +52,8 @@ internal sealed class ClientOptions
     public string? ModsDirectory { get; private set; }
 
     public ulong Seed { get; private set; } = 12345;
+
+    public string? SessionPath { get; private set; }
 
     public static ClientOptions Parse(string[] args)
     {
@@ -131,6 +134,9 @@ internal sealed class ClientOptions
                 case "--seed":
                     options.Seed = ulong.Parse(next(), CultureInfo.InvariantCulture);
                     break;
+                case "--session":
+                    options.SessionPath = next();
+                    break;
                 default:
                     throw new ArgumentException($"Unknown argument '{args[i]}'.");
             }
@@ -163,6 +169,17 @@ internal static class DemoScene
         sprites.DrawText(".:-/%(),+=_|", 40, 164, 2, new Rgba(160, 220, 255));
         sprites.DrawText("SCALE 1 TEXT FOR SMALL LABELS", 40, 350, 1, new Rgba(200, 200, 200));
         sprites.DrawText("SCALE 4", 40, 370, 4, new Rgba(255, 200, 80));
+
+        // Every built-in icon at 3x with its name, to check the art by eye.
+        for (var i = 0; i < Icons.Count; i++)
+        {
+            var column = i % 8;
+            var row = i / 8;
+            var cellX = 40 + (column * 96);
+            var cellY = 420 + (row * 84);
+            sprites.DrawIcon(Icons.Names[i], cellX, cellY, 3, Rgba.White);
+            sprites.DrawText(Icons.Names[i], cellX, cellY + 52, 1, new Rgba(170, 200, 230));
+        }
 
         // A box that moves, so a live run shows the frame loop is running.
         var x = 40 + (frame * 3 % Math.Max(1, width - 120));
@@ -304,5 +321,36 @@ internal sealed class SmokeScript(SdlWindow window)
 
         Console.WriteLine(problems.Count == 0 ? "SMOKE OK" : "SMOKE FAILED");
         return problems.Count == 0 ? 0 : 1;
+    }
+}
+
+/// <summary>Lets a smoke run say what it is and where it is, so a human watching the window knows why it is flickering.</summary>
+internal static class SmokeSession
+{
+    private static readonly string[] StepTitles = ["Input events", "Resize window", "Minimize and restore", "Capture frame"];
+    private static readonly int[] StepStarts = [0, 30, 60, 90];
+
+    public static SessionState Describe(SmokeScript? smoke, int frame)
+    {
+        if (smoke is null)
+        {
+            return SessionState.None;
+        }
+
+        var current = StepStarts.Count(start => frame >= start) - 1;
+        var steps = StepTitles
+            .Select((title, i) => new SessionStep(title, i < current ? StepState.Done : i == current ? StepState.Running : StepState.Pending))
+            .ToList();
+        return new SessionState(
+            new DebugSession
+            {
+                Title = "Smoke check",
+                Reason = "Proves the window and renderer survive resize, minimize, and restore. The game closes by itself when done.",
+                StartedBy = "--smoke",
+                Steps = steps,
+                Facts = [new SessionFact("Frame", frame.ToString(System.Globalization.CultureInfo.InvariantCulture))],
+            },
+            null,
+            0);
     }
 }

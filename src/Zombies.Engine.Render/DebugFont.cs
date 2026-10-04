@@ -75,14 +75,20 @@ public static class DebugFont
         ["  #  ", "  #  ", "  #  ", "  #  ", "  #  ", "  #  ", "  #  "], // |
     ];
 
-    public static int AtlasWidth => CellsPerRow * CellSize;
+    /// <summary>Width and height of the whole shared atlas, which holds the icons below the font. See <see cref="UiAtlas"/>.</summary>
+    public static int AtlasWidth => UiAtlas.Width;
 
-    public static int AtlasHeight => (((Glyphs.Length + 1) + CellsPerRow - 1) / CellsPerRow) * CellSize;
+    public static int AtlasHeight => UiAtlas.Height;
 
-    /// <summary>The atlas as one byte per pixel: 255 where a glyph pixel is lit, 0 elsewhere.</summary>
-    public static byte[] CreateAtlas()
+    /// <summary>Rows of 8-pixel cells the font itself occupies at the top of the atlas.</summary>
+    internal static int FontRows => ((Glyphs.Length + 1) + CellsPerRow - 1) / CellsPerRow;
+
+    /// <summary>The whole atlas as one byte per pixel: 255 where a pixel is lit, 0 elsewhere.</summary>
+    public static byte[] CreateAtlas() => UiAtlas.CreatePixels();
+
+    /// <summary>Draws the glyph cells and the solid cell into an atlas that is <paramref name="atlasWidth"/> wide.</summary>
+    internal static void DrawInto(byte[] atlas, int atlasWidth)
     {
-        var atlas = new byte[AtlasWidth * AtlasHeight];
         for (var glyph = 0; glyph < Glyphs.Length; glyph++)
         {
             var originX = (glyph % CellsPerRow) * CellSize;
@@ -93,7 +99,7 @@ public static class DebugFont
                 {
                     if (Glyphs[glyph][row][column] == '#')
                     {
-                        atlas[((originY + row) * AtlasWidth) + originX + column] = 255;
+                        atlas[((originY + row) * atlasWidth) + originX + column] = 255;
                     }
                 }
             }
@@ -106,11 +112,9 @@ public static class DebugFont
         {
             for (var x = 0; x < CellSize; x++)
             {
-                atlas[((whiteY + y) * AtlasWidth) + whiteX + x] = 255;
+                atlas[((whiteY + y) * atlasWidth) + whiteX + x] = 255;
             }
         }
-
-        return atlas;
     }
 
     /// <summary>UV rectangle of a character's drawn area (glyph plus its spacing column and row). Unknown characters come back as a space.</summary>

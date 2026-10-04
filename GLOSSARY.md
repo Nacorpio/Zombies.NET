@@ -239,9 +239,31 @@ The authoritative simulation. Always present, embedded in-process for solo play.
 _Avoid_: Host
 
 **Domain command**:
-A validated request from a client to change game state, such as moving an item or crafting.
-_Avoid_: Action, request
+A validated request from a client to change game state, such as moving an item or crafting. An item action is what the player picks; the domain command is what it sends.
+_Avoid_: Request, order
 
 **Cosmetic event**:
 A server event that clients turn into visuals and sound only, such as blood splatter or a ragdoll.
 _Avoid_: Effect
+
+## Interface and Tooling
+
+**Icon**:
+A small named pixel image, 16 by 16, used in menus, badges, and the HUD.
+_Avoid_: Glyph, sprite, symbol
+
+**Context menu**:
+A short list of entries for the one thing the player pointed at, opened with the secondary button.
+_Avoid_: Right-click menu, popup, dropdown
+
+**Item action**:
+Something a player can do with a stack, defined as data with the conditions under which it applies, such as use, equip, drop, or split. Choosing one sends a domain command.
+_Avoid_: Verb, option, menu item
+
+**Debug session**:
+A run of the game started to inspect, test, or demonstrate something, described by why it exists and optionally a duration, steps, and key facts.
+_Avoid_: Test run, automation run, agent session
+
+**Session badge**:
+The small panel in the top-right corner that tells a viewer about the current debug session. Compact by default, expanded on request.
+_Avoid_: Banner, watermark, HUD

@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Globalization;
 using System.Numerics;
 using Zombies.Client;
+using Zombies.Engine.Core.Debugging;
 using Zombies.Engine.Platform;
 using Zombies.Engine.Render;
 using Zombies.Engine.Render.Vulkan;
@@ -17,6 +18,7 @@ using Zombies.Engine.Render.Vulkan;
 //   --frames N        quit after N frames                       --capture f.png   save the last frame
 //   --shot f.png      load the world, wait until it settles, save a picture, quit
 //   --bench           fly a fixed path at 1080p and report frame times; exit code 1 if over --budget-ms (default 16.6)
+//   --session F       show a debug session badge (top right) that follows the JSON file F; F4 pins it open, hovering opens it
 //   --smoke           scripted resize / minimize / restore / input check; exit code 0 means it all worked
 // Interactive: WASD fly, Space and Ctrl up and down, Shift fast, Tab mouse look, F1 overlay, F2 pause time, F3 day speed, Left/Right arrows change time.
 var options = ClientOptions.Parse(args);
@@ -48,6 +50,8 @@ var mouseCaptured = false;
 
 var clockStart = Stopwatch.GetTimestamp();
 var runStart = clockStart;
+var sessionSource = options.SessionPath is { } sessionPath ? new FileSessionSource(sessionPath) : null;
+var badge = new SessionBadgeController();
 var frame = 0;
 var rendered = 0;
 var skipped = 0;
@@ -176,6 +180,14 @@ while (!window.CloseRequested)
             sprites.FillRect(8, renderer.Height - 32, 1130, 24, new Rgba(0, 0, 0, 150));
             sprites.DrawText("WASD FLY  SPACE/CTRL UP/DOWN  SHIFT FAST  TAB MOUSE  F1 HUD  F2 TIME  F3 SPEED  ARROWS TIME", 16, renderer.Height - 24, 2, new Rgba(200, 200, 200, 200));
         }
+    }
+
+    var elapsedSeconds = Stopwatch.GetElapsedTime(runStart).TotalSeconds;
+    var sessionState = sessionSource?.Poll(elapsedSeconds) ?? SmokeSession.Describe(smoke, frame);
+    var badgeLayout = badge.Update(sessionState, elapsedSeconds, DateTimeOffset.UtcNow, input.MouseX, input.MouseY, input.WasPressed(Key.F4), renderer.Width, renderer.Height);
+    if (badgeLayout is not null)
+    {
+        SessionBadge.Draw(sprites, badgeLayout);
     }
 
     // Shot mode: wait until every wanted chunk is on the GPU, let a few frames pass, then take one picture and stop.

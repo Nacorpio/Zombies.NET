@@ -80,6 +80,8 @@ internal sealed class SmokeScript(SdlWindow window)
     private int _restoredAt = -1;
     private bool _sawMinimized;
     private bool _sawResize;
+    private bool _keyDownArrived;
+    private bool _keyUpArrived;
 
     public bool Finished { get; private set; }
 
@@ -87,6 +89,27 @@ internal sealed class SmokeScript(SdlWindow window)
 
     public void Step(int frame)
     {
+        // Push a real SDL key event and check it arrives in the input state one pump later.
+        if (frame == 5)
+        {
+            SdlWindow.PushKeyEvent(Key.W, down: true);
+        }
+
+        if (frame == 6)
+        {
+            _keyDownArrived = window.Input.IsDown(Key.W) && window.Input.WasPressed(Key.W);
+        }
+
+        if (frame == 8)
+        {
+            SdlWindow.PushKeyEvent(Key.W, down: false);
+        }
+
+        if (frame == 9)
+        {
+            _keyUpArrived = !window.Input.IsDown(Key.W) && window.Input.WasReleased(Key.W);
+        }
+
         if (frame == ResizeAt)
         {
             window.SetSize(800, 600);
@@ -144,6 +167,16 @@ internal sealed class SmokeScript(SdlWindow window)
         if (_restoredAt < 0)
         {
             problems.Add("never saw the restore event");
+        }
+
+        if (!_keyDownArrived)
+        {
+            problems.Add("a pushed key-down event never reached the input state");
+        }
+
+        if (!_keyUpArrived)
+        {
+            problems.Add("a pushed key-up event never reached the input state");
         }
 
         if (rendered < 90)

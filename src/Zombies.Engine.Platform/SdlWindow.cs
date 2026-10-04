@@ -99,6 +99,19 @@ public sealed unsafe class SdlWindow : IDisposable
         }
     }
 
+    /// <summary>Queues a keyboard event through SDL itself, as if the key were pressed, so tests can prove the real event path works.</summary>
+    public static void PushKeyEvent(Key key, bool down)
+    {
+        SDL_Event e = default;
+        e.type = (uint)(down ? SDL_EventType.SDL_EVENT_KEY_DOWN : SDL_EventType.SDL_EVENT_KEY_UP);
+        e.key.scancode = (SDL_Scancode)(int)key;
+        e.key.down = down;
+        if (!SDL3.SDL_PushEvent(&e))
+        {
+            throw new InvalidOperationException($"SDL could not queue an event: {SDL3.SDL_GetError()}");
+        }
+    }
+
     public void SetTitle(string title) => SDL3.SDL_SetWindowTitle(_window, title);
 
     public void SetSize(int width, int height) => SDL3.SDL_SetWindowSize(_window, width, height);

@@ -56,3 +56,25 @@ public sealed class SimulationTests
         Assert.True(allocated > 0, "probe must fail a tick that allocates");
     }
 }
+
+public sealed class FixedStepClockTests
+{
+    [Fact]
+    public void Advance_RunsOneTickPerThirtiethOfASecond_AndCarriesTheRest()
+    {
+        var clock = new FixedStepClock();
+
+        Assert.Equal(0, clock.Advance(TimeSpan.FromMilliseconds(20)));
+        Assert.Equal(1, clock.Advance(TimeSpan.FromMilliseconds(20)));
+        Assert.Equal(30, Enumerable.Range(0, 60).Sum(_ => clock.Advance(TimeSpan.FromSeconds(1.0 / 60))));
+    }
+
+    [Fact]
+    public void Advance_AfterAStall_RunsAtMostACappedNumberOfTicks()
+    {
+        var clock = new FixedStepClock();
+
+        Assert.Equal(FixedStepClock.MaxTicksPerAdvance, clock.Advance(TimeSpan.FromSeconds(3)));
+        Assert.Equal(TimeSpan.Zero, clock.Carry);
+    }
+}

@@ -62,7 +62,7 @@ public static class ModLoader
             return Failed(errors);
         }
 
-        var loaded = order.Select((id, i) => new LoadedMod(mods[id].Manifest, i)).ToList();
+        var loaded = order.Select((id, i) => new LoadedMod(mods[id].Manifest, i, mods[id].Package.ComputeContentHash())).ToList();
         var definitions = registry.Select(e => new Definition(e.Key, e.Value.Json.ToJsonString(), e.Value.DefinedBy, e.Value.ModifiedBy));
         return new ModLoadResult(loaded, new DefinitionRegistry(definitions), []);
     }

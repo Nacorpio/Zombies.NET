@@ -242,6 +242,18 @@ _Avoid_: Host
 A validated request from a client to change game state, such as moving an item or crafting. An item action is what the player picks; the domain command is what it sends.
 _Avoid_: Request, order
 
+**Join**:
+A client's request to play on a Server, refused unless its protocol version, world generator version, and every mod's version and content hash match the Server's.
+_Avoid_: Login, handshake
+
+**Snapshot**:
+The state of the entities near one client's player at one tick, sent as a change list against the last snapshot the client acknowledged.
+_Avoid_: Update, sync, world state
+
+**Interest radius**:
+How many chunks around a client's player the Server replicates to that client.
+_Avoid_: Relevancy, view distance
+
 **Cosmetic event**:
 A server event that clients turn into visuals and sound only, such as blood splatter or a ragdoll.
 _Avoid_: Effect

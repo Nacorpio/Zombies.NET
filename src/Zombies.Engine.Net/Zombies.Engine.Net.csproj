@@ -1,6 +1,10 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <ItemGroup>
+    <PackageReference Include="LiteNetLib" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="../Zombies.Engine.Core/Zombies.Engine.Core.csproj" />
   </ItemGroup>
 

@@ -7,6 +7,7 @@ using Zombies.Engine.Core.Modding;
 //   dotnet run --project tools/SimHarness mods <dir>    load every mod in <dir> and list what loaded
 //   dotnet run --project tools/SimHarness schemas <dir> write JSON Schema files for definitions into <dir>
 //   dotnet run --project tools/SimHarness worldgen [seed] [radius] [--budget-ms N]   generate, light, and mesh a patch of world and time it
+//   dotnet run --project tools/SimHarness net [ticks] [mods]   run a Server with two fake clients and check replication and allocation
 if (args.Length > 0 && args[0] == "mods")
 {
     return LoadMods(args.Length > 1 ? args[1] : "mods");
@@ -15,6 +16,11 @@ if (args.Length > 0 && args[0] == "mods")
 if (args.Length > 0 && args[0] == "schemas")
 {
     return WriteSchemas(args.Length > 1 ? args[1] : "schemas");
+}
+
+if (args.Length > 0 && args[0] == "net")
+{
+    return NetReport.Run(args[1..]);
 }
 
 if (args.Length > 0 && args[0] == "worldgen")

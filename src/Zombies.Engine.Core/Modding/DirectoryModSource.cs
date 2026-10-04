@@ -44,4 +44,22 @@ public static class DirectoryModSource
 
         return packages;
     }
+
+    /// <summary>Finds the <c>mods</c> folder by walking up from <paramref name="start"/>, so it works from the repository and from a published build.</summary>
+    public static string Find(string start)
+    {
+        var directory = new DirectoryInfo(start);
+        while (directory is not null)
+        {
+            var candidate = Path.Combine(directory.FullName, "mods");
+            if (Directory.Exists(candidate))
+            {
+                return candidate;
+            }
+
+            directory = directory.Parent;
+        }
+
+        throw new DirectoryNotFoundException("Could not find a 'mods' folder. Pass one with --mods.");
+    }
 }

@@ -176,6 +176,10 @@ _Avoid_: Ability, attribute
 An upgrade bought with points earned from a skill level, found in that skill's perk tree.
 _Avoid_: Talent, trait
 
+**Stat**:
+A named number on a weapon, creature, or tool, such as recoil or move speed, whose effective value is its base value changed by the Modifiers on it. Needs are not Stats.
+_Avoid_: Attribute, property
+
 **Modifier**:
 A JSON-defined change to a stat, recipe availability, or interaction, granted by a perk, an attachment, or a status effect, and removed when its source is removed.
 _Avoid_: Buff, bonus, boost
@@ -245,6 +249,18 @@ _Avoid_: Host
 **Domain command**:
 A validated request from a client to change game state, such as moving an item or crafting. An item action is what the player picks; the domain command is what it sends.
 _Avoid_: Request, order
+
+**Join**:
+A client's request to play on a Server, refused unless its protocol version, world generator version, and every mod's version and content hash match the Server's.
+_Avoid_: Login, handshake
+
+**Snapshot**:
+The state of the entities near one client's player at one tick, sent as a change list against the last snapshot the client acknowledged.
+_Avoid_: Update, sync, world state
+
+**Interest radius**:
+How many chunks around a client's player the Server replicates to that client.
+_Avoid_: Relevancy, view distance
 
 **Cosmetic event**:
 A server event that clients turn into visuals and sound only, such as blood splatter or a ragdoll.

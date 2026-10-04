@@ -143,6 +143,7 @@ while (!window.CloseRequested)
     var updateMilliseconds = 0.0;
     if (world is not null)
     {
+        world.Solo.Advance(TimeSpan.FromSeconds(seconds));
         var updateStart = Stopwatch.GetTimestamp();
         if (!streamingFrozen)
         {

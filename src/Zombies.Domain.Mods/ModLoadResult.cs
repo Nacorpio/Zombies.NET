@@ -23,7 +23,8 @@ public sealed record ModLoadError(ModLoadErrorKind Kind, string ModId, string? F
     public override string ToString() => File is null ? $"[{Kind}] {ModId}: {Message}" : $"[{Kind}] {ModId} ({File}): {Message}";
 }
 
-public sealed record LoadedMod(ModManifest Manifest, int Order);
+/// <summary>A mod that loaded, its place in load order, and the <see cref="ModPackage.ComputeContentHash"/> of what it shipped.</summary>
+public sealed record LoadedMod(ModManifest Manifest, int Order, string ContentHash);
 
 /// <summary>
 /// All-or-nothing outcome of loading a mod set. On any error nothing loads: <see cref="Registry"/> is empty

@@ -2,30 +2,36 @@ using System.Numerics;
 using Zombies.Domain.Mods;
 using Zombies.Domain.World;
 using Zombies.Engine.Core.Modding;
+using Zombies.Engine.Net;
 using Zombies.Engine.Platform;
 using Zombies.Engine.Render;
 using Zombies.Engine.Voxel;
 
 namespace Zombies.Client;
 
-/// <summary>Everything the client needs to show the world: the loaded mods, the generator, worker threads, and the manager that streams chunks to the GPU.</summary>
+/// <summary>Everything the client needs to show the world: the loaded mods, the embedded Server, the generator, worker threads, and the manager that streams chunks to the GPU.</summary>
 internal sealed class WorldSession : IDisposable
 {
     private readonly ChunkPipeline _pipeline;
 
     public WorldSession(ClientOptions options, IWorldRenderer renderer)
     {
-        var mods = ModLoader.Load(DirectoryModSource.Read(options.ModsDirectory ?? FindModsDirectory()));
+        var mods = ModLoader.Load(DirectoryModSource.Read(options.ModsDirectory ?? DirectoryModSource.Find(AppContext.BaseDirectory)));
         if (!mods.IsSuccess)
         {
             throw new InvalidOperationException("The mods could not be loaded:" + Environment.NewLine + string.Join(Environment.NewLine, mods.Errors));
         }
 
+        // Solo play: join an embedded Server and take the world seed from it, as a client of a dedicated server would.
+        Solo = new EmbeddedServer(new ServerOptions(GameIdentity.From(mods, WorldGenerator.GeneratorVersion), options.Seed), string.IsNullOrEmpty(Environment.UserName) ? "player" : Environment.UserName);
+
         var biomes = new BiomeCatalog(mods.Registry.OfKind("biome").Select(d => BiomeJson.Parse(d.Json)));
-        _pipeline = new ChunkPipeline(new WorldGenerator(options.Seed, biomes));
+        _pipeline = new ChunkPipeline(new WorldGenerator(Solo.Client.WorldSeed, biomes));
         Manager = new ChunkRenderManager(_pipeline, renderer, new ChunkStreamer(options.ViewDistance));
         ViewDistance = options.ViewDistance;
     }
+
+    public EmbeddedServer Solo { get; }
 
     public ChunkRenderManager Manager { get; }
 
@@ -33,24 +39,10 @@ internal sealed class WorldSession : IDisposable
 
     public int WorkerCount => _pipeline.WorkerCount;
 
-    public void Dispose() => _pipeline.Dispose();
-
-    /// <summary>Finds the <c>mods</c> folder by walking up from the program's folder, so it works from the repository and from a published build.</summary>
-    internal static string FindModsDirectory()
+    public void Dispose()
     {
-        var directory = new DirectoryInfo(AppContext.BaseDirectory);
-        while (directory is not null)
-        {
-            var candidate = Path.Combine(directory.FullName, "mods");
-            if (Directory.Exists(candidate))
-            {
-                return candidate;
-            }
-
-            directory = directory.Parent;
-        }
-
-        throw new DirectoryNotFoundException("Could not find a 'mods' folder. Pass one with --mods.");
+        _pipeline.Dispose();
+        Solo.Dispose();
     }
 }
 

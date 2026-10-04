@@ -364,7 +364,7 @@ internal static class IconSetup
     {
         try
         {
-            var packages = DirectoryModSource.Read(options.ModsDirectory ?? WorldSession.FindModsDirectory());
+            var packages = DirectoryModSource.Read(options.ModsDirectory ?? DirectoryModSource.Find(AppContext.BaseDirectory));
             var result = IconLoader.Load(packages, ModLoader.Load(packages));
             foreach (var problem in result.Problems)
             {

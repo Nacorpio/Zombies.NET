@@ -10,7 +10,7 @@ Every dependency chosen for the project. Status `planned` means decided in an AD
 | SDL3 via ppy.SDL3-CS | Window, input, gamepad, Vulkan surface | zlib (SDL), MIT (bindings) | Dynamic (SDL3 native, shipped by the package for win-x64 and linux-x64) | in use |
 | Jolt Physics (JoltPhysicsSharp) | Character, item, and ragdoll physics | MIT | Dynamic (native) | planned |
 | OpenAL Soft | 3D positional audio | LGPL-2.0 | Dynamic only | planned |
-| LiteNetLib | UDP transport | MIT | Static | planned |
+| LiteNetLib | UDP transport | MIT | Static | in use |
 | UnitsNet | Units of measure in the domain | MIT | Static | in use |
 | Microsoft.Data.Sqlite | Persistence | MIT | Static | planned |
 | Microsoft.Extensions.DependencyInjection | Composition root | MIT | Static | planned |

@@ -1,3 +1,6 @@
+using System.Security.Cryptography;
+using System.Text;
+
 namespace Zombies.Domain.Mods;
 
 /// <summary>One definition file of a mod: a path relative to the mod root, and its JSON text.</summary>
@@ -11,4 +14,28 @@ public sealed record ModPackage(string Source, string ManifestJson, IReadOnlyLis
 {
     /// <summary>Files that are not definitions. The mod loader ignores them; each system that owns a kind of asset reads its own.</summary>
     public IReadOnlyList<ModAsset> Assets { get; init; } = [];
+
+    /// <summary>
+    /// A SHA-256 over the manifest and every file, in path order, as lowercase hex. Line endings are normalized first,
+    /// so a Windows checkout and a Linux checkout of the same mod hash the same. Join compares these hashes.
+    /// </summary>
+    public string ComputeContentHash()
+    {
+        using var hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
+        Append(hash, "mod.json");
+        Append(hash, ManifestJson);
+        foreach (var file in Files.OrderBy(f => f.Path, StringComparer.Ordinal))
+        {
+            Append(hash, file.Path);
+            Append(hash, file.Json);
+        }
+
+        return Convert.ToHexStringLower(hash.GetHashAndReset());
+    }
+
+    private static void Append(IncrementalHash hash, string text)
+    {
+        hash.AppendData(Encoding.UTF8.GetBytes(text.Replace("\r\n", "\n", StringComparison.Ordinal)));
+        hash.AppendData([0]);
+    }
 }

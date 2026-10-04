@@ -22,6 +22,9 @@ jobs:
         run: dotnet restore Zombies.slnx
       - name: Build
         run: dotnet build Zombies.slnx --configuration Release --no-restore
+      - name: Compiled shaders are up to date
+        if: runner.os == 'Windows'
+        run: git diff --exit-code -- src/Zombies.Engine.Render.Vulkan/Shaders/compiled
       - name: Test
         run: dotnet test --solution Zombies.slnx --configuration Release --no-build
       - name: SimHarness

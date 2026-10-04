@@ -17,6 +17,8 @@
     <Project Path="src/Zombies.Engine.Ecs/Zombies.Engine.Ecs.csproj" />
     <Project Path="src/Zombies.Engine.Net/Zombies.Engine.Net.csproj" />
     <Project Path="src/Zombies.Engine.Physics/Zombies.Engine.Physics.csproj" />
+    <Project Path="src/Zombies.Engine.Platform/Zombies.Engine.Platform.csproj" />
+    <Project Path="src/Zombies.Engine.Render.Vulkan/Zombies.Engine.Render.Vulkan.csproj" />
     <Project Path="src/Zombies.Engine.Render/Zombies.Engine.Render.csproj" />
     <Project Path="src/Zombies.Engine.Ui/Zombies.Engine.Ui.csproj" />
     <Project Path="src/Zombies.Modding.Api/Zombies.Modding.Api.csproj" />

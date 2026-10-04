@@ -5,8 +5,9 @@ Every dependency chosen for the project. Status `planned` means decided in an AD
 | Dependency | Purpose | License | Linking | Status |
 | --- | --- | --- | --- | --- |
 | xunit.v3, xunit.runner.visualstudio, Microsoft.NET.Test.Sdk | Test framework | Apache-2.0 / MIT | Static (test only) | in use |
-| Silk.NET | Vulkan, D3D11, SDL, OpenAL bindings | MIT | Static | planned |
-| SDL3 | Window, input, gamepad | zlib | Dynamic | planned |
+| Silk.NET (Vulkan, Vulkan.Extensions.KHR) | Vulkan bindings | MIT | Static | in use |
+| Silk.NET (Direct3D11, OpenAL) | D3D11 and OpenAL bindings | MIT | Static | planned |
+| SDL3 via ppy.SDL3-CS | Window, input, gamepad, Vulkan surface | zlib (SDL), MIT (bindings) | Dynamic (SDL3 native, shipped by the package for win-x64 and linux-x64) | in use |
 | Jolt Physics (JoltPhysicsSharp) | Character, item, and ragdoll physics | MIT | Dynamic (native) | planned |
 | OpenAL Soft | 3D positional audio | LGPL-2.0 | Dynamic only | planned |
 | LiteNetLib | UDP transport | MIT | Static | planned |
@@ -16,5 +17,5 @@ Every dependency chosen for the project. Status `planned` means decided in an AD
 | Serilog | Local file logging | Apache-2.0 | Static | planned |
 | ImGui.NET (Dear ImGui) | Developer debug overlay only | MIT | Dynamic (native) | planned |
 | BenchmarkDotNet | Performance benchmarks | MIT | Static (tools only) | planned |
-| DirectXShaderCompiler | Build-time HLSL to SPIR-V and DXBC | LLVM Apache-2.0 w/ exceptions | Build tool only | planned |
+| DirectXShaderCompiler (Microsoft.Direct3D.DXC) | Build-time HLSL to SPIR-V; DXBC later | LLVM Apache-2.0 w/ exceptions | Build tool only, Windows binaries; compiled SPIR-V is committed | in use |
 | MemoryPack (optional) | Binary serialization if used before own generator | MIT | Static | planned |

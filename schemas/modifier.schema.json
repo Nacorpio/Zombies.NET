@@ -1,0 +1,29 @@
+{
+  "type": "object",
+  "properties": {
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z0-9_]+:[a-z0-9_]+(/[a-z0-9_]+)*$"
+    },
+    "stat": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_]*$"
+    },
+    "operation": {
+      "enum": [
+        "add",
+        "multiply"
+      ]
+    },
+    "value": {
+      "type": "number"
+    }
+  },
+  "required": [
+    "id",
+    "stat",
+    "operation",
+    "value"
+  ],
+  "$schema": "https://json-schema.org/draft/2020-12/schema"
+}

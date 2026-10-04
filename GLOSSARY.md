@@ -172,6 +172,10 @@ _Avoid_: Ability, attribute
 An upgrade bought with points earned from a skill level, found in that skill's perk tree.
 _Avoid_: Talent, trait
 
+**Stat**:
+A named number on a weapon, creature, or tool, such as recoil or move speed, whose effective value is its base value changed by the Modifiers on it. Needs are not Stats.
+_Avoid_: Attribute, property
+
 **Modifier**:
 A JSON-defined change to a stat, recipe availability, or interaction, granted by a perk, an attachment, or a status effect, and removed when its source is removed.
 _Avoid_: Buff, bonus, boost

@@ -1,0 +1,3 @@
+# Per-item state is carried on stacks
+
+Weapons need their own condition and attached items, and magazines their own ammo, but a stack was only an item and a count. A Stack now optionally carries an immutable, value-equal item state: stacks merge only when item and state are equal, and move and split keep the state. Items without state behave exactly as before, so stackable goods stay cheap. We rejected separate unique-item entities (two inventory models to build, drag, save, and replicate) and a side table keyed by id (state drifts from the stack that owns it). Wear state on worn clothing should migrate onto item state later; saves and network messages must carry it.

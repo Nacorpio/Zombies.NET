@@ -35,16 +35,24 @@ A definition of a thing a player can hold, with unit mass, unit volume, and stac
 _Avoid_: Object, thing
 
 **Stack**:
-A quantity of identical items occupying one place in a container.
+A quantity of identical items, meaning the same item and the same item state, occupying one place in a container.
 _Avoid_: Pile, group
+
+**Item state**:
+Data one particular item carries beyond its definition, such as condition, loaded ammo, or attached items. Items with no state are interchangeable.
+_Avoid_: Instance data, metadata, properties
 
 **Container**:
 Anything that holds stacks within a volume limit and a mass limit.
 _Avoid_: Bag, storage, slot
 
 **Wear state**:
-Properties of an item that change through use: wetness, blood, condition.
+The part of item state that changes through use: wetness, blood, condition.
 _Avoid_: Damage, dirtiness
+
+**Condition**:
+How much of its durability an item has left, from broken to pristine.
+_Avoid_: Health, durability (as a current value), integrity
 
 ## Clothing and Armor
 
@@ -55,6 +63,28 @@ _Avoid_: Tier, level
 **Coverage**:
 The set of body parts a worn item protects and insulates.
 _Avoid_: Mask, area
+
+## Weapons
+
+**Weapon**:
+An item that deals damage, defined by a category, base stats, and the mounts it offers.
+_Avoid_: Gun, tool
+
+**Weapon category**:
+A named kind of weapon, such as pistol or blunt melee, that sets shared handling, ammo class, and default mounts. Identified by a Content ID so mods can add more.
+_Avoid_: Weapon type, class
+
+**Mount**:
+A named place on a weapon where one attachment can be fitted, such as muzzle or optic.
+_Avoid_: Slot, rail, socket
+
+**Attachment**:
+An item fitted to a weapon's mount that changes its stats and appearance.
+_Avoid_: Mod, accessory, upgrade
+
+**Held weapon**:
+The weapon a character or zombie carries in its hands.
+_Avoid_: Equipped weapon, wielded item
 
 ## Combat
 

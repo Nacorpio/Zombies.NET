@@ -8,6 +8,7 @@
     <ProjectReference Include="../Zombies.Engine.Core/Zombies.Engine.Core.csproj" />
     <ProjectReference Include="../Zombies.Engine.Ecs/Zombies.Engine.Ecs.csproj" />
     <ProjectReference Include="../Zombies.Engine.Net/Zombies.Engine.Net.csproj" />
+    <ProjectReference Include="../Zombies.Engine.Voxel/Zombies.Engine.Voxel.csproj" />
   </ItemGroup>
 
 </Project>

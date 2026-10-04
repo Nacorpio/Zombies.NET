@@ -11,6 +11,7 @@ namespace Zombies.Domain.Mods;
 public static class DefinitionSchemas
 {
     private const string ContentIdPattern = "^[a-z0-9_]+:[a-z0-9_]+(/[a-z0-9_]+)*$";
+    private const string StatNamePattern = "^[a-z][a-z0-9_]*$";
 
     private static readonly JsonSerializerOptions Options = new(DefinitionJson.Options)
     {
@@ -34,6 +35,11 @@ public static class DefinitionSchemas
                 if (context.PropertyInfo?.Name is "id" or "item")
                 {
                     obj["pattern"] = ContentIdPattern;
+                }
+
+                if (context.PropertyInfo?.Name is "stat")
+                {
+                    obj["pattern"] = StatNamePattern;
                 }
             }
 

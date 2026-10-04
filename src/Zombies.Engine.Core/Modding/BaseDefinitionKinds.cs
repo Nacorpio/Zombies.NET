@@ -15,5 +15,6 @@ public static class BaseDefinitionKinds
         ["biome"] = typeof(BiomeDto),
         ["item"] = typeof(ItemDefinitionDto),
         ["loot"] = typeof(LootTableDto),
+        ["modifier"] = typeof(ModifierDefinitionDto),
     };
 }

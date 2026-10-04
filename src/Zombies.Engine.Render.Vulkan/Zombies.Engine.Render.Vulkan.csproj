@@ -1,0 +1,47 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Silk.NET.Vulkan" />
+    <PackageReference Include="Silk.NET.Vulkan.Extensions.KHR" />
+    <!-- Build tool only: compiles HLSL to SPIR-V. It ships Windows binaries, so other platforms use the committed .spv files. -->
+    <PackageReference Include="Microsoft.Direct3D.DXC" GeneratePathProperty="true" PrivateAssets="all" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../Zombies.Engine.Render/Zombies.Engine.Render.csproj" />
+    <ProjectReference Include="../Zombies.Engine.Platform/Zombies.Engine.Platform.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <HlslShader Include="Shaders/sprite.vert.hlsl">
+      <Profile>vs_6_0</Profile>
+      <SpirvName>sprite.vert.spv</SpirvName>
+    </HlslShader>
+    <HlslShader Include="Shaders/sprite.frag.hlsl">
+      <Profile>ps_6_0</Profile>
+      <SpirvName>sprite.frag.spv</SpirvName>
+    </HlslShader>
+    <EmbeddedResource Include="Shaders/compiled/*.spv" LogicalName="%(Filename)%(Extension)" />
+  </ItemGroup>
+
+  <!--
+    Compile HLSL to SPIR-V on Windows. The compiled files are committed, so Linux builds and CI need no compiler,
+    and a CI step checks the committed files still match what the compiler produces.
+  -->
+  <Target Name="CompileShaders"
+          BeforeTargets="BeforeBuild"
+          Condition="$([MSBuild]::IsOSPlatform('Windows')) and '$(PkgMicrosoft_Direct3D_DXC)' != ''"
+          Inputs="@(HlslShader)"
+          Outputs="@(HlslShader->'$(MSBuildProjectDirectory)/Shaders/compiled/%(SpirvName)')">
+    <PropertyGroup>
+      <DxcExe>$(PkgMicrosoft_Direct3D_DXC)/build/native/bin/x64/dxc.exe</DxcExe>
+    </PropertyGroup>
+    <MakeDir Directories="$(MSBuildProjectDirectory)/Shaders/compiled" />
+    <Exec Command="&quot;$(DxcExe)&quot; -spirv -T %(HlslShader.Profile) -E main -fspv-target-env=vulkan1.1 -Fo &quot;$(MSBuildProjectDirectory)/Shaders/compiled/%(HlslShader.SpirvName)&quot; &quot;%(HlslShader.FullPath)&quot;" />
+  </Target>
+
+</Project>

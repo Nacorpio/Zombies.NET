@@ -2,3 +2,4 @@
 *.sh text eol=lf
 *.yml text eol=lf
 *.schema.json text eol=lf
+*.spv binary

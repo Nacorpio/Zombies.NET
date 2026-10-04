@@ -54,6 +54,20 @@ _Avoid_: Damage, dirtiness
 How much of its durability an item has left, from broken to pristine.
 _Avoid_: Health, durability (as a current value), integrity
 
+## Loot
+
+**Loot table**:
+A weighted set of entries that is rolled a random number of times to decide what a place contains.
+_Avoid_: Drop table, spawn table
+
+**Loot entry**:
+One item a loot table can produce, with a weight and a count range.
+_Avoid_: Drop, slot
+
+**Seed**:
+The number that makes a roll repeatable: the same table and seed always produce the same loot.
+_Avoid_: Random state, salt
+
 ## Clothing and Armor
 
 **Layer**:

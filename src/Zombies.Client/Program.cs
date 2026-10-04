@@ -25,6 +25,8 @@ var options = ClientOptions.Parse(args);
 var width = options.Benchmark && !options.SizeSpecified ? 1920 : options.Width;
 var height = options.Benchmark && !options.SizeSpecified ? 1080 : options.Height;
 
+IconSetup.Install(options);
+
 using var window = new SdlWindow("Zombies.NET", width, height);
 using var renderer = new VulkanRenderer(window, new RendererOptions(!options.NoVSync, options.ShadowCascades, options.ShadowResolution));
 using var world = options.NoWorld ? null : new WorldSession(options, renderer);

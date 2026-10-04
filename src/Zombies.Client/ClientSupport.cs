@@ -1,5 +1,7 @@
 using System.Globalization;
+using Zombies.Domain.Mods;
 using Zombies.Engine.Core.Debugging;
+using Zombies.Engine.Core.Modding;
 using Zombies.Engine.Platform;
 using Zombies.Engine.Render;
 
@@ -170,15 +172,15 @@ internal static class DemoScene
         sprites.DrawText("SCALE 1 TEXT FOR SMALL LABELS", 40, 350, 1, new Rgba(200, 200, 200));
         sprites.DrawText("SCALE 4", 40, 370, 4, new Rgba(255, 200, 80));
 
-        // Every built-in icon at 3x with its name, to check the art by eye.
+        // Every loaded icon at 2x with its name, to check the art by eye.
         for (var i = 0; i < Icons.Count; i++)
         {
             var column = i % 8;
             var row = i / 8;
             var cellX = 40 + (column * 96);
             var cellY = 420 + (row * 84);
-            sprites.DrawIcon(Icons.Names[i], cellX, cellY, 3, Rgba.White);
-            sprites.DrawText(Icons.Names[i], cellX, cellY + 52, 1, new Rgba(170, 200, 230));
+            sprites.DrawIcon(Icons.Names[i], cellX, cellY, 2, Rgba.White);
+            sprites.DrawText(Icons.Names[i], cellX, cellY + (IconSet.Size * 2) + 4, 1, new Rgba(170, 200, 230));
         }
 
         // A box that moves, so a live run shows the frame loop is running.
@@ -352,5 +354,28 @@ internal static class SmokeSession
             },
             null,
             0);
+    }
+}
+
+/// <summary>Loads the icons of the installed mods into <see cref="Icons"/>. Bad icons are reported and never stop the client.</summary>
+internal static class IconSetup
+{
+    public static void Install(ClientOptions options)
+    {
+        try
+        {
+            var packages = DirectoryModSource.Read(options.ModsDirectory ?? DirectoryModSource.Find(AppContext.BaseDirectory));
+            var result = IconLoader.Load(packages, ModLoader.Load(packages));
+            foreach (var problem in result.Problems)
+            {
+                Console.Error.WriteLine(problem);
+            }
+
+            Icons.Install(result.Icons);
+        }
+        catch (DirectoryNotFoundException ex)
+        {
+            Console.Error.WriteLine($"[Icon] {ex.Message} Placeholder icons are used.");
+        }
     }
 }

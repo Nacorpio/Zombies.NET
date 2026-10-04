@@ -28,6 +28,10 @@ _Avoid_: Override, tweak
 An explicit declaration that a mod replaces a whole definition with the same Content ID.
 _Avoid_: Patch, replace
 
+**Icon**:
+A named 32 by 32 picture used by the UI, supplied as a PNG named after the icon in a mod's icons folder and normalized to hard edges when loaded. A mod can add Icons and replace those of mods it depends on.
+_Avoid_: Sprite, glyph
+
 ## Items and Inventory
 
 **Item**:

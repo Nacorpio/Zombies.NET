@@ -335,7 +335,7 @@ public static class SessionBadge
 
         public int Margin => 6 * Scale;
 
-        public int IconScale => Math.Max(1, (Scale + 1) / 2);
+        public int IconScale => Math.Max(1, Scale / 2);
 
         public int IconPixels => Icons.Size * IconScale;
 

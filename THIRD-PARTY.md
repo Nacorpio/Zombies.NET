@@ -10,7 +10,7 @@ Every dependency chosen for the project. Status `planned` means decided in an AD
 | Jolt Physics (JoltPhysicsSharp) | Character, item, and ragdoll physics | MIT | Dynamic (native) | planned |
 | OpenAL Soft | 3D positional audio | LGPL-2.0 | Dynamic only | planned |
 | LiteNetLib | UDP transport | MIT | Static | planned |
-| UnitsNet | Units of measure in the domain | MIT | Static | planned |
+| UnitsNet | Units of measure in the domain | MIT | Static | in use |
 | Microsoft.Data.Sqlite | Persistence | MIT | Static | planned |
 | Microsoft.Extensions.DependencyInjection | Composition root | MIT | Static | planned |
 | Serilog | Local file logging | Apache-2.0 | Static | planned |

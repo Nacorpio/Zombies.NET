@@ -2,6 +2,7 @@
 
   <ItemGroup>
     <ProjectReference Include="../Zombies.Engine.Core/Zombies.Engine.Core.csproj" />
+    <ProjectReference Include="../Zombies.Engine.Voxel/Zombies.Engine.Voxel.csproj" />
   </ItemGroup>
 
 </Project>

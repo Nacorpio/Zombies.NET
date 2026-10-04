@@ -18,7 +18,7 @@ public sealed class VulkanException(string message, Result result) : Exception($
 /// Draws sprite batches with Vulkan 1.1. It uses a plain render pass rather than newer dynamic rendering so it runs on the
 /// oldest hardware we support. Frame resources are doubled so the CPU can record one frame while the GPU draws the previous one.
 /// </summary>
-public sealed unsafe class VulkanRenderer : IRenderer
+public sealed unsafe partial class VulkanRenderer : IRenderer, IWorldRenderer
 {
     private const int FramesInFlight = 2;
     private const uint MaxVertices = SpriteBatch.MaxQuads * 4;
@@ -27,6 +27,10 @@ public sealed unsafe class VulkanRenderer : IRenderer
     private readonly Vk _vk = Vk.GetApi();
     private readonly SdlWindow _window;
     private readonly RendererOptions _options;
+
+    private Image _depthImage;
+    private DeviceMemory _depthMemory;
+    private ImageView _depthView;
 
     private Instance _instance;
     private SurfaceKHR _surface;
@@ -75,11 +79,11 @@ public sealed unsafe class VulkanRenderer : IRenderer
     private string? _capturePath;
     private bool _disposed;
 
-    public VulkanRenderer(SdlWindow window, RendererOptions options = default)
+    public VulkanRenderer(SdlWindow window, RendererOptions? options = null)
     {
         ArgumentNullException.ThrowIfNull(window);
         _window = window;
-        _options = options == default ? new RendererOptions() : options;
+        _options = options ?? new RendererOptions();
         _width = window.PixelWidth;
         _height = window.PixelHeight;
 
@@ -94,6 +98,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
             CreateSpriteBuffers();
             CreateAtlas();
             CreatePipeline();
+            CreateWorldResources();
         }
         catch
         {
@@ -129,7 +134,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
         _capturePath = pngPath;
     }
 
-    public bool Render(SpriteBatch sprites, Rgba clear)
+    public bool Render(SpriteBatch sprites, Rgba clear, WorldScene? scene = null)
     {
         ArgumentNullException.ThrowIfNull(sprites);
         if (_width <= 0 || _height <= 0)
@@ -162,6 +167,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
         }
 
         Check(_vk.ResetFences(_device, 1, &fence), "resetting the frame fence");
+        BeginWorldFrame(scene);
 
         var vertices = sprites.Vertices;
         var count = (int)Math.Min((uint)vertices.Length, MaxVertices) / 4 * 4;
@@ -175,7 +181,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
 
         var capture = _capturePath;
         var capturing = capture is not null && _canCapture;
-        RecordFrame(_commands[_frame], imageIndex, (uint)(count / 4 * 6), clear, out var captureBuffer, capturing, out var captureMemory);
+        RecordFrame(_commands[_frame], imageIndex, (uint)(count / 4 * 6), clear, scene, out var captureBuffer, capturing, out var captureMemory);
 
         var waitStage = PipelineStageFlags.ColorAttachmentOutputBit;
         var available = _imageAvailable[_frame];
@@ -192,7 +198,13 @@ public sealed unsafe class VulkanRenderer : IRenderer
             SignalSemaphoreCount = 1,
             PSignalSemaphores = &finished,
         };
-        Check(_vk.QueueSubmit(_queue, 1, &submit, fence), "submitting the frame");
+        var submitted = _vk.QueueSubmit(_queue, 1, &submit, fence);
+        if (submitted == Result.ErrorDeviceLost)
+        {
+            throw new VulkanException("Vulkan lost the device while submitting the frame" + DescribeDeviceLoss(), submitted);
+        }
+
+        Check(submitted, "submitting the frame");
 
         if (capturing)
         {
@@ -240,6 +252,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
 
         if (_device.Handle != 0)
         {
+            DisposeWorld();
             _vk.DestroyPipeline(_device, _pipeline, null);
             _vk.DestroyPipelineLayout(_device, _pipelineLayout, null);
             _vk.DestroyDescriptorPool(_device, _descriptorPool, null);
@@ -479,16 +492,31 @@ public sealed unsafe class VulkanRenderer : IRenderer
             PQueuePriorities = &priority,
         };
 
-        var extensionNames = SilkMarshal.StringArrayToPtr([KhrSwapchain.ExtensionName]);
+        var names = new List<string> { KhrSwapchain.ExtensionName };
+        var wantCheckpoints = DiagnosticsRequested && SupportsDeviceExtension(_physical, CheckpointsExtension);
+        var wantFault = DiagnosticsRequested && SupportsDeviceExtension(_physical, DeviceFaultExtension);
+        if (wantCheckpoints)
+        {
+            names.Add(CheckpointsExtension);
+        }
+
+        if (wantFault)
+        {
+            names.Add(DeviceFaultExtension);
+        }
+
+        var extensionNames = SilkMarshal.StringArrayToPtr(names);
         try
         {
             var features = default(PhysicalDeviceFeatures);
+            var faultFeatures = new PhysicalDeviceFaultFeaturesEXT { SType = StructureType.PhysicalDeviceFaultFeaturesExt, DeviceFault = true };
             var info = new DeviceCreateInfo
             {
                 SType = StructureType.DeviceCreateInfo,
+                PNext = wantFault ? &faultFeatures : null,
                 QueueCreateInfoCount = 1,
                 PQueueCreateInfos = &queueInfo,
-                EnabledExtensionCount = 1,
+                EnabledExtensionCount = (uint)names.Count,
                 PpEnabledExtensionNames = (byte**)extensionNames,
                 PEnabledFeatures = &features,
             };
@@ -503,6 +531,15 @@ public sealed unsafe class VulkanRenderer : IRenderer
 
         _vk.GetDeviceQueue(_device, _queueFamily, 0, out _queue);
         _vk.TryGetDeviceExtension(_instance, _device, out _swapchainExt);
+        if (wantCheckpoints)
+        {
+            _vk.TryGetDeviceExtension(_instance, _device, out _checkpoints);
+        }
+
+        if (wantFault)
+        {
+            _vk.TryGetDeviceExtension(_instance, _device, out _deviceFault);
+        }
     }
 
     private void CreateRenderPassAndSwapchain()
@@ -521,26 +558,43 @@ public sealed unsafe class VulkanRenderer : IRenderer
             InitialLayout = ImageLayout.Undefined,
             FinalLayout = ImageLayout.PresentSrcKhr,
         };
+        var depth = new AttachmentDescription
+        {
+            Format = DepthFormat,
+            Samples = SampleCountFlags.Count1Bit,
+            LoadOp = AttachmentLoadOp.Clear,
+            StoreOp = AttachmentStoreOp.DontCare,
+            StencilLoadOp = AttachmentLoadOp.DontCare,
+            StencilStoreOp = AttachmentStoreOp.DontCare,
+            InitialLayout = ImageLayout.Undefined,
+            FinalLayout = ImageLayout.DepthStencilAttachmentOptimal,
+        };
+        var attachments = stackalloc AttachmentDescription[2];
+        attachments[0] = color;
+        attachments[1] = depth;
         var reference = new AttachmentReference { Attachment = 0, Layout = ImageLayout.ColorAttachmentOptimal };
+        var depthReference = new AttachmentReference { Attachment = 1, Layout = ImageLayout.DepthStencilAttachmentOptimal };
         var subpass = new SubpassDescription
         {
             PipelineBindPoint = PipelineBindPoint.Graphics,
             ColorAttachmentCount = 1,
             PColorAttachments = &reference,
+            PDepthStencilAttachment = &depthReference,
         };
         var dependency = new SubpassDependency
         {
             SrcSubpass = Vk.SubpassExternal,
             DstSubpass = 0,
-            SrcStageMask = PipelineStageFlags.ColorAttachmentOutputBit,
-            DstStageMask = PipelineStageFlags.ColorAttachmentOutputBit,
-            DstAccessMask = AccessFlags.ColorAttachmentWriteBit,
+            SrcStageMask = PipelineStageFlags.ColorAttachmentOutputBit | PipelineStageFlags.EarlyFragmentTestsBit | PipelineStageFlags.LateFragmentTestsBit | PipelineStageFlags.FragmentShaderBit,
+            DstStageMask = PipelineStageFlags.ColorAttachmentOutputBit | PipelineStageFlags.EarlyFragmentTestsBit,
+            SrcAccessMask = AccessFlags.ShaderReadBit | AccessFlags.DepthStencilAttachmentWriteBit,
+            DstAccessMask = AccessFlags.ColorAttachmentWriteBit | AccessFlags.DepthStencilAttachmentWriteBit,
         };
         var info = new RenderPassCreateInfo
         {
             SType = StructureType.RenderPassCreateInfo,
-            AttachmentCount = 1,
-            PAttachments = &color,
+            AttachmentCount = 2,
+            PAttachments = attachments,
             SubpassCount = 1,
             PSubpasses = &subpass,
             DependencyCount = 1,
@@ -658,6 +712,8 @@ public sealed unsafe class VulkanRenderer : IRenderer
             _swapchainExt.GetSwapchainImages(_device, _swapchain, &count, i);
         }
 
+        CreateDepthBuffer(extent);
+        var framebufferAttachments = stackalloc ImageView[2];
         _views = new ImageView[count];
         _framebuffers = new Framebuffer[count];
         _renderFinished = new Silk.NET.Vulkan.Semaphore[count];
@@ -675,13 +731,14 @@ public sealed unsafe class VulkanRenderer : IRenderer
             Check(_vk.CreateImageView(_device, &viewInfo, null, &view), "creating a swapchain image view");
             _views[n] = view;
 
-            var attachment = view;
+            framebufferAttachments[0] = view;
+            framebufferAttachments[1] = _depthView;
             var framebufferInfo = new FramebufferCreateInfo
             {
                 SType = StructureType.FramebufferCreateInfo,
                 RenderPass = _renderPass,
-                AttachmentCount = 1,
-                PAttachments = &attachment,
+                AttachmentCount = 2,
+                PAttachments = framebufferAttachments,
                 Width = extent.Width,
                 Height = extent.Height,
                 Layers = 1,
@@ -719,6 +776,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
             _swapchainExt.DestroySwapchain(_device, _swapchain, null);
         }
 
+        DestroyDepthBuffer();
         _renderFinished = [];
         _framebuffers = [];
         _views = [];
@@ -1127,6 +1185,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
                 DynamicStateCount = 2,
                 PDynamicStates = dynamicStates,
             };
+            var noDepth = new PipelineDepthStencilStateCreateInfo { SType = StructureType.PipelineDepthStencilStateCreateInfo };
 
             var setLayout = _setLayout;
             var pushRange = new PushConstantRange { StageFlags = ShaderStageFlags.VertexBit, Offset = 0, Size = 8 };
@@ -1153,6 +1212,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
                 PRasterizationState = &rasterizer,
                 PMultisampleState = &multisample,
                 PColorBlendState = &blend,
+                PDepthStencilState = &noDepth,
                 PDynamicState = &dynamic,
                 Layout = _pipelineLayout,
                 RenderPass = _renderPass,
@@ -1170,7 +1230,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
         }
     }
 
-    private void RecordFrame(CommandBuffer cmd, uint imageIndex, uint indexCount, Rgba clear, out Buffer captureBuffer, bool capturing, out DeviceMemory captureMemory)
+    private void RecordFrame(CommandBuffer cmd, uint imageIndex, uint indexCount, Rgba clear, WorldScene? scene, out Buffer captureBuffer, bool capturing, out DeviceMemory captureMemory)
     {
         captureBuffer = default;
         captureMemory = default;
@@ -1178,24 +1238,40 @@ public sealed unsafe class VulkanRenderer : IRenderer
         Check(_vk.ResetCommandBuffer(cmd, 0), "resetting the command buffer");
         var begin = new CommandBufferBeginInfo { SType = StructureType.CommandBufferBeginInfo, Flags = CommandBufferUsageFlags.OneTimeSubmitBit };
         Check(_vk.BeginCommandBuffer(cmd, &begin), "recording the frame");
+        Mark(cmd, MarkFrameStart);
 
-        var clearValue = new ClearValue { Color = new ClearColorValue(clear.R / 255f, clear.G / 255f, clear.B / 255f, clear.A / 255f) };
+        var world = scene is null ? null : PrepareWorld(scene);
+        if (world is not null)
+        {
+            RecordShadowPasses(cmd, world);
+        }
+
+        var clearValues = stackalloc ClearValue[2];
+        clearValues[0] = new ClearValue { Color = new ClearColorValue(clear.R / 255f, clear.G / 255f, clear.B / 255f, clear.A / 255f) };
+        clearValues[1] = new ClearValue { DepthStencil = new ClearDepthStencilValue(1f, 0) };
         var passInfo = new RenderPassBeginInfo
         {
             SType = StructureType.RenderPassBeginInfo,
             RenderPass = _renderPass,
             Framebuffer = _framebuffers[imageIndex],
             RenderArea = new Rect2D(new Offset2D(0, 0), _extent),
-            ClearValueCount = 1,
-            PClearValues = &clearValue,
+            ClearValueCount = 2,
+            PClearValues = clearValues,
         };
         _vk.CmdBeginRenderPass(cmd, &passInfo, SubpassContents.Inline);
-        _vk.CmdBindPipeline(cmd, PipelineBindPoint.Graphics, _pipeline);
 
         var viewport = new Viewport(0, 0, _extent.Width, _extent.Height, 0, 1);
         var scissor = new Rect2D(new Offset2D(0, 0), _extent);
         _vk.CmdSetViewport(cmd, 0, 1, &viewport);
         _vk.CmdSetScissor(cmd, 0, 1, &scissor);
+
+        if (world is not null)
+        {
+            RecordTerrain(cmd, world);
+        }
+
+        Mark(cmd, MarkSpritesStart);
+        _vk.CmdBindPipeline(cmd, PipelineBindPoint.Graphics, _pipeline);
 
         var set = _descriptorSet;
         _vk.CmdBindDescriptorSets(cmd, PipelineBindPoint.Graphics, _pipelineLayout, 0, 1, &set, 0, null);
@@ -1232,6 +1308,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
             Barrier(cmd, image, range, ImageLayout.TransferSrcOptimal, ImageLayout.PresentSrcKhr, AccessFlags.TransferReadBit, 0, PipelineStageFlags.TransferBit, PipelineStageFlags.BottomOfPipeBit);
         }
 
+        Mark(cmd, MarkFrameEnd);
         Check(_vk.EndCommandBuffer(cmd), "finishing the frame");
     }
 

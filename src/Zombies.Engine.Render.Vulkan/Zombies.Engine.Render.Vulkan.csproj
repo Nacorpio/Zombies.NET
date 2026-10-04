@@ -7,6 +7,8 @@
   <ItemGroup>
     <PackageReference Include="Silk.NET.Vulkan" />
     <PackageReference Include="Silk.NET.Vulkan.Extensions.KHR" />
+    <PackageReference Include="Silk.NET.Vulkan.Extensions.NV" />
+    <PackageReference Include="Silk.NET.Vulkan.Extensions.EXT" />
     <!-- Build tool only: compiles HLSL to SPIR-V. It ships Windows binaries, so other platforms use the committed .spv files. -->
     <PackageReference Include="Microsoft.Direct3D.DXC" GeneratePathProperty="true" PrivateAssets="all" />
   </ItemGroup>
@@ -14,6 +16,7 @@
   <ItemGroup>
     <ProjectReference Include="../Zombies.Engine.Render/Zombies.Engine.Render.csproj" />
     <ProjectReference Include="../Zombies.Engine.Platform/Zombies.Engine.Platform.csproj" />
+    <ProjectReference Include="../Zombies.Engine.Voxel/Zombies.Engine.Voxel.csproj" />
   </ItemGroup>
 
   <ItemGroup>
@@ -24,6 +27,18 @@
     <HlslShader Include="Shaders/sprite.frag.hlsl">
       <Profile>ps_6_0</Profile>
       <SpirvName>sprite.frag.spv</SpirvName>
+    </HlslShader>
+    <HlslShader Include="Shaders/terrain.vert.hlsl">
+      <Profile>vs_6_0</Profile>
+      <SpirvName>terrain.vert.spv</SpirvName>
+    </HlslShader>
+    <HlslShader Include="Shaders/terrain.frag.hlsl">
+      <Profile>ps_6_0</Profile>
+      <SpirvName>terrain.frag.spv</SpirvName>
+    </HlslShader>
+    <HlslShader Include="Shaders/shadow.vert.hlsl">
+      <Profile>vs_6_0</Profile>
+      <SpirvName>shadow.vert.spv</SpirvName>
     </HlslShader>
     <EmbeddedResource Include="Shaders/compiled/*.spv" LogicalName="%(Filename)%(Extension)" />
   </ItemGroup>

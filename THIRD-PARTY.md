@@ -5,7 +5,7 @@ Every dependency chosen for the project. Status `planned` means decided in an AD
 | Dependency | Purpose | License | Linking | Status |
 | --- | --- | --- | --- | --- |
 | xunit.v3, xunit.runner.visualstudio, Microsoft.NET.Test.Sdk | Test framework | Apache-2.0 / MIT | Static (test only) | in use |
-| Silk.NET (Vulkan, Vulkan.Extensions.KHR) | Vulkan bindings | MIT | Static | in use |
+| Silk.NET (Vulkan, Vulkan.Extensions.KHR, .NV, .EXT) | Vulkan bindings and extensions (swapchain, diagnostic checkpoints, device fault) | MIT | Static | in use |
 | Silk.NET (Direct3D11, OpenAL) | D3D11 and OpenAL bindings | MIT | Static | planned |
 | SDL3 via ppy.SDL3-CS | Window, input, gamepad, Vulkan surface | zlib (SDL), MIT (bindings) | Dynamic (SDL3 native, shipped by the package for win-x64 and linux-x64) | in use |
 | Jolt Physics (JoltPhysicsSharp) | Character, item, and ragdoll physics | MIT | Dynamic (native) | planned |

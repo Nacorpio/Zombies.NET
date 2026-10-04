@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../Zombies.Engine.Core/Zombies.Engine.Core.csproj" />
+    <ProjectReference Include="../Zombies.Engine.Render/Zombies.Engine.Render.csproj" />
+    <ProjectReference Include="../Zombies.Engine.Ui/Zombies.Engine.Ui.csproj" />
+  </ItemGroup>
+
+</Project>

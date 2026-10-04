@@ -17,6 +17,7 @@
 
   <ItemGroup>
     <ProjectReference Include="../../src/Zombies.Engine.Core/Zombies.Engine.Core.csproj" />
+    <ProjectReference Include="../../src/Zombies.Domain.Inventory/Zombies.Domain.Inventory.csproj" />
   </ItemGroup>
 
 </Project>

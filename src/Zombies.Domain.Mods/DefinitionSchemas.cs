@@ -12,7 +12,7 @@ public static class DefinitionSchemas
 {
     private const string ContentIdPattern = "^[a-z0-9_]+:[a-z0-9_]+(/[a-z0-9_]+)*$";
 
-    private static readonly JsonSerializerOptions Options = new(ItemDefinitionJson.SerializerOptions)
+    private static readonly JsonSerializerOptions Options = new(DefinitionJson.Options)
     {
         WriteIndented = true,
         Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
@@ -31,7 +31,7 @@ public static class DefinitionSchemas
                     obj["$schema"] = "https://json-schema.org/draft/2020-12/schema";
                 }
 
-                if (context.PropertyInfo?.Name == "id")
+                if (context.PropertyInfo?.Name is "id" or "item")
                 {
                     obj["pattern"] = ContentIdPattern;
                 }
@@ -41,15 +41,13 @@ public static class DefinitionSchemas
         },
     };
 
-    /// <summary>Definition kind (first Content ID path segment) mapped to the C# type that describes it.</summary>
-    public static IReadOnlyDictionary<string, Type> Kinds { get; } = new Dictionary<string, Type>
+    /// <param name="kinds">Definition kind (first Content ID path segment) mapped to the C# type that describes it.</param>
+    /// <returns>Kind mapped to pretty-printed JSON Schema text, with LF line endings.</returns>
+    public static IReadOnlyDictionary<string, string> Generate(IReadOnlyDictionary<string, Type> kinds)
     {
-        ["item"] = typeof(ItemDefinitionDto),
-    };
-
-    /// <summary>Kind mapped to pretty-printed JSON Schema text, with LF line endings.</summary>
-    public static IReadOnlyDictionary<string, string> Generate() =>
-        Kinds.ToDictionary(
+        ArgumentNullException.ThrowIfNull(kinds);
+        return kinds.ToDictionary(
             k => k.Key,
             k => JsonSchemaExporter.GetJsonSchemaAsNode(Options, k.Value, ExporterOptions).ToJsonString(Options).ReplaceLineEndings("\n") + "\n");
+    }
 }

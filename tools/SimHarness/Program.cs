@@ -49,7 +49,7 @@ static int LoadMods(string directory)
 static int WriteSchemas(string directory)
 {
     Directory.CreateDirectory(directory);
-    foreach (var (kind, schema) in DefinitionSchemas.Generate())
+    foreach (var (kind, schema) in DefinitionSchemas.Generate(BaseDefinitionKinds.All))
     {
         var path = Path.Combine(directory, $"{kind}.schema.json");
         File.WriteAllText(path, schema);

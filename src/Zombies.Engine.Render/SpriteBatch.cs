@@ -42,6 +42,14 @@ public sealed class SpriteBatch
 
     public void FillRect(float x, float y, float width, float height, Rgba color) => Quad(x, y, width, height, DebugFont.SolidUv(), color);
 
+    /// <summary>Draws a built-in icon. Each icon pixel becomes <paramref name="scale"/> screen pixels, so whole-number scales stay crisp. An unknown name draws a visible placeholder.</summary>
+    public void DrawIcon(string name, float x, float y, int scale, Rgba tint)
+    {
+        ArgumentNullException.ThrowIfNull(name);
+        ArgumentOutOfRangeException.ThrowIfLessThan(scale, 1);
+        Quad(x, y, Icons.Size * scale, Icons.Size * scale, Icons.Uv(name), tint);
+    }
+
     /// <summary>Draws text with the built-in debug font. Each pixel of the font becomes <paramref name="scale"/> screen pixels. A newline starts a new line.</summary>
     public void DrawText(string text, float x, float y, int scale, Rgba color)
     {

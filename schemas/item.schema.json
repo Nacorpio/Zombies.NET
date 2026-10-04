@@ -1,0 +1,24 @@
+{
+  "type": "object",
+  "properties": {
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z0-9_]+:[a-z0-9_]+(/[a-z0-9_]+)*$"
+    },
+    "mass": {
+      "type": "string"
+    },
+    "volume": {
+      "type": "string"
+    },
+    "maxStack": {
+      "type": "integer"
+    }
+  },
+  "required": [
+    "id",
+    "mass",
+    "volume"
+  ],
+  "$schema": "https://json-schema.org/draft/2020-12/schema"
+}

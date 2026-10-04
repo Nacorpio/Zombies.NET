@@ -1,0 +1,6 @@
+{
+  "id": "sample_data:item/protein_bar",
+  "mass": "60 g",
+  "volume": "40 ml",
+  "maxStack": 20
+}

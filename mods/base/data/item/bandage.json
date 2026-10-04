@@ -1,0 +1,6 @@
+{
+  "id": "base:item/bandage",
+  "mass": "25 g",
+  "volume": "100 ml",
+  "maxStack": 10
+}

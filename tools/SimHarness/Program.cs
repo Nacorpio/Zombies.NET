@@ -1,6 +1,7 @@
 using Zombies.Domain.Mods;
 using Zombies.Engine.Core;
 using Zombies.Engine.Core.Modding;
+using Zombies.Engine.Render;
 
 // Headless harness.
 //   dotnet run --project tools/SimHarness [ticks]       tick a simulation and check it does not allocate
@@ -32,7 +33,8 @@ return allocated == 0 ? 0 : 1;
 
 static int LoadMods(string directory)
 {
-    var result = ModLoader.Load(DirectoryModSource.Read(directory));
+    var packages = DirectoryModSource.Read(directory);
+    var result = ModLoader.Load(packages);
     foreach (var error in result.Errors)
     {
         Console.Error.WriteLine(error);
@@ -43,13 +45,19 @@ static int LoadMods(string directory)
         return 1;
     }
 
-    Console.WriteLine($"SimHarness: loaded {result.Mods.Count} mods, {result.Registry.Count} definitions");
+    var icons = IconLoader.Load(packages, result);
+    foreach (var problem in icons.Problems)
+    {
+        Console.Error.WriteLine(problem);
+    }
+
+    Console.WriteLine($"SimHarness: loaded {result.Mods.Count} mods, {result.Registry.Count} definitions, {icons.Icons.Count} icons");
     foreach (var mod in result.Mods)
     {
         Console.WriteLine($"  {mod.Order}: {mod.Manifest.Id} {mod.Manifest.Version}");
     }
 
-    return 0;
+    return icons.Problems.Count == 0 ? 0 : 1;
 }
 
 static int WriteSchemas(string directory)

@@ -36,7 +36,7 @@ internal sealed class WorldSession : IDisposable
     public void Dispose() => _pipeline.Dispose();
 
     /// <summary>Finds the <c>mods</c> folder by walking up from the program's folder, so it works from the repository and from a published build.</summary>
-    private static string FindModsDirectory()
+    internal static string FindModsDirectory()
     {
         var directory = new DirectoryInfo(AppContext.BaseDirectory);
         while (directory is not null)

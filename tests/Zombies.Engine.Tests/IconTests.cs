@@ -4,90 +4,101 @@ namespace Zombies.Engine.Tests;
 
 public sealed class IconTests
 {
-    private static readonly string[] RequiredNames =
-    [
-        IconNames.Robot,
-        IconNames.Use,
-        IconNames.Equip,
-        IconNames.Drop,
-        IconNames.Split,
-        IconNames.Inspect,
-        IconNames.Craft,
-        IconNames.Attach,
-        IconNames.Warning,
-        IconNames.Check,
-        IconNames.Cross,
-    ];
+    private static IconSet SetOf(int count) =>
+        IconSet.Create(Enumerable.Range(0, count).Select(i => ($"icon{i}", Mask(i))));
+
+    private static byte[] Mask(int seed)
+    {
+        var mask = new byte[IconSet.Size * IconSet.Size];
+        mask[seed % mask.Length] = 255;
+        mask[(seed * 7) % mask.Length] = 200;
+        return mask;
+    }
 
     [Fact]
-    public void BuiltInSet_ContainsEveryRequiredIconAndAPlaceholder()
+    public void IconSize_IsThirtyTwo_AndTheAtlasGridFollowsIt()
     {
-        foreach (var name in RequiredNames)
+        Assert.Equal(32, IconSet.Size);
+        Assert.Equal(IconSet.Size, Icons.Size);
+        Assert.Equal(UiAtlas.Width / IconSet.Size, UiAtlas.IconsPerRow);
+    }
+
+    [Fact]
+    public void EveryIconSet_ContainsThePlaceholderFirst()
+    {
+        Assert.Equal([IconNames.Unknown], IconSet.Placeholder.Names);
+        Assert.Equal(IconNames.Unknown, SetOf(3).Names[0]);
+    }
+
+    [Fact]
+    public void PlaceholderMask_IsThirtyTwoSquareAndClearlyNotArt()
+    {
+        var mask = IconSet.Placeholder.Mask(IconNames.Unknown).ToArray();
+
+        Assert.Equal(IconSet.Size * IconSet.Size, mask.Length);
+        Assert.InRange(mask.Count(b => b != 0), 100, 700);
+        Assert.All(mask, b => Assert.True(b is 0 or 255));
+    }
+
+    [Fact]
+    public void IconNamedUnknown_ReplacesThePlaceholderInPlace()
+    {
+        var set = IconSet.Create([(IconNames.Unknown, Mask(5)), ("other", Mask(6))]);
+
+        Assert.Equal([IconNames.Unknown, "other"], set.Names);
+        Assert.True(set.Mask(IconNames.Unknown).SequenceEqual(Mask(5)));
+    }
+
+    [Fact]
+    public void WronglySizedMask_IsRefused()
+    {
+        Assert.Throws<ArgumentException>(() => IconSet.Create([("small", new byte[16 * 16])]));
+    }
+
+    [Theory]
+    [InlineData(0, 1)]
+    [InlineData(3, 1)]
+    [InlineData(4, 2)]
+    [InlineData(11, 3)]
+    public void Atlas_SizesItselfFromTheIconSet(int extraIcons, int expectedRows)
+    {
+        var set = SetOf(extraIcons);
+
+        Assert.Equal(UiAtlas.FontHeight + (expectedRows * IconSet.Size), set.AtlasHeight);
+        Assert.Equal(UiAtlas.Width * set.AtlasHeight, UiAtlas.CreatePixels(set).Length);
+    }
+
+    [Fact]
+    public void AtlasPixels_HoldEachIconsMaskInItsOwnCell()
+    {
+        var set = SetOf(9);
+        var atlas = UiAtlas.CreatePixels(set);
+
+        foreach (var name in set.Names)
         {
-            Assert.True(Icons.Exists(name), $"missing icon '{name}'");
-        }
-
-        Assert.True(Icons.Exists(IconNames.Unknown));
-        Assert.Equal(Icons.Names.Count, Icons.Count);
-        Assert.Equal(Icons.Names.Distinct(StringComparer.Ordinal).Count(), Icons.Names.Count);
-        Assert.All(Icons.Names, name => Assert.Matches("^[a-z]+$", name));
-    }
-
-    [Fact]
-    public void Names_AppearInAtlasOrderWithTheRobotFirst()
-    {
-        Assert.Equal(IconNames.Robot, Icons.Names[0]);
-        Assert.Equal(IconNames.Unknown, Icons.Names[^1]);
-    }
-
-    [Fact]
-    public void Atlas_CanBeBuiltWhichValidatesEveryIconsArt()
-    {
-        var atlas = UiAtlas.CreatePixels();
-
-        Assert.Equal(UiAtlas.Width * UiAtlas.Height, atlas.Length);
-    }
-
-    [Fact]
-    public void EveryIcon_IsSixteenSquareAndOnlyUsesTheThreeTones()
-    {
-        var atlas = UiAtlas.CreatePixels();
-
-        foreach (var name in Icons.Names)
-        {
-            var (x0, y0, x1, y1) = Pixels(Icons.Uv(name));
-            Assert.Equal(Icons.Size, x1 - x0);
-            Assert.Equal(Icons.Size, y1 - y0);
-
-            var solid = 0;
-            for (var y = y0; y < y1; y++)
+            var (x0, y0, _, _) = Pixels(set, set.Uv(name));
+            var mask = set.Mask(name);
+            for (var y = 0; y < IconSet.Size; y++)
             {
-                for (var x = x0; x < x1; x++)
-                {
-                    var value = atlas[(y * UiAtlas.Width) + x];
-                    Assert.Contains(value, new byte[] { 0, 150, 255 });
-                    if (value != 0)
-                    {
-                        solid++;
-                    }
-                }
+                Assert.True(atlas.AsSpan(((y0 + y) * UiAtlas.Width) + x0, IconSet.Size).SequenceEqual(mask.Slice(y * IconSet.Size, IconSet.Size)), $"'{name}' row {y}");
             }
-
-            Assert.InRange(solid, 20, 200);
         }
     }
 
     [Fact]
-    public void Icons_SitBelowTheFontAndNeverShareACell()
+    public void Icons_AreThirtyTwoSquare_SitBelowTheFont_AndNeverShareACell()
     {
+        var set = SetOf(14);
         var cells = new HashSet<(int, int)>();
 
-        foreach (var name in Icons.Names)
+        foreach (var name in set.Names)
         {
-            var (x0, y0, x1, y1) = Pixels(Icons.Uv(name));
+            var (x0, y0, x1, y1) = Pixels(set, set.Uv(name));
+            Assert.Equal(IconSet.Size, x1 - x0);
+            Assert.Equal(IconSet.Size, y1 - y0);
             Assert.True(y0 >= UiAtlas.FontHeight, $"'{name}' overlaps the font");
             Assert.InRange(x1, 1, UiAtlas.Width);
-            Assert.InRange(y1, 1, UiAtlas.Height);
+            Assert.InRange(y1, 1, set.AtlasHeight);
             Assert.True(cells.Add((x0, y0)), $"'{name}' shares a cell with another icon");
         }
     }
@@ -95,15 +106,29 @@ public sealed class IconTests
     [Fact]
     public void IconUv_LandsOnWholeTexelsSoWholeNumberScalesStayCrisp()
     {
-        foreach (var name in Icons.Names)
+        var set = SetOf(14);
+
+        foreach (var name in set.Names)
         {
-            var uv = Icons.Uv(name);
+            var uv = set.Uv(name);
 
             Assert.Equal(Math.Round(uv.U0 * UiAtlas.Width), uv.U0 * UiAtlas.Width, 3);
-            Assert.Equal(Math.Round(uv.V0 * UiAtlas.Height), uv.V0 * UiAtlas.Height, 3);
+            Assert.Equal(Math.Round(uv.V0 * set.AtlasHeight), uv.V0 * set.AtlasHeight, 3);
             Assert.Equal(Math.Round(uv.U1 * UiAtlas.Width), uv.U1 * UiAtlas.Width, 3);
-            Assert.Equal(Math.Round(uv.V1 * UiAtlas.Height), uv.V1 * UiAtlas.Height, 3);
+            Assert.Equal(Math.Round(uv.V1 * set.AtlasHeight), uv.V1 * set.AtlasHeight, 3);
         }
+    }
+
+    [Fact]
+    public void NameResolution_UnknownNamesDrawThePlaceholder()
+    {
+        var set = SetOf(3);
+
+        Assert.True(set.Exists("icon1"));
+        Assert.False(set.Exists("no_such_icon"));
+        Assert.Equal(set.Uv(IconNames.Unknown), set.Uv("no_such_icon"));
+        Assert.NotEqual(set.Uv(IconNames.Unknown), set.Uv("icon1"));
+        Assert.True(set.Mask("no_such_icon").SequenceEqual(set.Mask(IconNames.Unknown)));
     }
 
     [Fact]
@@ -117,35 +142,6 @@ public sealed class IconTests
     }
 
     [Fact]
-    public void RobotIcon_HasSoftToneEyesThatAreNotSolid()
-    {
-        var atlas = UiAtlas.CreatePixels();
-        var (x0, y0, x1, y1) = Pixels(Icons.Uv(IconNames.Robot));
-
-        var soft = 0;
-        for (var y = y0; y < y1; y++)
-        {
-            for (var x = x0; x < x1; x++)
-            {
-                if (atlas[(y * UiAtlas.Width) + x] == 150)
-                {
-                    soft++;
-                }
-            }
-        }
-
-        Assert.Equal(8, soft);
-    }
-
-    [Fact]
-    public void Placeholder_DrawsForAnUnknownNameInsteadOfFailing()
-    {
-        Assert.False(Icons.Exists("no_such_icon"));
-        Assert.Equal(Icons.Uv(IconNames.Unknown), Icons.Uv("no_such_icon"));
-        Assert.NotEqual(Icons.Uv(IconNames.Unknown), Icons.Uv(IconNames.Robot));
-    }
-
-    [Fact]
     public void SpriteBatch_DrawIconAddsOneTintedQuadOfTheRightSize()
     {
         var batch = new SpriteBatch();
@@ -155,7 +151,7 @@ public sealed class IconTests
         Assert.Equal(1, batch.QuadCount);
         var v = batch.Vertices;
         Assert.Equal((10f, 20f), (v[0].X, v[0].Y));
-        Assert.Equal((42f, 52f), (v[2].X, v[2].Y));
+        Assert.Equal((10f + (2 * IconSet.Size), 20f + (2 * IconSet.Size)), (v[2].X, v[2].Y));
         var uv = Icons.Uv(IconNames.Robot);
         Assert.Equal((uv.U0, uv.V0), (v[0].U, v[0].V));
         Assert.Equal((uv.U1, uv.V1), (v[2].U, v[2].V));
@@ -163,9 +159,9 @@ public sealed class IconTests
     }
 
     [Theory]
-    [InlineData(1, 16)]
-    [InlineData(2, 32)]
-    [InlineData(3, 48)]
+    [InlineData(1, 32)]
+    [InlineData(2, 64)]
+    [InlineData(3, 96)]
     public void SpriteBatch_DrawIconScalesInWholeIconPixels(int scale, int expectedSize)
     {
         var batch = new SpriteBatch();
@@ -192,8 +188,8 @@ public sealed class IconTests
     [Fact]
     public void ExistingFontStillDrawsAfterTheAtlasGrew()
     {
-        var atlas = UiAtlas.CreatePixels();
-        var (x0, y0, x1, y1) = Pixels(DebugFont.GlyphUv('A'));
+        var atlas = UiAtlas.CreatePixels(SetOf(20));
+        var (x0, y0, x1, y1) = Pixels(SetOf(20), DebugFont.GlyphUv('A'), fontCell: true);
 
         var lit = 0;
         for (var y = y0; y < y1; y++)
@@ -207,9 +203,14 @@ public sealed class IconTests
         Assert.True(lit > 10);
     }
 
-    private static (int X0, int Y0, int X1, int Y1) Pixels((float U0, float V0, float U1, float V1) uv) => (
-        (int)Math.Round(uv.U0 * UiAtlas.Width),
-        (int)Math.Round(uv.V0 * UiAtlas.Height),
-        (int)Math.Round(uv.U1 * UiAtlas.Width),
-        (int)Math.Round(uv.V1 * UiAtlas.Height));
+    private static (int X0, int Y0, int X1, int Y1) Pixels(IconSet set, (float U0, float V0, float U1, float V1) uv, bool fontCell = false)
+    {
+        // Font UVs are relative to the installed set's atlas height, icon UVs to the set they came from.
+        var height = fontCell ? UiAtlas.Height : set.AtlasHeight;
+        return (
+            (int)Math.Round(uv.U0 * UiAtlas.Width),
+            (int)Math.Round(uv.V0 * height),
+            (int)Math.Round(uv.U1 * UiAtlas.Width),
+            (int)Math.Round(uv.V1 * height));
+    }
 }

@@ -28,3 +28,5 @@ jobs:
         run: dotnet run --project tools/SimHarness --configuration Release --no-build
       - name: SimHarness loads the repository mods
         run: dotnet run --project tools/SimHarness --configuration Release --no-build -- mods mods
+      - name: SimHarness generates and meshes a patch of world
+        run: dotnet run --project tools/SimHarness --configuration Release --no-build -- worldgen 12345 4 --budget-ms 12

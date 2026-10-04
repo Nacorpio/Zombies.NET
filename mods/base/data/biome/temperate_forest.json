@@ -1,0 +1,13 @@
+{
+  "id": "base:biome/temperate_forest",
+  "habitats": ["forest", "grassland"],
+  "climate": {
+    "temperature": { "min": 0, "max": 100 },
+    "humidity": { "min": 0, "max": 100 }
+  },
+  "terrain": {
+    "baseHeight": 52,
+    "amplitude": 14,
+    "treesPerThousand": 50
+  }
+}

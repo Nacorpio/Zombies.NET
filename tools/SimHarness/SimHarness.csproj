@@ -6,6 +6,8 @@
 
   <ItemGroup>
     <ProjectReference Include="../../src/Zombies.Engine.Core/Zombies.Engine.Core.csproj" />
+    <ProjectReference Include="../../src/Zombies.Engine.Voxel/Zombies.Engine.Voxel.csproj" />
+    <ProjectReference Include="../../src/Zombies.Domain.World/Zombies.Domain.World.csproj" />
   </ItemGroup>
 
 </Project>

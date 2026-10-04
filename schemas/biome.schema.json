@@ -1,0 +1,79 @@
+{
+  "type": "object",
+  "properties": {
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z0-9_]+:[a-z0-9_]+(/[a-z0-9_]+)*$"
+    },
+    "habitats": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "climate": {
+      "type": "object",
+      "properties": {
+        "temperature": {
+          "type": "object",
+          "properties": {
+            "min": {
+              "type": "integer"
+            },
+            "max": {
+              "type": "integer"
+            }
+          },
+          "required": [
+            "min",
+            "max"
+          ]
+        },
+        "humidity": {
+          "type": "object",
+          "properties": {
+            "min": {
+              "type": "integer"
+            },
+            "max": {
+              "type": "integer"
+            }
+          },
+          "required": [
+            "min",
+            "max"
+          ]
+        }
+      },
+      "required": [
+        "temperature",
+        "humidity"
+      ]
+    },
+    "terrain": {
+      "type": "object",
+      "properties": {
+        "baseHeight": {
+          "type": "integer"
+        },
+        "amplitude": {
+          "type": "integer"
+        },
+        "treesPerThousand": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "baseHeight",
+        "amplitude"
+      ]
+    }
+  },
+  "required": [
+    "id",
+    "habitats",
+    "climate",
+    "terrain"
+  ],
+  "$schema": "https://json-schema.org/draft/2020-12/schema"
+}

@@ -1,5 +1,6 @@
 using Zombies.Domain.Crafting;
 using Zombies.Domain.Items;
+using Zombies.Domain.World;
 
 namespace Zombies.Engine.Core.Modding;
 
@@ -11,6 +12,7 @@ public static class BaseDefinitionKinds
 {
     public static IReadOnlyDictionary<string, Type> All { get; } = new Dictionary<string, Type>
     {
+        ["biome"] = typeof(BiomeDto),
         ["item"] = typeof(ItemDefinitionDto),
         ["loot"] = typeof(LootTableDto),
     };

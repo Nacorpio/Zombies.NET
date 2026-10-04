@@ -26,3 +26,5 @@ jobs:
         run: dotnet test --solution Zombies.slnx --configuration Release --no-build
       - name: SimHarness
         run: dotnet run --project tools/SimHarness --configuration Release --no-build
+      - name: SimHarness loads the repository mods
+        run: dotnet run --project tools/SimHarness --configuration Release --no-build -- mods mods

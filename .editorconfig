@@ -17,3 +17,7 @@ dotnet_sort_system_directives_first = true
 [tests/**.cs]
 # Descriptive Method_Scenario_Outcome test names use underscores.
 dotnet_diagnostic.CA1707.severity = none
+
+[src/Zombies.Domain.*/**.cs]
+# "Stack" is ubiquitous language (see GLOSSARY.md), not the System.Collections stack.
+dotnet_diagnostic.CA1711.severity = none

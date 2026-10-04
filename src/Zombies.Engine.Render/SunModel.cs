@@ -44,8 +44,8 @@ public static class SunModel
 
         var sunColor = Vector3.Lerp(NoonSun, HorizonSun, warmth);
         var ambient = Vector3.Lerp(NightAmbient, DayAmbient, daylight);
-        var twilight = Smooth(-0.20f, 0f, elevation) * (1f - Smooth(0.0f, 0.35f, elevation));
-        var sky = Vector3.Lerp(Vector3.Lerp(NightSky, DaySky, daylight), DuskSky, twilight * 0.7f);
+        var twilight = Smooth(-0.25f, 0f, elevation) * (1f - Smooth(0.0f, 0.55f, elevation));
+        var sky = Vector3.Lerp(Vector3.Lerp(NightSky, DaySky, daylight), DuskSky, twilight * 0.9f);
         var fog = Vector3.Lerp(sky, new Vector3(0.78f, 0.84f, 0.92f), daylight * 0.35f);
 
         return new SunState(direction, sunColor, ambient, sky, fog, intensity);

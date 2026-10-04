@@ -4,36 +4,144 @@ using Zombies.Engine.Render;
 
 namespace Zombies.Client;
 
-internal sealed record ClientOptions(bool NoVSync, int Frames, string? CapturePath, bool Smoke)
+internal sealed class ClientOptions
 {
+    public bool NoVSync { get; private set; }
+
+    public bool VSyncOverride { get; private set; }
+
+    public int Frames { get; private set; }
+
+    public string? CapturePath { get; private set; }
+
+    public bool Smoke { get; private set; }
+
+    public bool NoWorld { get; private set; }
+
+    /// <summary>Upper limit on frames per second, 0 for none. Useful when vsync is off and the game would otherwise spin at thousands of frames per second.</summary>
+    public int MaxFps { get; private set; }
+
+    /// <summary>Diagnostic: stop streaming once the first load has finished, so the geometry stays fixed while the camera moves.</summary>
+    public bool FreezeStreaming { get; private set; }
+
+    public int ViewDistance { get; private set; } = 10;
+
+    public bool SizeSpecified { get; private set; }
+
+    public int Width { get; private set; } = 1280;
+
+    public int Height { get; private set; } = 720;
+
+    public float TimeOfDay { get; private set; } = 0.40f;
+
+    public bool FreezeTime { get; private set; }
+
+    public int ShadowCascades { get; private set; } = 3;
+
+    public int ShadowResolution { get; private set; } = 2048;
+
+    public float[]? CameraPose { get; private set; }
+
+    public string? ShotPath { get; private set; }
+
+    public bool Benchmark { get; private set; }
+
+    public double BudgetMilliseconds { get; private set; } = 16.6;
+
+    public string? ModsDirectory { get; private set; }
+
+    public ulong Seed { get; private set; } = 12345;
+
     public static ClientOptions Parse(string[] args)
     {
-        var noVSync = false;
-        var frames = 0;
-        string? capture = null;
-        var smoke = false;
+        var options = new ClientOptions();
         for (var i = 0; i < args.Length; i++)
         {
+            var next = () => i + 1 < args.Length ? args[++i] : throw new ArgumentException($"{args[i]} needs a value.");
             switch (args[i])
             {
                 case "--no-vsync":
-                    noVSync = true;
+                    options.NoVSync = true;
                     break;
-                case "--frames" when i + 1 < args.Length:
-                    frames = int.Parse(args[++i], CultureInfo.InvariantCulture);
+                case "--vsync":
+                    options.VSyncOverride = true;
                     break;
-                case "--capture" when i + 1 < args.Length:
-                    capture = args[++i];
+                case "--frames":
+                    options.Frames = int.Parse(next(), CultureInfo.InvariantCulture);
+                    break;
+                case "--capture":
+                    options.CapturePath = next();
                     break;
                 case "--smoke":
-                    smoke = true;
+                    options.Smoke = true;
+                    break;
+                case "--no-world":
+                    options.NoWorld = true;
+                    break;
+                case "--max-fps":
+                    options.MaxFps = int.Parse(next(), CultureInfo.InvariantCulture);
+                    break;
+                case "--freeze-streaming":
+                    options.FreezeStreaming = true;
+                    break;
+                case "--view":
+                    options.ViewDistance = int.Parse(next(), CultureInfo.InvariantCulture);
+                    break;
+                case "--size":
+                    var size = next().Split('x');
+                    options.SizeSpecified = true;
+                    options.Width = int.Parse(size[0], CultureInfo.InvariantCulture);
+                    options.Height = int.Parse(size[1], CultureInfo.InvariantCulture);
+                    break;
+                case "--time":
+                    options.TimeOfDay = float.Parse(next(), CultureInfo.InvariantCulture);
+                    break;
+                case "--freeze-time":
+                    options.FreezeTime = true;
+                    break;
+                case "--shadows":
+                    options.ShadowCascades = int.Parse(next(), CultureInfo.InvariantCulture);
+                    break;
+                case "--shadow-res":
+                    options.ShadowResolution = int.Parse(next(), CultureInfo.InvariantCulture);
+                    break;
+                case "--cam":
+                    options.CameraPose = [.. next().Split(',').Select(v => float.Parse(v, CultureInfo.InvariantCulture))];
+                    if (options.CameraPose.Length != 5)
+                    {
+                        throw new ArgumentException("--cam needs x,y,z,yawDegrees,pitchDegrees.");
+                    }
+
+                    break;
+                case "--shot":
+                    options.ShotPath = next();
+                    options.FreezeTime = true;
+                    break;
+                case "--bench":
+                    options.Benchmark = true;
+                    options.NoVSync = true;
+                    options.FreezeTime = true;
+                    break;
+                case "--budget-ms":
+                    options.BudgetMilliseconds = double.Parse(next(), CultureInfo.InvariantCulture);
+                    break;
+                case "--mods":
+                    options.ModsDirectory = next();
+                    break;
+                case "--seed":
+                    options.Seed = ulong.Parse(next(), CultureInfo.InvariantCulture);
                     break;
                 default:
                     throw new ArgumentException($"Unknown argument '{args[i]}'.");
             }
         }
 
-        return new ClientOptions(noVSync, frames, capture, smoke);
+        if (options.VSyncOverride)
+        {
+            options.NoVSync = false;
+        }
+
+        return options;
     }
 }
 

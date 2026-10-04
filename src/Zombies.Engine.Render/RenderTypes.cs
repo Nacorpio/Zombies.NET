@@ -19,7 +19,9 @@ public readonly record struct Rgba(byte R, byte G, byte B, byte A = 255)
 [StructLayout(LayoutKind.Sequential)]
 public readonly record struct SpriteVertex(float X, float Y, float U, float V, uint Color);
 
-public readonly record struct RendererOptions(bool VSync = true);
+/// <param name="ShadowCascades">Shadow map slices to allocate, 0 to 3. Zero turns sun shadows off entirely.</param>
+/// <param name="ShadowResolution">Width and height of each shadow slice in texels.</param>
+public readonly record struct RendererOptions(bool VSync = true, int ShadowCascades = 3, int ShadowResolution = 2048);
 
 /// <summary>What every graphics backend offers. The game talks to this; Vulkan and, later, Direct3D 11 implement it.</summary>
 public interface IRenderer : IDisposable
@@ -35,10 +37,10 @@ public interface IRenderer : IDisposable
     void Resize(int width, int height);
 
     /// <summary>
-    /// Clears the screen and draws the batch. Returns false when no frame was drawn, for example while minimized
+    /// Clears the screen, draws the world if there is one, then draws the sprite batch on top. Returns false when no frame was drawn, for example while minimized
     /// or while the swapchain is being rebuilt; callers just try again next frame.
     /// </summary>
-    bool Render(SpriteBatch sprites, Rgba clear);
+    bool Render(SpriteBatch sprites, Rgba clear, WorldScene? scene = null);
 
     /// <summary>Saves the next drawn frame as a PNG. Used by smoke tests and bug reports.</summary>
     void RequestCapture(string pngPath);

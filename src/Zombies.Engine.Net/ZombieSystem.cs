@@ -23,6 +23,26 @@ public sealed record ZombieDied(uint Entity, ZombieSpec Spec, Vector3 Position, 
 /// <summary>What one hit on a zombie did.</summary>
 public sealed record ZombieHit(uint Entity, BodyPart Part, float Distance, Vector3 Point, bool Killed, bool LostPart, IReadOnlyList<IDomainEvent> Events);
 
+/// <summary>What a Cosmetic event on a zombie is about.</summary>
+public enum CosmeticKind : byte
+{
+    /// <summary>A hit landed: blood spray and a decal at the point.</summary>
+    Hit,
+
+    /// <summary>A Body part was shot off: it flies away as its own body.</summary>
+    PartLost,
+
+    /// <summary>The zombie died: it collapses as a ragdoll.</summary>
+    Death,
+}
+
+/// <summary>
+/// A Cosmetic event: the Server telling clients what to draw, never what happened to the world. <see cref="Seed"/> is derived from the
+/// zombie's seed and how many Cosmetic events it has had, so every client that plays it makes the same ragdoll, decals, and spray.
+/// <see cref="Direction"/> is the unit direction the hit travelled in. Nothing here is replicated state; the Server never reads it back.
+/// </summary>
+public sealed record ZombieCosmetic(uint Entity, CosmeticKind Kind, BodyPart Part, Vector3 Point, Vector3 Direction, float Damage, ulong Seed);
+
 public sealed record ZombieSpawnReport(IReadOnlyList<uint> Spawned, IReadOnlyList<string> Problems);
 
 /// <summary>
@@ -55,6 +75,9 @@ public sealed class ZombieSystem : ITickable
 
         /// <summary>How many Weakpoint effect chances this zombie has rolled, so each roll draws its own number.</summary>
         public int EffectRolls { get; set; }
+
+        /// <summary>How many Cosmetic events this zombie has raised, so each draws its own seed.</summary>
+        public int CosmeticCount { get; set; }
 
         public Vector3 Scale { get; } = new(appearance.BuildScale, appearance.HeightScale, appearance.BuildScale);
     }
@@ -105,6 +128,9 @@ public sealed class ZombieSystem : ITickable
 
     /// <summary>Raised when a zombie dies from a hit.</summary>
     public event Action<ZombieDied>? Died;
+
+    /// <summary>Raised for each hit, severed part, and death, for clients to turn into visuals. Raising it changes nothing in the world.</summary>
+    public event Action<ZombieCosmetic>? Cosmetic;
 
     public bool TryGetEntity(uint id, out Entity entity)
     {
@@ -256,7 +282,7 @@ public sealed class ZombieSystem : ITickable
             }
         }
 
-        return nearestZombie is null ? null : Apply(nearestZombie, nearest, type, damage, attack);
+        return nearestZombie is null ? null : Apply(nearestZombie, nearest, direction, type, damage, attack);
     }
 
     public void Tick(long tick)
@@ -268,7 +294,7 @@ public sealed class ZombieSystem : ITickable
         }
     }
 
-    private ZombieHit? Apply(ZombieData data, PartHit hit, DamageType type, double damage, AttackKind attack)
+    private ZombieHit? Apply(ZombieData data, PartHit hit, Vector3 direction, DamageType type, double damage, AttackKind attack)
     {
         var weakpoint = Catalog.WeakpointsOf(data.Type)?.Find(hit.Part, hit.BoxOrigin, hit.BoxDirection, attack);
         var dealt = weakpoint is null ? damage : damage * weakpoint.CriticalMultiplier;
@@ -300,7 +326,26 @@ public sealed class ZombieSystem : ITickable
             Died?.Invoke(new ZombieDied(data.Id, data.Spec, state.Position, data.Appearance.WornItems));
         }
 
+        RaiseCosmetic(data, CosmeticKind.Hit, hit.Part, hit.Point, direction, dealt);
+        if (lost)
+        {
+            var part = result.Events.OfType<BodyPartLost>().First().Part;
+            RaiseCosmetic(data, CosmeticKind.PartLost, part, hit.Point, direction, dealt);
+        }
+
+        if (killed)
+        {
+            RaiseCosmetic(data, CosmeticKind.Death, hit.Part, hit.Point, direction, dealt);
+        }
+
         return new ZombieHit(data.Id, hit.Part, hit.Distance, hit.Point, killed, lost, events);
+    }
+
+    private void RaiseCosmetic(ZombieData data, CosmeticKind kind, BodyPart part, Vector3 point, Vector3 direction, double damage)
+    {
+        var seed = DeterministicRandom.Combine(data.Spec.Seed, (ulong)data.CosmeticCount++);
+        var unit = direction.LengthSquared() > 0f ? Vector3.Normalize(direction) : Vector3.UnitZ;
+        Cosmetic?.Invoke(new ZombieCosmetic(data.Id, kind, part, point, unit, (float)damage, seed));
     }
 
     /// <summary>

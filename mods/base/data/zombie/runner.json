@@ -29,5 +29,6 @@
   "missingParts": [
     { "part": "leftArm", "chance": 0.03 },
     { "part": "rightArm", "chance": 0.03 }
-  ]
+  ],
+  "weakpointSet": "base:weakpoint_set/humanoid"
 }

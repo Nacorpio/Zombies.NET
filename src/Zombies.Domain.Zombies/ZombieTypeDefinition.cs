@@ -47,7 +47,8 @@ public sealed class ZombieTypeDefinition
         (int Min, int Max) buildPermille,
         IEnumerable<uint> skinTones,
         OutfitTable outfit,
-        IEnumerable<MissingPartChance> missingParts)
+        IEnumerable<MissingPartChance> missingParts,
+        string? weakpointSet = null)
     {
         ArgumentNullException.ThrowIfNull(traits);
         ArgumentNullException.ThrowIfNull(skinTones);
@@ -122,6 +123,11 @@ public sealed class ZombieTypeDefinition
             throw new ArgumentException($"Zombie type '{id}' lists a Body part twice in its missing parts.", nameof(missingParts));
         }
 
+        if (weakpointSet is not null && !ItemId.TryParse(weakpointSet, out _))
+        {
+            throw new ArgumentException($"'{weakpointSet}' is not a valid Content ID.", nameof(weakpointSet));
+        }
+
         Id = id;
         PartHealth = partHealth;
         Damage = damage;
@@ -136,6 +142,7 @@ public sealed class ZombieTypeDefinition
         SkinTones = skinList;
         Outfit = outfit;
         MissingParts = missingList;
+        WeakpointSet = weakpointSet;
     }
 
     public string Id { get; }
@@ -174,6 +181,9 @@ public sealed class ZombieTypeDefinition
 
     /// <summary>The chance, in basis points, that each listed Body part is missing from spawn, in Body part order.</summary>
     public IReadOnlyList<MissingPartChance> MissingParts { get; }
+
+    /// <summary>Content ID of the Weakpoint set of this type, or null when no part of it is weaker than another.</summary>
+    public string? WeakpointSet { get; }
 
     public double PartHealthAt(int level) => PartHealth * LevelFactor(level);
 

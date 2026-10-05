@@ -1,5 +1,6 @@
 using System.Numerics;
 using Zombies.Domain.Combat;
+using Zombies.Domain.Crafting;
 using Zombies.Domain.Items;
 using Zombies.Domain.World;
 using Zombies.Domain.Zombies;
@@ -51,6 +52,9 @@ public sealed class ZombieSystem : ITickable
         public Animator Animator { get; } = animator;
 
         public long PoseTick { get; set; } = spawnedTick;
+
+        /// <summary>How many Weakpoint effect chances this zombie has rolled, so each roll draws its own number.</summary>
+        public int EffectRolls { get; set; }
 
         public Vector3 Scale { get; } = new(appearance.BuildScale, appearance.HeightScale, appearance.BuildScale);
     }
@@ -208,9 +212,10 @@ public sealed class ZombieSystem : ITickable
 
     /// <summary>
     /// Fires a ray into the world and applies <paramref name="damage"/> to the nearest living zombie it hits, on the Body part it
-    /// hits. Null when it hits nothing. The Server is the only caller: a client asks to attack and never says what it hit.
+    /// hits. Null when it hits nothing. A hit inside a Weakpoint of the type does more damage, and the result then carries a
+    /// <see cref="WeakpointHit"/> event. The Server is the only caller: a client asks to attack and never says what it hit.
     /// </summary>
-    public ZombieHit? Hit(Vector3 origin, Vector3 direction, float maxDistance, DamageType type, double damage)
+    public ZombieHit? Hit(Vector3 origin, Vector3 direction, float maxDistance, DamageType type, double damage, AttackKind attack = AttackKind.Ranged)
     {
         if (!float.IsFinite(maxDistance) || maxDistance <= 0)
         {
@@ -243,7 +248,7 @@ public sealed class ZombieSystem : ITickable
             }
         }
 
-        return nearestZombie is null ? null : Apply(nearestZombie, nearest, type, damage);
+        return nearestZombie is null ? null : Apply(nearestZombie, nearest, type, damage, attack);
     }
 
     public void Tick(long tick)
@@ -255,12 +260,20 @@ public sealed class ZombieSystem : ITickable
         }
     }
 
-    private ZombieHit? Apply(ZombieData data, PartHit hit, DamageType type, double damage)
+    private ZombieHit? Apply(ZombieData data, PartHit hit, DamageType type, double damage, AttackKind attack)
     {
-        var result = data.Body.TakeHit(hit.Part, type, damage);
+        var weakpoint = Catalog.WeakpointsOf(data.Type)?.Find(hit.Part, hit.BoxOrigin, hit.BoxDirection, attack);
+        var dealt = weakpoint is null ? damage : damage * weakpoint.CriticalMultiplier;
+        var result = data.Body.TakeHit(hit.Part, type, dealt);
         if (!result.IsSuccess)
         {
             return null;
+        }
+
+        var events = result.Events;
+        if (weakpoint is not null)
+        {
+            events = [.. events, new WeakpointHit(data.Id, weakpoint.Name, hit.Part, dealt, RollEffect(data, weakpoint, dealt))];
         }
 
         var killed = result.Events.OfType<BodyDied>().Any();
@@ -279,7 +292,22 @@ public sealed class ZombieSystem : ITickable
             Died?.Invoke(new ZombieDied(data.Id, data.Spec, state.Position, data.Appearance.WornItems));
         }
 
-        return new ZombieHit(data.Id, hit.Part, hit.Distance, hit.Point, killed, lost, result.Events);
+        return new ZombieHit(data.Id, hit.Part, hit.Distance, hit.Point, killed, lost, events);
+    }
+
+    /// <summary>
+    /// The effect of a Weakpoint when enough damage landed and the chance came up. The roll comes from the zombie's seed and how many
+    /// it has rolled, so the same fight plays out the same way.
+    /// </summary>
+    private static WeakpointEffect? RollEffect(ZombieData data, Weakpoint weakpoint, double dealt)
+    {
+        if (weakpoint.Effect is null || dealt < weakpoint.EffectThreshold)
+        {
+            return null;
+        }
+
+        var random = new DeterministicRandom(DeterministicRandom.Combine(data.Spec.Seed, (ulong)data.EffectRolls++));
+        return (int)random.NextBelow(ZombieTypeDefinition.BasisPoints) < weakpoint.EffectChanceBasis ? weakpoint.Effect : null;
     }
 
     private void Remove(uint id)

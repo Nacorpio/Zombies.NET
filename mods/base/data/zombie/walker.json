@@ -33,5 +33,6 @@
     { "part": "rightArm", "chance": 0.05 },
     { "part": "leftLeg", "chance": 0.08 },
     { "part": "rightLeg", "chance": 0.08 }
-  ]
+  ],
+  "weakpointSet": "base:weakpoint_set/humanoid"
 }

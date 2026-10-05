@@ -1,0 +1,86 @@
+{
+  "type": "object",
+  "properties": {
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z0-9_]+:[a-z0-9_]+(/[a-z0-9_]+)*$"
+    },
+    "weakpoints": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_]*$"
+          },
+          "part": {
+            "type": "string",
+            "enum": [
+              "head",
+              "torso",
+              "leftArm",
+              "rightArm",
+              "leftLeg",
+              "rightLeg"
+            ]
+          },
+          "center": {
+            "type": "object",
+            "properties": {
+              "x": {
+                "type": "number"
+              },
+              "y": {
+                "type": "number"
+              },
+              "z": {
+                "type": "number"
+              }
+            },
+            "required": [
+              "x",
+              "y",
+              "z"
+            ]
+          },
+          "size": {
+            "type": "number"
+          },
+          "criticalMultiplier": {
+            "type": "number"
+          },
+          "rangedDifficulty": {
+            "type": "number"
+          },
+          "meleeDifficulty": {
+            "type": "number"
+          },
+          "effect": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "effectThreshold": {
+            "type": "number"
+          },
+          "effectChance": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "name",
+          "part",
+          "center",
+          "size"
+        ]
+      }
+    }
+  },
+  "required": [
+    "id",
+    "weakpoints"
+  ],
+  "$schema": "https://json-schema.org/draft/2020-12/schema"
+}

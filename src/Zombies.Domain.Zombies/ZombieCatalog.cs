@@ -8,8 +8,10 @@ public sealed class ZombieCatalog
 {
     private readonly List<ZombieTypeDefinition> _ordered;
     private readonly Dictionary<string, int> _index;
+    private readonly Dictionary<string, WeakpointSet> _weakpointSets = [];
 
-    public ZombieCatalog(IEnumerable<ZombieTypeDefinition> types)
+    /// <exception cref="ArgumentException">A type is defined twice, or names a Weakpoint set that does not exist.</exception>
+    public ZombieCatalog(IEnumerable<ZombieTypeDefinition> types, IEnumerable<WeakpointSet>? weakpointSets = null)
     {
         ArgumentNullException.ThrowIfNull(types);
         _ordered = [.. types.OrderBy(t => t.Id, StringComparer.Ordinal)];
@@ -26,6 +28,19 @@ public sealed class ZombieCatalog
         {
             throw new ArgumentException("Too many Zombie types.", nameof(types));
         }
+
+        foreach (var set in weakpointSets ?? [])
+        {
+            if (!_weakpointSets.TryAdd(set.Id, set))
+            {
+                throw new ArgumentException($"Duplicate Weakpoint set '{set.Id}'.", nameof(weakpointSets));
+            }
+        }
+
+        if (_ordered.FirstOrDefault(t => t.WeakpointSet is not null && !_weakpointSets.ContainsKey(t.WeakpointSet)) is { } type)
+        {
+            throw new ArgumentException($"Zombie type '{type.Id}' names Weakpoint set '{type.WeakpointSet}', which does not exist.", nameof(types));
+        }
     }
 
     public IReadOnlyList<ZombieTypeDefinition> Types => _ordered;
@@ -41,6 +56,10 @@ public sealed class ZombieCatalog
         type = null!;
         return false;
     }
+
+    /// <summary>The Weakpoints of a type, or null when it has none.</summary>
+    public WeakpointSet? WeakpointsOf(ZombieTypeDefinition type) =>
+        type.WeakpointSet is { } id ? _weakpointSets[id] : null;
 
     /// <summary>The number that names a type on the network, or -1.</summary>
     public int IndexOf(string id) => _index.GetValueOrDefault(id, -1);

@@ -119,6 +119,9 @@ public sealed record ZombieTypeDto
     public OutfitTableDto Outfit { get; init; } = new();
 
     public IReadOnlyList<MissingPartChanceDto> MissingParts { get; init; } = [];
+
+    /// <summary>Content ID of the Weakpoint set, such as <c>base:weakpoint_set/humanoid</c>. Leave out for a zombie with no weak spots.</summary>
+    public string? WeakpointSet { get; init; }
 }
 
 /// <summary>Parses a Zombie type definition from JSON.</summary>
@@ -164,7 +167,8 @@ public static class ZombieTypeJson
                     dto.Outfit.ClothingCount.Max,
                     dto.Outfit.Headwear.Select(ToWearable).ToList(),
                     dto.Outfit.Backpacks.Select(ToWearable).ToList()),
-                dto.MissingParts.Select(m => new MissingPartChance(ParsePart(m.Part), Basis(m.Chance))));
+                dto.MissingParts.Select(m => new MissingPartChance(ParsePart(m.Part), Basis(m.Chance))),
+                dto.WeakpointSet);
         }
         catch (ArgumentException ex)
         {

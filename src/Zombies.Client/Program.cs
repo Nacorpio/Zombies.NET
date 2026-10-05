@@ -7,6 +7,7 @@ using Zombies.Engine.Net;
 using Zombies.Engine.Platform;
 using Zombies.Engine.Render;
 using Zombies.Engine.Render.Vulkan;
+using Zombies.Engine.Ui;
 
 // Zombies.Client [options]  (--vsync forces vsync on even in --bench)
 //   --view N          view distance in chunks (default 10)      --size WxH        window size (default 1280x720)
@@ -20,6 +21,7 @@ using Zombies.Engine.Render.Vulkan;
 //   --shot f.png      load the world, wait until it settles, save a picture, quit
 //   --bench           fly a fixed path at 1080p and report frame times; exit code 1 if over --budget-ms (default 16.6)
 //   --session F       show a debug session badge (top right) that follows the JSON file F; F4 pins it open, hovering opens it
+//   --screen NAME     open a screen at startup (inventory, body, options, dialog) so a screenshot can show it
 //   --smoke           scripted resize / minimize / restore / input check; exit code 0 means it all worked
 // Interactive: WASD fly, Space and Ctrl up and down, Shift fast, Tab mouse look, F1 overlay, F2 pause time, F3 day speed, Left/Right arrows change time.
 var options = ClientOptions.Parse(args);
@@ -51,6 +53,11 @@ var sprites = new SpriteBatch();
 var stats = new FrameStats();
 var smoke = options.Smoke ? new SmokeScript(window) : null;
 var benchmark = options.Benchmark ? new BenchmarkRun() : null;
+using var ui = options.NoWorld ? null : new UiSession(options, new PlayerStatus());
+if (ui is not null && options.Screen is { } startScreen && !ui.Open(startScreen))
+{
+    throw new ArgumentException($"Unknown screen '{startScreen}'. Use inventory, body, options, dialog, or none.");
+}
 
 var dayLengths = new[] { 24f * 60f, 120f, 20f };
 var dayLength = 0;
@@ -114,6 +121,13 @@ while (!window.CloseRequested)
         showOverlay = !showOverlay;
     }
 
+    // The screens take their input first, so a key that opens one does not also move the player.
+    var uiTookInput = ui?.Update(input, seconds) ?? false;
+    if (ui is not null)
+    {
+        window.SetRelativeMouse(!ui.WantsMouse && mouseCaptured);
+    }
+
     if (input.WasPressed(Key.F2))
     {
         clock.Paused = !clock.Paused;
@@ -151,7 +165,7 @@ while (!window.CloseRequested)
     if (world is not null)
     {
         // The player's input drives the Server and the local prediction; the camera follows the predicted player.
-        if (benchmark is null)
+        if (benchmark is null && !uiTookInput)
         {
             if (mouseCaptured)
             {
@@ -215,6 +229,8 @@ while (!window.CloseRequested)
             sprites.DrawText("WASD FLY  SPACE/CTRL UP/DOWN  SHIFT FAST  TAB MOUSE  F1 HUD  F2 TIME  F3 SPEED  ARROWS TIME", 16, renderer.Height - 24, 2, new Rgba(200, 200, 200, 200));
         }
     }
+
+    ui?.Draw(sprites, renderer.Width, renderer.Height);
 
     var elapsedSeconds = Stopwatch.GetElapsedTime(runStart).TotalSeconds;
     var sessionState = sessionSource?.Poll(elapsedSeconds) ?? SmokeSession.Describe(smoke, frame);

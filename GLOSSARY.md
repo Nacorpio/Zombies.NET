@@ -307,3 +307,75 @@ _Avoid_: Test run, automation run, agent session
 **Session badge**:
 The small panel in the top-right corner that tells a viewer about the current debug session. Compact by default, expanded on request.
 _Avoid_: Banner, watermark, HUD
+
+**Screen**:
+One of the game's full-window interfaces, such as the inventory, the body screen, or the options. A screen is described by a layout and drawn over the world.
+_Avoid_: Menu, page, window
+
+**Layout**:
+A screen described as JSON: a tree of widgets with anchors, sizes, and string table keys. A mod can add one or replace one of the same id.
+_Avoid_: Markup, template, form
+
+**Widget**:
+One node of a layout: a panel, a label, a bar, or a row or column that stacks its children.
+_Avoid_: Control, element, node
+
+**Anchor**:
+Where a widget sits inside its parent, with an offset measured inward from that edge, so a widget stays on screen when the parent grows.
+_Avoid_: Alignment, position, dock
+
+**UI values**:
+What a screen shows right now, by widget id: text, a bar's fill, a color role, and whether a widget is drawn. Kept apart from the layout, which does not change.
+_Avoid_: State, model, binding
+
+**Color role**:
+What a color means, such as good, warning, or danger. Layouts and screens ask for a role, never a color, so the palette can change without touching them.
+_Avoid_: Color name, theme color, style
+
+**Palette**:
+The set of colors the UI draws with. The colorblind palette tells states apart by lightness and by hue pairs that stay distinct for red-green color blindness.
+_Avoid_: Theme, skin, colors
+
+**String table**:
+The text of one language, as a JSON file of keys and translations in a mod's `lang/` folder. A key the chosen language lacks falls back to English, and a key nobody has shows as the key itself.
+_Avoid_: Translation file, locale, resource
+
+**Localizer**:
+The object that looks text up by key in the chosen language, merging the string tables of the loaded mods in load order.
+_Avoid_: Translator, i18n, resource manager
+
+**Tooltip**:
+A short block of text shown beside the pointer, kept to a few short lines so it can be read at a glance.
+_Avoid_: Hint, help text, popup
+
+**Dialog**:
+A modal question with a title, a concise message, an optional caption, and buttons. The mouse and the keyboard both choose a button.
+_Avoid_: Modal, alert, prompt
+
+**HUD**:
+The always-on overlay: health, blood, bleeding, hunger, thirst, warmth, and the weapon in hand.
+_Avoid_: Overlay, status bar, heads-up display
+
+**Body screen**:
+The screen that shows every body part with its health and what is wrong with it, such as a wound that bleeds or a part that is gone.
+_Avoid_: Health screen, damage panel, character sheet
+
+**Inventory view**:
+The model behind the inventory screen: the slots of each container, and the drag that moves a stack between them. The list and the grid are two ways of drawing the same slots.
+_Avoid_: Inventory model, item grid, backpack UI
+
+**Drag**:
+Picking a stack up and dropping it into another container. Nothing moves until the drop, and a drop that cannot happen leaves everything as it was and says why.
+_Avoid_: Move, transfer, drag-and-drop
+
+**Key binding**:
+Which key does each game action. Every action has exactly one key and no key serves two actions, so a press is never ambiguous.
+_Avoid_: Hotkey, shortcut, control scheme
+
+**Game action**:
+Something the player can do with a key, such as moving, opening the inventory, or freeing the mouse. The game reads input through actions, never through raw keys.
+_Avoid_: Command, input, verb
+
+**UI scale**:
+How large the UI is drawn, 1 being the normal size. Bitmap text never draws below scale 1, since it cannot be drawn smaller.
+_Avoid_: DPI scale, zoom, font size

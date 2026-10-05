@@ -2,7 +2,7 @@ namespace Zombies.Engine.Render;
 
 /// <summary>
 /// A tiny built-in 5 by 7 bitmap font for debug overlays, so the renderer can show text before any real font, texture, or
-/// UI system exists. Letters draw in capitals. The atlas is one 8-bit channel, 16 cells wide, with one fully solid cell for
+/// UI system exists. Letters draw in capitals, including the Swedish Å, Ä, and Ö. The atlas is one 8-bit channel, 16 cells wide, with one fully solid cell for
 /// drawing plain rectangles through the same pipeline.
 /// </summary>
 public static class DebugFont
@@ -19,7 +19,7 @@ public static class DebugFont
 
     public const int CellsPerRow = 16;
 
-    private const string Characters = " 0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ.:-/%(),+=_|";
+    private const string Characters = " 0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ.:-/%(),+=_|ÅÄÖ!?'";
 
     // Each glyph is seven rows of five columns; '#' is lit.
     private static readonly string[][] Glyphs =
@@ -73,6 +73,12 @@ public static class DebugFont
         ["     ", "     ", "#####", "     ", "#####", "     ", "     "], // =
         ["     ", "     ", "     ", "     ", "     ", "     ", "#####"], // _
         ["  #  ", "  #  ", "  #  ", "  #  ", "  #  ", "  #  ", "  #  "], // |
+        ["  #  ", " # # ", "  #  ", " # # ", "#####", "#   #", "#   #"], // Å
+        [" # # ", " ### ", "#   #", "#####", "#   #", "#   #", "#   #"], // Ä
+        [" # # ", " ### ", "#   #", "#   #", "#   #", "#   #", " ### "], // Ö
+        ["  #  ", "  #  ", "  #  ", "  #  ", "  #  ", "     ", "  #  "], // !
+        [" ### ", "#   #", "    #", "   # ", "  #  ", "     ", "  #  "], // ?
+        ["  #  ", "  #  ", " #   ", "     ", "     ", "     ", "     "], // '
     ];
 
     /// <summary>Width and height of the whole shared atlas, which holds the icons below the font. See <see cref="UiAtlas"/>.</summary>

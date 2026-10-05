@@ -37,5 +37,7 @@ jobs:
         run: dotnet run --project tools/SimHarness --configuration Release --no-build -- net 300 mods
       - name: SimHarness drops a player onto terrain and steps up a ledge
         run: dotnet run --project tools/SimHarness --configuration Release --no-build -- physics 12345 mods
+      - name: SimHarness loads the UI layouts and string tables
+        run: dotnet run --project tools/SimHarness --configuration Release --no-build -- ui mods
       - name: Dedicated Server starts and ticks headless
         run: dotnet run --project src/Zombies.Server --configuration Release --no-build -- --port 0 --ticks 30

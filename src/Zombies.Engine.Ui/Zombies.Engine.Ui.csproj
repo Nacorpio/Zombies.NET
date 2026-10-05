@@ -2,6 +2,13 @@
 
   <ItemGroup>
     <ProjectReference Include="../Zombies.Engine.Core/Zombies.Engine.Core.csproj" />
+    <ProjectReference Include="../Zombies.Engine.Platform/Zombies.Engine.Platform.csproj" />
+    <ProjectReference Include="../Zombies.Engine.Render/Zombies.Engine.Render.csproj" />
+    <ProjectReference Include="../Zombies.Domain.Items/Zombies.Domain.Items.csproj" />
+    <ProjectReference Include="../Zombies.Domain.Inventory/Zombies.Domain.Inventory.csproj" />
+    <ProjectReference Include="../Zombies.Domain.Combat/Zombies.Domain.Combat.csproj" />
+    <ProjectReference Include="../Zombies.Domain.Survival/Zombies.Domain.Survival.csproj" />
+    <ProjectReference Include="../Zombies.Domain.Mods/Zombies.Domain.Mods.csproj" />
   </ItemGroup>
 
 </Project>

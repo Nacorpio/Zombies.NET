@@ -5,7 +5,7 @@ description: Pick the right model for a task by classifying it with Jev (TypeSaf
 
 # Model router
 
-Jev is a classifier, not a router: it answers typed questions about the task with probabilities.
+Jev (`typesafe/jev-1.13` on OpenRouter, `POST /api/v1/systemone`) is a classifier, not a router: it answers typed questions about the task with probabilities.
 `scripts/route.py` asks three atomic questions (kind, difficulty, high stakes), then applies the
 rule in `decide()` to map the answers to a tier and an OpenRouter model from `tiers.json`.
 Low confidence (< `min_confidence`) falls back to `default_tier`.
@@ -13,15 +13,14 @@ Low confidence (< `min_confidence`) falls back to `default_tier`.
 ## Use
 
 ```bash
-export TYPESAFE_API_KEY=...        # https://console.typesafe.ai/keys
+export OPENROUTER_API_KEY=...      # used for both Jev and the routed model
 python .claude/skills/model-router/scripts/route.py classify "<task text>"
 # {"tier":"hard","model":"anthropic/claude-opus-5.5","kind":"code","reason":"..."}
 ```
 
 - To delegate to a Claude subagent, map the tier to the Agent tool's `model` (`fast`→haiku,
   `standard`→sonnet, `hard`→opus, `frontier`→fable). Claude Code cannot switch the main session's model from a skill.
-- To run a non-Claude or specialist model (e.g. `kind_overrides`), use `run` (needs `OPENROUTER_API_KEY`).
-  It sends the task as a single user message and returns the answer with the decision.
+- To run a non-Claude or specialist model (e.g. `kind_overrides`), use `run`. It sends the task as a single user message and returns the answer with the decision.
 - Send only the task text Jev needs. `state` is capped at 32k tokens, and large or irrelevant text lowers accuracy.
 
 ## Maintain
@@ -34,5 +33,4 @@ python .claude/skills/model-router/scripts/route.py classify "<task text>"
 
 `perplexity/pplx-decider-v1-27b`, `cloudflare/clef-flash`, `respan/span-01` and `respan/span-01-lite`
 are not in OpenRouter's model list (checked 2026-10-05), and the Cloudflare Claude Code page does not mention Clef.
-`typesafe/jev-1.13` is not listed either; OpenRouter has `typesafe/jev-router`, which routes and answers
-in one call and returns no decision, so this skill does not use it. Add a backend only after confirming its API.
+`typesafe/jev-router` routes and answers in one call and returns no decision, so this skill does not use it. Add a backend only after confirming its API.

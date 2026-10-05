@@ -1,20 +1,20 @@
 #!/usr/bin/env python3
-"""Pick a model for a task: classify with Jev (TypeSafe System One), route in code.
+"""Pick a model for a task: classify with Jev (TypeSafe System One) via OpenRouter, route in code.
 
   route.py classify "<task>"   print the routing decision as JSON
   route.py run "<task>"        classify, then call the chosen model on OpenRouter
   route.py decide              read Jev-style answers JSON on stdin, print decision (offline)
   route.py validate            check every model in tiers.json exists on OpenRouter
 
-Env: TYPESAFE_API_KEY (classify/run), OPENROUTER_API_KEY (run). Stdlib only.
+Env: OPENROUTER_API_KEY (classify/run). Stdlib only.
 """
 import json, os, sys, time, urllib.error, urllib.request
 from pathlib import Path
 
 CFG_PATH = Path(__file__).resolve().parent.parent / "tiers.json"
-JEV_URL = "https://api.typesafe.ai/v1/systemone"
-JEV_MODEL = "jev-latest"
 OR_BASE = "https://openrouter.ai/api/v1"
+JEV_URL = f"{OR_BASE}/systemone"  # same body as TypeSafe's /v1/systemone
+JEV_MODEL = "typesafe/jev-1.13"
 
 # Questions are atomic (Jev reads literally; combine in code, not in the prompt).
 QUESTIONS = {
@@ -94,7 +94,7 @@ def need(name):
 
 
 def classify(task, cfg):
-    resp = http(JEV_URL, {"state": task, "model": JEV_MODEL, "questions": QUESTIONS}, need("TYPESAFE_API_KEY"))
+    resp = http(JEV_URL, {"state": task, "model": JEV_MODEL, "questions": QUESTIONS}, need("OPENROUTER_API_KEY"))
     return decide(resp["answers"], cfg)
 
 

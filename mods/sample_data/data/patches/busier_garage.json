@@ -1,0 +1,2 @@
+﻿{ "patch": "base:area_type/garage", "rules": [ { "containerKind": "shelf", "tables": [ { "table": "base:loot/garage", "weight": 5 }, { "table": "base:loot/military", "weight": 5, "dangerWeightShift": 2 } ] } ] }
+

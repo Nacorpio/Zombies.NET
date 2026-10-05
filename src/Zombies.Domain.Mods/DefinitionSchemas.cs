@@ -48,7 +48,7 @@ public static class DefinitionSchemas
                     obj["pattern"] = LabelKeyPattern;
                 }
 
-                if (context.PropertyInfo?.Name is "stat" or "mount" or "change" or "name" or "icon" or "group")
+                if (context.PropertyInfo?.Name is "stat" or "mount" or "change" or "name" or "icon" or "group" or "containerKind")
                 {
                     obj["pattern"] = StatNamePattern;
                 }

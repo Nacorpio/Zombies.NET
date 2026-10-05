@@ -1,0 +1,2 @@
+﻿{ "id": "base:area_type/garage", "rules": [ { "containerKind": "shelf", "tables": [ { "table": "base:loot/garage", "weight": 10 }, { "table": "base:loot/military", "weight": 1, "dangerWeightShift": 2 } ] } ] }
+

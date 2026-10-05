@@ -1,0 +1,2 @@
+﻿{ "id": "base:area_type/bedroom", "rules": [ { "containerKind": "wardrobe", "tables": [ { "table": "base:loot/bedroom", "weight": 10 } ] }, { "containerKind": "cabinet", "tables": [ { "table": "base:loot/bedroom", "weight": 7 }, { "table": "base:loot/medical", "weight": 3 } ] } ] }
+

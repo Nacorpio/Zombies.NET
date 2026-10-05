@@ -33,7 +33,7 @@ public sealed class ModLoadingTests
 
         Assert.True(result.IsSuccess, string.Join(Environment.NewLine, result.Errors));
         Assert.Equal(["base", "sample_data"], result.Mods.Select(m => m.Manifest.Id));
-        Assert.Equal(41, result.Registry.Count);
+        Assert.Equal(49, result.Registry.Count);
     }
 
     [Fact]
@@ -324,5 +324,67 @@ public sealed class ModLoadingTests
 
         Assert.Equal(["inspect", "drop", "split", "use"], actions.Select(a => a.Id.Split('/')[1]));
         Assert.All(actions, a => Assert.True(a.IsEnabled));
+    }
+
+    private static AreaTypeCatalog LoadAreas(DefinitionRegistry registry) =>
+        new(registry.OfKind("area_type").Select(d => AreaTypeJson.Parse(d.Json)));
+
+    [Fact]
+    public void BaseMod_DefinesFourAreaTypes()
+    {
+        var registry = LoadRepositoryMods().Registry;
+
+        var areas = registry.OfKind("area_type").Where(d => d.DefinedBy == "base").Select(d => d.Id.Value.Split('/')[1]).Order();
+
+        Assert.Equal(["bathroom", "bedroom", "garage", "kitchen"], areas);
+    }
+
+    [Fact]
+    public void SampleDataMod_PatchesAnAreaType()
+    {
+        var registry = LoadRepositoryMods().Registry;
+        var entry = registry.OfKind("area_type").Single(d => d.Id.Value == "base:area_type/garage");
+
+        var garage = AreaTypeJson.Parse(entry.Json);
+
+        Assert.Equal(["sample_data"], entry.ModifiedBy);
+        var shelf = Assert.Single(garage.Rules);
+        Assert.Equal(5, shelf.Tables.Single(t => t.Table == "base:loot/military").Weight);
+    }
+
+    [Fact]
+    public void EveryLootTableAnAreaTypeNamesExists()
+    {
+        var registry = LoadRepositoryMods().Registry;
+        var loot = new LootTableCatalog(registry.OfKind("loot").Select(d => LootTableJson.Parse(d.Json)));
+
+        foreach (var area in LoadAreas(registry).All)
+        {
+            foreach (var rule in area.Rules)
+            {
+                foreach (var table in rule.Tables)
+                {
+                    Assert.True(loot.TryGet(table.Table, out _), $"{area.Id} names {table.Table}, which is not a loot table");
+                }
+            }
+        }
+    }
+
+    [Fact]
+    public void AreaLoot_IsDeterministicAndFillsAContainer()
+    {
+        var registry = LoadRepositoryMods().Registry;
+        var items = new ItemCatalog(registry.OfKind("item").Select(d => ItemDefinitionJson.Parse(d.Json)));
+        var loot = new LootTableCatalog(registry.OfKind("loot").Select(d => LootTableJson.Parse(d.Json)));
+        var service = new AreaLootService(LoadAreas(registry), new LootService(loot));
+
+        var first = new Container(new ContainerId(1), Mass.FromKilograms(50), Volume.FromLiters(50), items);
+        var second = new Container(new ContainerId(2), Mass.FromKilograms(50), Volume.FromLiters(50), items);
+        var a = service.Fill("base:area_type/kitchen", "fridge", 2, 99, new ContainerItemSink(new InventoryService(items, new InMemoryContainerRepository()), first.Id));
+        var b = service.Fill("base:area_type/kitchen", "fridge", 2, 99, new ContainerItemSink(new InventoryService(items, new InMemoryContainerRepository()), second.Id));
+
+        Assert.True(a.IsSuccess, a.Error?.ToString());
+        Assert.Equal(a.Table, b.Table);
+        Assert.Equal(first.Stacks.Select(s => (s.Item, s.Count)), second.Stacks.Select(s => (s.Item, s.Count)));
     }
 }

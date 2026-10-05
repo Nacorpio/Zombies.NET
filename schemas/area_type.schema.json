@@ -1,0 +1,50 @@
+{
+  "type": "object",
+  "properties": {
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z0-9_]+:[a-z0-9_]+(/[a-z0-9_]+)*$"
+    },
+    "rules": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "containerKind": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_]*$"
+          },
+          "tables": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "table": {
+                  "type": "string"
+                },
+                "weight": {
+                  "type": "integer"
+                },
+                "dangerWeightShift": {
+                  "type": "integer"
+                }
+              },
+              "required": [
+                "table"
+              ]
+            }
+          }
+        },
+        "required": [
+          "containerKind",
+          "tables"
+        ]
+      }
+    }
+  },
+  "required": [
+    "id",
+    "rules"
+  ],
+  "$schema": "https://json-schema.org/draft/2020-12/schema"
+}

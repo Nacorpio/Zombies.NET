@@ -1,0 +1,2 @@
+﻿{ "id": "base:loot/bedroom", "rolls": { "min": 1, "max": 2 }, "entries": [ { "item": "base:item/bandage", "weight": 3 }, { "item": "base:item/canned_beans", "weight": 5 } ] }
+

@@ -402,7 +402,7 @@ public sealed class WorldRenderMathTests
             Assert.Equal(255, textures[i]);
         }
 
-        for (ushort block = Blocks.Bedrock; block <= Blocks.Lamp; block++)
+        for (ushort block = Blocks.Bedrock; block <= Blocks.Crate; block++)
         {
             for (var face = 0; face < 6; face++)
             {

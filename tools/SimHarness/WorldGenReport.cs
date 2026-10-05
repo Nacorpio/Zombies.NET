@@ -52,7 +52,7 @@ internal static class WorldGenReport
         }
 
         var biomes = new BiomeCatalog(loaded.Registry.OfKind("biome").Select(d => BiomeJson.Parse(d.Json)));
-        var generator = new WorldGenerator(seed, biomes);
+        var generator = new WorldGenerator(seed, biomes, SettlementContentLoader.Load(loaded.Registry));
 
         // Generate the ring one chunk wider than the meshed area so every meshed chunk has real neighbors.
         var chunks = new Dictionary<ChunkCoord, Chunk>();
@@ -112,6 +112,7 @@ internal static class WorldGenReport
         var grid = new RegionGrid(seed);
         var site = grid.SiteIn(new RegionCoord(3, -2));
         Console.WriteLine($"  fingerprint: site(3,-2) {(site is null ? "none" : $"{site.X},{site.Z},{site.Seed:X16}")}, danger(3,-2) {grid.DangerOf(new RegionCoord(3, -2))}, danger(8,5) {grid.DangerOf(new RegionCoord(8, 5))}");
+        Console.WriteLine(SettlementFingerprint(seed, generator));
         Console.WriteLine($"  generate {generateMs:F3} ms/chunk");
         Console.WriteLine($"  light    {lightMs.Average():F3} ms/chunk");
         Console.WriteLine($"  mesh     {meshMs.Average():F3} ms/chunk");
@@ -130,6 +131,33 @@ internal static class WorldGenReport
         }
 
         return 0;
+    }
+
+    /// <summary>
+    /// The first Settlement found scanning outward from the spawn region, as the hash of the chunk its first Structure stands in
+    /// and its Container count, so two platforms' logs can be compared line by line.
+    /// </summary>
+    private static string SettlementFingerprint(ulong seed, WorldGenerator generator)
+    {
+        for (var ring = 1; ring <= 6; ring++)
+        {
+            for (var x = -ring; x <= ring; x++)
+            {
+                for (var z = -ring; z <= ring; z++)
+                {
+                    if (Math.Max(Math.Abs(x), Math.Abs(z)) != ring || generator.SettlementIn(new RegionCoord(x, z)) is not { } plan)
+                    {
+                        continue;
+                    }
+
+                    var first = plan.Structures[0];
+                    var chunk = generator.Generate(new ChunkCoord(first.X >> 4, first.Z >> 4));
+                    return $"  fingerprint: settlement region({x},{z}) {plan.Type.Id} structures {plan.Structures.Count} containers {generator.ContainersIn(new RegionCoord(x, z)).Count} zombies {plan.ZombieSpawns.Count} {chunk.Coord} hash {chunk.Hash():X16} (seed {seed})";
+                }
+            }
+        }
+
+        return "  fingerprint: no settlement within six regions";
     }
 
     private static (double LightMs, double MeshMs, ChunkMeshSet Set) Build(Dictionary<ChunkCoord, Chunk> chunks, ChunkCoord coord)

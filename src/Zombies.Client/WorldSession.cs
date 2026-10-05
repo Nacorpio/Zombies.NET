@@ -30,7 +30,7 @@ internal sealed class WorldSession : IDisposable
         Solo = new EmbeddedServer(new ServerOptions(GameIdentity.From(mods, WorldGenerator.GeneratorVersion), options.Seed), string.IsNullOrEmpty(Environment.UserName) ? "player" : Environment.UserName);
 
         var biomes = new BiomeCatalog(mods.Registry.OfKind("biome").Select(d => BiomeJson.Parse(d.Json)));
-        _pipeline = new ChunkPipeline(new WorldGenerator(Solo.Client.WorldSeed, biomes));
+        _pipeline = new ChunkPipeline(new WorldGenerator(Solo.Client.WorldSeed, biomes, SettlementContentLoader.Load(mods.Registry)));
         Manager = new ChunkRenderManager(_pipeline, renderer, new ChunkStreamer(options.ViewDistance));
         ViewDistance = options.ViewDistance;
 

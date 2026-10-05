@@ -1,0 +1,120 @@
+{
+  "type": "object",
+  "properties": {
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z0-9_]+:[a-z0-9_]+(/[a-z0-9_]+)*$"
+    },
+    "inhabited": {
+      "type": "boolean"
+    },
+    "rarity": {
+      "type": "integer"
+    },
+    "danger": {
+      "type": "object",
+      "properties": {
+        "min": {
+          "type": "integer"
+        },
+        "max": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "min",
+        "max"
+      ]
+    },
+    "structures": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "structure": {
+            "type": "string",
+            "pattern": "^[a-z0-9_]+:[a-z0-9_]+(/[a-z0-9_]+)*$"
+          },
+          "count": {
+            "type": "object",
+            "properties": {
+              "min": {
+                "type": "integer"
+              },
+              "max": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "min",
+              "max"
+            ]
+          }
+        },
+        "required": [
+          "structure",
+          "count"
+        ]
+      }
+    },
+    "areaTypes": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "areaType": {
+            "type": "string",
+            "pattern": "^[a-z0-9_]+:[a-z0-9_]+(/[a-z0-9_]+)*$"
+          },
+          "weight": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "areaType"
+        ]
+      }
+    },
+    "zombieSpawns": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "zombieType": {
+            "type": "string",
+            "pattern": "^[a-z0-9_]+:[a-z0-9_]+(/[a-z0-9_]+)*$"
+          },
+          "count": {
+            "type": "object",
+            "properties": {
+              "min": {
+                "type": "integer"
+              },
+              "max": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "min",
+              "max"
+            ]
+          }
+        },
+        "required": [
+          "zombieType",
+          "count"
+        ]
+      }
+    }
+  },
+  "required": [
+    "id",
+    "inhabited",
+    "rarity",
+    "danger",
+    "structures",
+    "areaTypes",
+    "zombieSpawns"
+  ],
+  "$schema": "https://json-schema.org/draft/2020-12/schema"
+}

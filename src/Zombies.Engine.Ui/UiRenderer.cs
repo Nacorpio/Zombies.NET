@@ -32,6 +32,15 @@ public static class UiRenderer
             return;
         }
 
+        DrawTooltip(sprites, tooltip, palette, x, y, screen, textScale);
+    }
+
+    /// <summary>Draws a tooltip beside the pointer: title, body lines, then the caption if it has one.</summary>
+    public static void DrawTooltip(SpriteBatch sprites, Tooltip tooltip, UiPalette palette, float x, float y, UiRect screen, int textScale)
+    {
+        ArgumentNullException.ThrowIfNull(sprites);
+        ArgumentNullException.ThrowIfNull(tooltip);
+        ArgumentNullException.ThrowIfNull(palette);
         var bounds = tooltip.Place(x, y, screen, textScale);
         sprites.FillRect(bounds.X, bounds.Y, bounds.Width, bounds.Height, palette.Color(PaletteRole.Panel));
         var line = DebugFont.LineHeight * textScale;
@@ -47,6 +56,11 @@ public static class UiRenderer
         {
             sprites.DrawText(text, textX, textY, textScale, palette.Color(PaletteRole.Muted));
             textY += line;
+        }
+
+        if (tooltip.Caption is { } caption)
+        {
+            sprites.DrawText(caption, textX, textY, textScale, palette.Color(PaletteRole.Text));
         }
     }
 

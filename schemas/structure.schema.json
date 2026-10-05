@@ -1,0 +1,145 @@
+{
+  "type": "object",
+  "properties": {
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z0-9_]+:[a-z0-9_]+(/[a-z0-9_]+)*$"
+    },
+    "palette": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "symbol": {
+            "type": "string"
+          },
+          "block": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "symbol",
+          "block"
+        ]
+      }
+    },
+    "layers": {
+      "type": "array",
+      "items": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      }
+    },
+    "areas": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_]*$"
+          },
+          "areaType": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "pattern": "^[a-z0-9_]+:[a-z0-9_]+(/[a-z0-9_]+)*$"
+          },
+          "min": {
+            "type": "object",
+            "properties": {
+              "x": {
+                "type": "integer"
+              },
+              "y": {
+                "type": "integer"
+              },
+              "z": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "x",
+              "y",
+              "z"
+            ]
+          },
+          "max": {
+            "type": "object",
+            "properties": {
+              "x": {
+                "type": "integer"
+              },
+              "y": {
+                "type": "integer"
+              },
+              "z": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "x",
+              "y",
+              "z"
+            ]
+          }
+        },
+        "required": [
+          "name",
+          "min",
+          "max"
+        ]
+      }
+    },
+    "containers": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "containerKind": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_]*$"
+          },
+          "at": {
+            "type": "object",
+            "properties": {
+              "x": {
+                "type": "integer"
+              },
+              "y": {
+                "type": "integer"
+              },
+              "z": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "x",
+              "y",
+              "z"
+            ]
+          },
+          "area": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "containerKind",
+          "at",
+          "area"
+        ]
+      }
+    }
+  },
+  "required": [
+    "id",
+    "palette",
+    "layers",
+    "areas",
+    "containers"
+  ],
+  "$schema": "https://json-schema.org/draft/2020-12/schema"
+}

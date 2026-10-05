@@ -47,6 +47,24 @@ internal static class SaveSchema
             PRIMARY KEY (container_id, stack_id)
         ) WITHOUT ROWID;
 
+        CREATE TABLE stack_state_values (
+            container_id INTEGER NOT NULL,
+            stack_id     INTEGER NOT NULL,
+            name         TEXT    NOT NULL,
+            value        INTEGER NOT NULL,
+            PRIMARY KEY (container_id, stack_id, name),
+            FOREIGN KEY (container_id, stack_id) REFERENCES container_stacks (container_id, stack_id) ON DELETE CASCADE
+        ) WITHOUT ROWID;
+
+        CREATE TABLE stack_state_attached (
+            container_id INTEGER NOT NULL,
+            stack_id     INTEGER NOT NULL,
+            item         TEXT    NOT NULL,
+            count        INTEGER NOT NULL,
+            PRIMARY KEY (container_id, stack_id, item),
+            FOREIGN KEY (container_id, stack_id) REFERENCES container_stacks (container_id, stack_id) ON DELETE CASCADE
+        ) WITHOUT ROWID;
+
         CREATE TABLE bodies (
             id            INTEGER NOT NULL PRIMARY KEY,
             is_alive      INTEGER NOT NULL,

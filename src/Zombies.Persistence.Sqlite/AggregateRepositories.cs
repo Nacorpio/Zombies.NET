@@ -27,13 +27,36 @@ public sealed class SqliteContainerRepository(SaveDatabase database, IItemCatalo
             header = new ContainerSnapshot(id.Value, reader.GetDouble(0), reader.GetDouble(1), reader.GetInt32(2), []);
         }
 
+        var values = new Dictionary<int, List<KeyValuePair<string, int>>>();
+        using (var command = database.Command(null, "SELECT stack_id, name, value FROM stack_state_values WHERE container_id = $id ORDER BY stack_id, name", ("$id", id.Value)))
+        using (var reader = command.ExecuteReader())
+        {
+            while (reader.Read())
+            {
+                Group(values, reader.GetInt32(0)).Add(new(reader.GetString(1), reader.GetInt32(2)));
+            }
+        }
+
+        var attached = new Dictionary<int, List<KeyValuePair<string, int>>>();
+        using (var command = database.Command(null, "SELECT stack_id, item, count FROM stack_state_attached WHERE container_id = $id ORDER BY stack_id, item", ("$id", id.Value)))
+        using (var reader = command.ExecuteReader())
+        {
+            while (reader.Read())
+            {
+                Group(attached, reader.GetInt32(0)).Add(new(reader.GetString(1), reader.GetInt32(2)));
+            }
+        }
+
         var stacks = new List<StackSnapshot>();
         using (var command = database.Command(null, "SELECT stack_id, item, count FROM container_stacks WHERE container_id = $id ORDER BY stack_id", ("$id", id.Value)))
         using (var reader = command.ExecuteReader())
         {
             while (reader.Read())
             {
-                stacks.Add(new StackSnapshot(reader.GetInt32(0), reader.GetString(1), reader.GetInt32(2)));
+                var stackId = reader.GetInt32(0);
+                var hasState = values.ContainsKey(stackId) || attached.ContainsKey(stackId);
+                var state = hasState ? new ItemStateSnapshot(values.GetValueOrDefault(stackId) ?? [], attached.GetValueOrDefault(stackId) ?? []) : null;
+                stacks.Add(new StackSnapshot(stackId, reader.GetString(1), reader.GetInt32(2), state));
             }
         }
 
@@ -46,6 +69,16 @@ public sealed class SqliteContainerRepository(SaveDatabase database, IItemCatalo
         {
             throw new SaveCorruptException($"{id} is not a valid Container: {ex.Message}", ex);
         }
+    }
+
+    private static List<KeyValuePair<string, int>> Group(Dictionary<int, List<KeyValuePair<string, int>>> groups, int stack)
+    {
+        if (!groups.TryGetValue(stack, out var list))
+        {
+            groups[stack] = list = [];
+        }
+
+        return list;
     }
 
     public bool TryAdd(Container container)
@@ -87,6 +120,28 @@ public sealed class SqliteContainerRepository(SaveDatabase database, IItemCatalo
                     ("$stack", stack.Id),
                     ("$item", stack.Item),
                     ("$count", stack.Count)).ExecuteNonQuery();
+
+                foreach (var (name, value) in stack.State?.Values ?? [])
+                {
+                    database.Command(
+                        transaction,
+                        "INSERT INTO stack_state_values (container_id, stack_id, name, value) VALUES ($id, $stack, $name, $value)",
+                        ("$id", snapshot.Id),
+                        ("$stack", stack.Id),
+                        ("$name", name),
+                        ("$value", value)).ExecuteNonQuery();
+                }
+
+                foreach (var (item, count) in stack.State?.Attached ?? [])
+                {
+                    database.Command(
+                        transaction,
+                        "INSERT INTO stack_state_attached (container_id, stack_id, item, count) VALUES ($id, $stack, $item, $count)",
+                        ("$id", snapshot.Id),
+                        ("$stack", stack.Id),
+                        ("$item", item),
+                        ("$count", count)).ExecuteNonQuery();
+                }
             }
         });
     }

@@ -140,3 +140,74 @@ public readonly record struct MovePlayer(Vector3 Position, float Yaw) : INetComm
         return CommandResult.Accepted;
     }
 }
+
+/// <summary>
+/// One tick of player input. The Server runs the same <see cref="PlayerMovement"/> step the client predicted with, so the
+/// client's position is confirmed rather than corrected. The Server only checks that the input is sane and that the
+/// resulting step is short enough to be a step and not a teleport.
+/// </summary>
+public readonly record struct PlayerInputCommand(PlayerInput Input) : INetCommand<PlayerInputCommand>
+{
+    public static ushort CommandId => 2;
+
+    public static PlayerInputCommand Read(ref NetReader reader)
+    {
+        var axes = reader.ReadByte();
+        var forward = ((axes >> 4) & 0x7) - 3;
+        var strafe = (axes & 0x7) - 3;
+        var flags = reader.ReadByte();
+        return new PlayerInputCommand(new PlayerInput(
+            forward / 3f,
+            strafe / 3f,
+            reader.ReadSingle(),
+            reader.ReadSingle(),
+            (flags & 1) != 0,
+            (flags & 2) != 0,
+            (flags & 4) != 0,
+            (flags & 8) != 0,
+            (flags & 16) != 0));
+    }
+
+    public void Write(NetWriter writer)
+    {
+        ArgumentNullException.ThrowIfNull(writer);
+        var forward = (int)MathF.Round(Math.Clamp(Input.Forward, -1f, 1f) * 3f) + 3;
+        var strafe = (int)MathF.Round(Math.Clamp(Input.Strafe, -1f, 1f) * 3f) + 3;
+        writer.WriteByte((byte)((forward << 4) | strafe));
+        writer.WriteByte((byte)(
+            (Input.Sprint ? 1 : 0)
+            | (Input.Crouch ? 2 : 0)
+            | (Input.LeanLeft ? 4 : 0)
+            | (Input.LeanRight ? 8 : 0)
+            | (Input.Jump ? 16 : 0)));
+        writer.WriteSingle(Input.Yaw);
+        writer.WriteSingle(Input.Pitch);
+    }
+
+    internal static CommandResult Handle(in PlayerInputCommand command, CommandContext context)
+    {
+        if (!command.Input.IsValid)
+        {
+            return CommandResult.Invalid("The input axes must be finite and within -1 to 1.");
+        }
+
+        var world = context.Server.World;
+        var id = context.Player.EntityId;
+        if (!world.TryGet(id, out var current))
+        {
+            return CommandResult.Invalid("The player has no entity.");
+        }
+
+        var input = command.Input.Sanitized();
+        var state = context.Player.Movement;
+        var next = PlayerMovement.Step(state, input, PlayerMovement.StepSeconds, context.Player.Collision);
+        if (Vector3.DistanceSquared(state.Position, next.Position) > PlayerMovement.MaxStepPerTick * PlayerMovement.MaxStepPerTick)
+        {
+            return CommandResult.Invalid($"A step may cover at most {PlayerMovement.MaxStepPerTick} blocks.");
+        }
+
+        context.Player.Movement = next;
+        world.Move(id, next.Position, next.Yaw);
+        return CommandResult.Accepted;
+    }
+}

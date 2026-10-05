@@ -57,6 +57,9 @@ internal sealed class ClientOptions
 
     public string? SessionPath { get; private set; }
 
+    /// <summary>Diagnostic: draw this many dummy bodies in front of the camera, to check the body render path without a second player.</summary>
+    public int DummyBodies { get; private set; }
+
     public static ClientOptions Parse(string[] args)
     {
         var options = new ClientOptions();
@@ -138,6 +141,9 @@ internal sealed class ClientOptions
                     break;
                 case "--session":
                     options.SessionPath = next();
+                    break;
+                case "--bodies":
+                    options.DummyBodies = int.Parse(next(), CultureInfo.InvariantCulture);
                     break;
                 default:
                     throw new ArgumentException($"Unknown argument '{args[i]}'.");

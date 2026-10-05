@@ -9,14 +9,18 @@ public sealed class Container
     private const double MassSlackKg = 1e-9;
     private const double VolumeSlackM3 = 1e-12;
 
-    private sealed class Entry(StackId id, ItemId item, int count)
+    private sealed class Entry(StackId id, ItemId item, int count, ItemState? state)
     {
         public StackId Id { get; } = id;
 
         public ItemId Item { get; } = item;
 
+        public ItemState? State { get; } = state;
+
         public int Count { get; set; } = count;
     }
+
+    private static readonly IReadOnlyDictionary<ItemId, int> EmptyAttached = new Dictionary<ItemId, int>();
 
     private readonly IItemCatalog _catalog;
     private readonly List<Entry> _entries = [];
@@ -37,7 +41,7 @@ public sealed class Container
 
     public Volume VolumeLimit { get; }
 
-    public IReadOnlyList<ItemStack> Stacks => [.. _entries.Select(e => new ItemStack(e.Id, e.Item, e.Count))];
+    public IReadOnlyList<ItemStack> Stacks => [.. _entries.Select(e => new ItemStack(e.Id, e.Item, e.Count, e.State))];
 
     public Mass TotalMass
     {
@@ -46,10 +50,7 @@ public sealed class Container
             var total = Mass.Zero;
             foreach (var entry in _entries)
             {
-                if (_catalog.TryGet(entry.Item, out var definition))
-                {
-                    total += definition.UnitMass * entry.Count;
-                }
+                total += UnitMass(entry.Item, entry.State) * entry.Count;
             }
 
             return total;
@@ -63,10 +64,7 @@ public sealed class Container
             var total = Volume.Zero;
             foreach (var entry in _entries)
             {
-                if (_catalog.TryGet(entry.Item, out var definition))
-                {
-                    total += definition.UnitVolume * entry.Count;
-                }
+                total += UnitVolume(entry.Item, entry.State) * entry.Count;
             }
 
             return total;
@@ -79,7 +77,7 @@ public sealed class Container
         MassLimit.Kilograms,
         VolumeLimit.CubicMeters,
         _nextStackId,
-        [.. _entries.Select(e => new StackSnapshot(e.Id.Value, e.Item.Value, e.Count))]);
+        [.. _entries.Select(e => new StackSnapshot(e.Id.Value, e.Item.Value, e.Count, SnapshotOf(e.State)))]);
 
     /// <summary>Rebuilds a Container from a snapshot. Throws <see cref="ArgumentException"/> when the snapshot is not a state a Container can be in.</summary>
     public static Container Restore(ContainerSnapshot snapshot, IItemCatalog catalog)
@@ -105,7 +103,7 @@ public sealed class Container
                 throw new ArgumentException($"Stack {stack.Id} of {item} is not valid: it needs a unique positive id and a positive count.", nameof(snapshot));
             }
 
-            container._entries.Add(new Entry(new StackId(stack.Id), item, stack.Count));
+            container._entries.Add(new Entry(new StackId(stack.Id), item, stack.Count, StateOf(stack.State, item)));
         }
 
         container._nextStackId = Math.Max(snapshot.NextStackId, seen.Count == 0 ? 1 : seen.Max() + 1);
@@ -114,25 +112,83 @@ public sealed class Container
 
     public int CountOf(ItemId item) => _entries.Where(e => e.Item == item).Sum(e => e.Count);
 
+    private static ItemStateSnapshot? SnapshotOf(ItemState? state) => state is null
+        ? null
+        : new ItemStateSnapshot([.. state.Values], [.. state.Attached.Select(a => new KeyValuePair<string, int>(a.Key.Value, a.Value))]);
+
+    private static ItemState? StateOf(ItemStateSnapshot? snapshot, ItemId item)
+    {
+        if (snapshot is null)
+        {
+            return null;
+        }
+
+        var attached = new List<KeyValuePair<ItemId, int>>();
+        foreach (var (attachedItem, count) in snapshot.Attached)
+        {
+            if (!ItemId.TryParse(attachedItem, out var id))
+            {
+                throw new ArgumentException($"'{attachedItem}' attached to {item} is not a valid Content ID.");
+            }
+
+            attached.Add(new(id, count));
+        }
+
+        try
+        {
+            // Like the Inventory commands, treat a state that holds nothing as no state, so equal Stacks can still merge.
+            var state = ItemState.Create(snapshot.Values, attached);
+            return state.IsEmpty ? null : state;
+        }
+        catch (ArgumentException ex)
+        {
+            throw new ArgumentException($"The state of {item} is not valid: {ex.Message}", ex);
+        }
+    }
+
+    public int CountOf(ItemId item, ItemState? state) => _entries.Where(e => e.Item == item && Equals(e.State, state)).Sum(e => e.Count);
+
+    private Mass UnitMass(ItemId item, ItemState? state)
+    {
+        var total = _catalog.TryGet(item, out var definition) ? definition.UnitMass : Mass.Zero;
+        foreach (var (attached, count) in state?.Attached ?? EmptyAttached)
+        {
+            total += UnitMass(attached, null) * count;
+        }
+
+        return total;
+    }
+
+    private Volume UnitVolume(ItemId item, ItemState? state)
+    {
+        var total = _catalog.TryGet(item, out var definition) ? definition.UnitVolume : Volume.Zero;
+        foreach (var (attached, count) in state?.Attached ?? EmptyAttached)
+        {
+            total += UnitVolume(attached, null) * count;
+        }
+
+        return total;
+    }
+
     internal ItemStack? Find(StackId id)
     {
         var entry = _entries.Find(e => e.Id == id);
-        return entry is null ? null : new ItemStack(entry.Id, entry.Item, entry.Count);
+        return entry is null ? null : new ItemStack(entry.Id, entry.Item, entry.Count, entry.State);
     }
 
-    internal InventoryError? CheckFits(ItemId item, int count)
+    internal InventoryError? CheckFits(ItemId item, int count, ItemState? state = null)
     {
-        if (!_catalog.TryGet(item, out var definition))
+        if (!_catalog.TryGet(item, out _) || (state is not null && state.Attached.Keys.Any(a => !_catalog.TryGet(a, out _))))
         {
             return InventoryError.UnknownItem;
         }
 
-        if (TotalMass.Kilograms + (definition.UnitMass * count).Kilograms > MassLimit.Kilograms + MassSlackKg)
+        if (TotalMass.Kilograms + (UnitMass(item, state) * count).Kilograms > MassLimit.Kilograms + MassSlackKg)
         {
             return InventoryError.ExceedsMassLimit;
         }
 
-        if (TotalVolume.CubicMeters + (definition.UnitVolume * count).CubicMeters > VolumeLimit.CubicMeters + VolumeSlackM3)
+        if (TotalVolume.CubicMeters + (UnitVolume(item, state) * count).CubicMeters > VolumeLimit.CubicMeters + VolumeSlackM3)
         {
             return InventoryError.ExceedsVolumeLimit;
         }
@@ -141,12 +197,12 @@ public sealed class Container
     }
 
     /// <summary>Adds items, topping up partial Stacks first. The caller has already checked limits.</summary>
-    internal void Add(ItemId item, int count)
+    internal void Add(ItemId item, int count, ItemState? state = null)
     {
         var max = _catalog.TryGet(item, out var definition) ? definition.MaxStack : 1;
         var remaining = count;
 
-        foreach (var entry in _entries.Where(e => e.Item == item && e.Count < max))
+        foreach (var entry in _entries.Where(e => e.Item == item && Equals(e.State, state) && e.Count < max))
         {
             var take = Math.Min(max - entry.Count, remaining);
             entry.Count += take;
@@ -160,19 +216,19 @@ public sealed class Container
         while (remaining > 0)
         {
             var take = Math.Min(max, remaining);
-            _entries.Add(new Entry(new StackId(_nextStackId++), item, take));
+            _entries.Add(new Entry(new StackId(_nextStackId++), item, take, state));
             remaining -= take;
         }
     }
 
     /// <summary>Removes items from the newest Stacks first. The caller has already checked availability.</summary>
-    internal void Remove(ItemId item, int count)
+    internal void Remove(ItemId item, int count, ItemState? state = null)
     {
         var remaining = count;
         for (var i = _entries.Count - 1; i >= 0 && remaining > 0; i--)
         {
             var entry = _entries[i];
-            if (entry.Item != item)
+            if (entry.Item != item || !Equals(entry.State, state))
             {
                 continue;
             }
@@ -201,7 +257,7 @@ public sealed class Container
     {
         var entry = _entries.Find(e => e.Id == id)!;
         entry.Count -= count;
-        var created = new Entry(new StackId(_nextStackId++), entry.Item, count);
+        var created = new Entry(new StackId(_nextStackId++), entry.Item, count, entry.State);
         _entries.Add(created);
         return created.Id;
     }

@@ -116,6 +116,86 @@ public sealed class AggregateRoundTripTests
         Assert.Throws<SaveCorruptException>(() => repository.TryGet(Backpack, out _));
     }
 
+    private static InMemoryContainerRepository Armory(out InventoryService service)
+    {
+        var memory = new InMemoryContainerRepository();
+        service = new InventoryService(Items, memory);
+        Assert.True(service.AddContainer(new Container(Crate, UnitsNet.Mass.FromKilograms(50), UnitsNet.Volume.FromLiters(50), Items)).IsSuccess);
+        return memory;
+    }
+
+    [Fact]
+    public void Container_WithItemState_KeepsTheValuesAndAttachmentsOfEachStack()
+    {
+        var memory = Armory(out var service);
+        var worn = ItemState.Create([new("condition", 40), new("rounds", 7)], [new(Scope, 1)]);
+        var fresh = ItemState.Create([new("condition", 90)]);
+        Assert.True(service.AddItems(Crate, Rifle, 1, worn).IsSuccess);
+        Assert.True(service.AddItems(Crate, Rifle, 1, fresh).IsSuccess);
+        Assert.True(service.AddItems(Crate, Beans, 2).IsSuccess);
+        memory.TryGet(Crate, out var original);
+        using var save = new TempSave();
+        using (var database = save.Open())
+        {
+            new SqliteContainerRepository(database, Items).Save(original);
+        }
+
+        using var reopened = save.Open();
+        Assert.True(new SqliteContainerRepository(reopened, Items).TryGet(Crate, out var loaded));
+
+        Assert.Equal(original.Stacks, loaded.Stacks);
+        Assert.Equal(3, loaded.Stacks.Count);
+        Assert.Equal(1, loaded.CountOf(Rifle, worn));
+        Assert.Equal(1, loaded.CountOf(Rifle, fresh));
+        Assert.Equal(original.TotalMass.Kilograms, loaded.TotalMass.Kilograms, 9);
+    }
+
+    [Fact]
+    public void Container_RestoredFromAnEmptyState_HoldsTheStackWithNoState()
+    {
+        var snapshot = new ContainerSnapshot(Crate.Value, 50, 0.05, 2, [new StackSnapshot(1, Beans.Value, 2, new ItemStateSnapshot([], []))]);
+
+        var container = Container.Restore(snapshot, Items);
+
+        Assert.Null(Assert.Single(container.Stacks).State);
+    }
+    [Fact]
+    public void Container_SavedAgainAfterAStatefulStackWasRemoved_LeavesNoStateBehind()
+    {
+        var memory = Armory(out var service);
+        var state = ItemState.Create([new("condition", 40)], [new(Scope, 1)]);
+        Assert.True(service.AddItems(Crate, Rifle, 1, state).IsSuccess);
+        memory.TryGet(Crate, out var container);
+        using var save = new TempSave();
+        using var database = save.Open();
+        var repository = new SqliteContainerRepository(database, Items);
+        repository.Save(container);
+        Assert.True(service.RemoveItems(Crate, Rifle, 1, state).IsSuccess);
+
+        repository.Save(container);
+
+        foreach (var table in new[] { "stack_state_values", "stack_state_attached", "container_stacks" })
+        {
+            using var count = database.Command(null, $"SELECT COUNT(*) FROM {table}");
+            Assert.Equal(0L, count.ExecuteScalar());
+        }
+    }
+
+    [Fact]
+    public void Container_WithAnImpossibleStoredAttachmentCount_ThrowsASaveCorruptException()
+    {
+        var memory = Armory(out var service);
+        Assert.True(service.AddItems(Crate, Rifle, 1, ItemState.Create(attached: [new(Scope, 1)])).IsSuccess);
+        memory.TryGet(Crate, out var container);
+        using var save = new TempSave();
+        using var database = save.Open();
+        var repository = new SqliteContainerRepository(database, Items);
+        repository.Save(container);
+        database.Transact(t => database.Command(t, "UPDATE stack_state_attached SET count = 0").ExecuteNonQuery());
+
+        Assert.Throws<SaveCorruptException>(() => repository.TryGet(Crate, out _));
+    }
+
     [Fact]
     public void Body_WoundedAndMissingAPart_SurvivesASaveAndKeepsBleedingTheSame()
     {

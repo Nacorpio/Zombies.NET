@@ -27,11 +27,15 @@ internal static class Fixtures
     public static readonly ItemId Water = new("base:item/water_bottle");
     public static readonly ItemId Shirt = new("base:item/shirt");
     public static readonly ItemId Jacket = new("base:item/jacket");
+    public static readonly ItemId Rifle = new("base:item/rifle");
+    public static readonly ItemId Scope = new("base:item/scope");
 
     public static ItemCatalog Items { get; } = new(
     [
         new ItemDefinition(Beans, Mass.FromKilograms(0.4), Volume.FromLiters(0.35), maxStack: 4),
         new ItemDefinition(Water, Mass.FromKilograms(1.0), Volume.FromLiters(1.0), maxStack: 2),
+        new ItemDefinition(Rifle, Mass.FromKilograms(3.5), Volume.FromLiters(4), maxStack: 1),
+        new ItemDefinition(Scope, Mass.FromKilograms(0.5), Volume.FromLiters(0.4), maxStack: 1),
     ]);
 
     public static WearableCatalog Wearables { get; } = new(

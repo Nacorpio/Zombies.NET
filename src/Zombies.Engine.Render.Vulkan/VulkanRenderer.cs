@@ -1268,6 +1268,7 @@ public sealed unsafe partial class VulkanRenderer : IRenderer, IWorldRenderer
         if (world is not null)
         {
             RecordTerrain(cmd, world);
+            RecordBodies(cmd, world);
         }
 
         Mark(cmd, MarkSpritesStart);

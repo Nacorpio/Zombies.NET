@@ -1,0 +1,7 @@
+# One movement model, run by the Server and replayed by the client
+
+The Server owns where a player is, but a client that only moved when a snapshot arrived would feel a round trip behind. So `PlayerMovement` is a pure function of one `PlayerMoveState` and one `PlayerInput` at the fixed 30 Hz step, and both sides run it: the Server on the input it received, the client on the input it just sent. The client keeps a fixed ring buffer of the state it predicted for each input sequence, and when a snapshot arrives it rewinds to the state at the acknowledged input, takes the Server's position and yaw, and replays the inputs the Server has not confirmed yet. A prediction that was right replays to the same place, so the local player never jitters; a prediction that was wrong is corrected in one step.
+
+The model is deliberately float and not integer. It is not a lockstep simulation and nothing is hashed across peers, so the only requirement is that the same binary on both sides reaches the same answer, which it does because the step is fixed and the input is the only variable. Collision is the one thing the model does not own: it asks an `IPlayerCollision` for the ground and the walls, which the Server answers with Jolt and a test answers with a flat floor.
+
+We rejected letting the client move freely and having the Server rubber-band it (visible snapping, and the client is never wrong until it is), and we rejected a full rollback of every entity (the milestone only needs the player, and rolling back the world would couple movement to the whole simulation).

@@ -266,6 +266,26 @@ _Avoid_: Relevancy, view distance
 A server event that clients turn into visuals and sound only, such as blood splatter or a ragdoll.
 _Avoid_: Effect
 
+**Player input**:
+What the player is asking for in one tick: the two movement axes, the look angles, and the sprint, crouch, lean, and jump flags. The client samples its keys into one and sends it; the Server applies it.
+_Avoid_: Key state, control message
+
+**Movement model**:
+The one function that turns a player's state and one input into the next state, run by the Server and replayed by the client so both reach the same position.
+_Avoid_: Physics step, locomotion
+
+**Prediction**:
+A client running the movement model on its own input before the Server confirms it, so the player moves the moment a key is pressed.
+_Avoid_: Extrapolation, client-side movement
+
+**Reconciliation**:
+Rewinding a client's predicted state to the last input the Server acknowledged, taking the Server's position, and replaying the inputs since. A prediction that was right replays to the same place.
+_Avoid_: Correction, rollback, rubber-banding
+
+**Step-up**:
+Walking up a ledge no taller than the step height without jumping.
+_Avoid_: Auto-jump, stair climbing
+
 ## Saves
 
 **Save**:

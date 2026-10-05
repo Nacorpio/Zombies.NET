@@ -36,7 +36,7 @@ public sealed partial class ShaderRulesTests
     {
         var names = Directory.EnumerateFiles(ShaderFolder(), "*.hlsl").Select(Path.GetFileName).Order().ToArray();
 
-        Assert.Equal(["shadow.vert.hlsl", "sprite.frag.hlsl", "sprite.vert.hlsl", "terrain.frag.hlsl", "terrain.vert.hlsl"], names);
+        Assert.Equal(["body.frag.hlsl", "body.vert.hlsl", "shadow.vert.hlsl", "sprite.frag.hlsl", "sprite.vert.hlsl", "terrain.frag.hlsl", "terrain.vert.hlsl"], names);
     }
 
     [GeneratedRegex(@"^\s*(static\s+const|const\s+static)\s+[A-Za-z0-9_]+\s+[A-Za-z0-9_]+\s*\[", RegexOptions.Multiline)]

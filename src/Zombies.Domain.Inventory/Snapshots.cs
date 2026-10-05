@@ -1,7 +1,10 @@
 namespace Zombies.Domain.Inventory;
 
-/// <summary>One Stack as saved: its id within the Container, the Item's Content ID, and how many.</summary>
-public sealed record StackSnapshot(int Id, string Item, int Count);
+/// <summary>The Item state of one Stack as saved: its named values and the Items attached to it, as Content IDs.</summary>
+public sealed record ItemStateSnapshot(IReadOnlyList<KeyValuePair<string, int>> Values, IReadOnlyList<KeyValuePair<string, int>> Attached);
+
+/// <summary>One Stack as saved: its id within the Container, the Item's Content ID, how many, and its Item state if it has one.</summary>
+public sealed record StackSnapshot(int Id, string Item, int Count, ItemStateSnapshot? State = null);
 
 /// <summary>Everything needed to rebuild a <see cref="Container"/>. Limits are in kilograms and cubic meters.</summary>
 public sealed record ContainerSnapshot(long Id, double MassLimitKg, double VolumeLimitM3, int NextStackId, IReadOnlyList<StackSnapshot> Stacks);

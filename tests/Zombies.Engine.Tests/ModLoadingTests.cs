@@ -81,6 +81,29 @@ public sealed class ModLoadingTests
     }
 
     [Fact]
+    public void SampleDataMod_ExtendsALootTableWithoutRestatingItsEntries()
+    {
+        var registry = LoadRepositoryMods().Registry;
+        var entry = registry.OfKind("loot").Single(d => d.Id.Value == "base:loot/garage");
+
+        var garage = LootTableJson.Parse(entry.Json);
+
+        Assert.Contains(garage.Entries, e => e.Item.Value == "base:item/crowbar");
+        Assert.Contains(garage.Entries, e => e.Item.Value == "sample_data:item/protein_bar");
+        Assert.Contains("sample_data", entry.ModifiedBy);
+    }
+
+    [Fact]
+    public void SampleDataMod_ScalesAStackSizeByAFactor()
+    {
+        var registry = LoadRepositoryMods().Registry;
+
+        var water = ItemDefinitionJson.Parse(registry.OfKind("item").Single(d => d.Id.Value == "base:item/water_bottle").Json);
+
+        Assert.Equal(5, water.MaxStack);
+    }
+
+    [Fact]
     public void EveryLootEntryInTheLoadedModsNamesALoadedItem()
     {
         var (items, loot) = LoadCatalogs();

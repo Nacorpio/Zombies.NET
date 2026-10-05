@@ -8,6 +8,8 @@ public sealed class InventoryTests
 {
     private static readonly ItemId Beans = new("base:item/canned_beans");
     private static readonly ItemId Water = new("base:item/water_bottle");
+    private static readonly ItemId Rifle = new("base:item/rifle");
+    private static readonly ItemId Scope = new("base:item/scope");
     private static readonly ContainerId Backpack = new(1);
     private static readonly ContainerId Crate = new(2);
     private static readonly ContainerId Pouch = new(3);
@@ -21,6 +23,8 @@ public sealed class InventoryTests
         [
             new ItemDefinition(Beans, Mass.FromKilograms(0.4), Volume.FromLiters(0.35), maxStack: 4),
             new ItemDefinition(Water, Mass.FromKilograms(1.0), Volume.FromLiters(1.0), maxStack: 2),
+            new ItemDefinition(Rifle, Mass.FromKilograms(3.0), Volume.FromLiters(4.0), maxStack: 5),
+            new ItemDefinition(Scope, Mass.FromKilograms(0.5), Volume.FromLiters(0.5), maxStack: 1),
         ]);
         _service = new InventoryService(catalog, _containers);
         Assert.True(_service.AddContainer(new Container(Backpack, Mass.FromKilograms(10), Volume.FromLiters(10), catalog)).IsSuccess);
@@ -195,5 +199,141 @@ public sealed class InventoryTests
         Assert.False(ItemId.TryParse(null, out _));
         Assert.True(ItemId.TryParse("mymod:item/rusty_knife", out var id));
         Assert.Equal("mymod:item/rusty_knife", id.ToString());
+    }
+
+    private static ItemState Worn(int condition, params ItemId[] attached) =>
+        ItemState.Create([new("condition", condition)], attached.Select(a => new KeyValuePair<ItemId, int>(a, 1)));
+
+    [Fact]
+    public void ItemState_ComparesByValue()
+    {
+        Assert.Equal(Worn(40, Scope), Worn(40, Scope));
+        Assert.Equal(Worn(40, Scope).GetHashCode(), Worn(40, Scope).GetHashCode());
+        Assert.NotEqual(Worn(40, Scope), Worn(41, Scope));
+        Assert.NotEqual(Worn(40, Scope), Worn(40));
+    }
+
+    [Fact]
+    public void AddItems_KeepsStateOnStackAndEvent()
+    {
+        var state = Worn(40, Scope);
+
+        var result = _service.AddItems(Backpack, Rifle, 1, state);
+
+        Assert.Equal(new ItemsAdded(Backpack, Rifle, 1, state), Assert.Single(result.Events));
+        Assert.Equal(state, Get(Backpack).Stacks.Single().State);
+    }
+
+    [Fact]
+    public void AddItems_DoesNotTopUpStacksWithDifferentState()
+    {
+        _service.AddItems(Backpack, Water, 1, Worn(40));
+        _service.AddItems(Backpack, Water, 1, Worn(40));
+        _service.AddItems(Backpack, Water, 1, Worn(90));
+        _service.AddItems(Backpack, Water, 1);
+
+        Assert.Equal([2, 1, 1], Get(Backpack).Stacks.Select(s => s.Count));
+    }
+
+    [Fact]
+    public void AddItems_TreatsEmptyStateAsNoState()
+    {
+        _service.AddItems(Backpack, Rifle, 1, ItemState.Create());
+        _service.AddItems(Backpack, Rifle, 1);
+
+        var stack = Get(Backpack).Stacks.Single();
+        Assert.Equal(2, stack.Count);
+        Assert.Null(stack.State);
+    }
+
+    [Fact]
+    public void AddItems_RejectsUnknownAttachedItem()
+    {
+        var result = _service.AddItems(Backpack, Rifle, 1, Worn(40, new ItemId("base:item/missing")));
+
+        Assert.Equal(InventoryError.UnknownItem, result.Error);
+        Assert.Empty(Get(Backpack).Stacks);
+    }
+
+    [Fact]
+    public void StatefulStack_MassAndVolumeIncludeAttachedItems()
+    {
+        _service.AddItems(Backpack, Rifle, 1, Worn(40, Scope));
+
+        Assert.Equal(3.5, Get(Backpack).TotalMass.Kilograms, 6);
+        Assert.Equal(4.5, Get(Backpack).TotalVolume.Liters, 6);
+    }
+
+    [Fact]
+    public void AddItems_AppliesLimitsToAttachedItems()
+    {
+        Assert.Equal(InventoryError.ExceedsMassLimit, _service.AddItems(Crate, Rifle, 1, Worn(40)).Error);
+        Assert.Equal(InventoryError.ExceedsVolumeLimit, _service.AddItems(Pouch, Rifle, 1, Worn(40, Scope)).Error);
+    }
+
+    [Fact]
+    public void MoveItems_CarriesStateToDestination()
+    {
+        var state = Worn(40);
+        var big = new Container(new ContainerId(4), Mass.FromKilograms(50), Volume.FromLiters(50), new ItemCatalog([new ItemDefinition(Rifle, Mass.FromKilograms(3), Volume.FromLiters(4), 5)]));
+        _service.AddContainer(big);
+        _service.AddItems(Backpack, Rifle, 2, state);
+        var stack = Get(Backpack).Stacks.Single();
+
+        var result = _service.MoveItems(Backpack, stack.Id, big.Id, 1);
+
+        Assert.Equal(new ItemsMoved(Backpack, big.Id, Rifle, 1, state), Assert.Single(result.Events));
+        Assert.Equal(state, big.Stacks.Single().State);
+        Assert.Equal(state, Get(Backpack).Stacks.Single().State);
+    }
+
+    [Fact]
+    public void SplitStack_KeepsStateOnBothStacksAndEvent()
+    {
+        var state = Worn(40);
+        _service.AddItems(Backpack, Rifle, 2, state);
+        var stack = Get(Backpack).Stacks.Single();
+
+        var result = _service.SplitStack(Backpack, stack.Id, 1);
+
+        var split = Assert.IsType<StackSplit>(Assert.Single(result.Events));
+        Assert.Equal(state, split.State);
+        Assert.All(Get(Backpack).Stacks, s => Assert.Equal(state, s.State));
+    }
+
+    [Fact]
+    public void MergeStacks_FailsForDifferentStateAndSucceedsForEqualState()
+    {
+        _service.AddItems(Backpack, Water, 2, Worn(40));
+        _service.AddItems(Backpack, Water, 1, Worn(90));
+        var stacks = Get(Backpack).Stacks;
+
+        Assert.Equal(InventoryError.StateMismatch, _service.MergeStacks(Backpack, stacks[0].Id, stacks[1].Id).Error);
+
+        var split = ((StackSplit)_service.SplitStack(Backpack, stacks[0].Id, 1).Events.Single()).Created;
+        Assert.True(_service.MergeStacks(Backpack, stacks[0].Id, split).IsSuccess);
+    }
+
+    [Fact]
+    public void MergeStacks_FailsBetweenStatefulAndStatelessStacks()
+    {
+        _service.AddItems(Backpack, Rifle, 1, Worn(40));
+        _service.AddItems(Backpack, Rifle, 1);
+        var stacks = Get(Backpack).Stacks;
+
+        Assert.Equal(InventoryError.StateMismatch, _service.MergeStacks(Backpack, stacks[0].Id, stacks[1].Id).Error);
+    }
+
+    [Fact]
+    public void RemoveItems_OnlyRemovesItemsWithMatchingState()
+    {
+        _service.AddItems(Backpack, Rifle, 1, Worn(40));
+        _service.AddItems(Backpack, Rifle, 1);
+
+        Assert.Equal(InventoryError.InsufficientItems, _service.RemoveItems(Backpack, Rifle, 1, Worn(90)).Error);
+        var result = _service.RemoveItems(Backpack, Rifle, 1, Worn(40));
+
+        Assert.Equal(new ItemsRemoved(Backpack, Rifle, 1, Worn(40)), Assert.Single(result.Events));
+        Assert.Null(Get(Backpack).Stacks.Single().State);
     }
 }

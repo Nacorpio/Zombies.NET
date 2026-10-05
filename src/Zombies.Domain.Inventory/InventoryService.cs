@@ -13,8 +13,10 @@ public sealed class InventoryService(IItemCatalog catalog, IContainerRepository 
             : InventoryResult.Failure(InventoryError.DuplicateContainer);
     }
 
-    public InventoryResult AddItems(ContainerId containerId, ItemId item, int count)
+    public InventoryResult AddItems(ContainerId containerId, ItemId item, int count, ItemState? state = null)
     {
+        state = Normalized(state);
+
         if (count < 1)
         {
             return InventoryResult.Failure(InventoryError.InvalidCount);
@@ -25,17 +27,19 @@ public sealed class InventoryService(IItemCatalog catalog, IContainerRepository 
             return InventoryResult.Failure(InventoryError.UnknownContainer);
         }
 
-        if (container.CheckFits(item, count) is { } error)
+        if (container.CheckFits(item, count, state) is { } error)
         {
             return InventoryResult.Failure(error);
         }
 
-        container.Add(item, count);
-        return InventoryResult.Success(new ItemsAdded(containerId, item, count));
+        container.Add(item, count, state);
+        return InventoryResult.Success(new ItemsAdded(containerId, item, count, state));
     }
 
-    public InventoryResult RemoveItems(ContainerId containerId, ItemId item, int count)
+    public InventoryResult RemoveItems(ContainerId containerId, ItemId item, int count, ItemState? state = null)
     {
+        state = Normalized(state);
+
         if (count < 1)
         {
             return InventoryResult.Failure(InventoryError.InvalidCount);
@@ -46,13 +50,13 @@ public sealed class InventoryService(IItemCatalog catalog, IContainerRepository 
             return InventoryResult.Failure(InventoryError.UnknownContainer);
         }
 
-        if (container.CountOf(item) < count)
+        if (container.CountOf(item, state) < count)
         {
             return InventoryResult.Failure(InventoryError.InsufficientItems);
         }
 
-        container.Remove(item, count);
-        return InventoryResult.Success(new ItemsRemoved(containerId, item, count));
+        container.Remove(item, count, state);
+        return InventoryResult.Success(new ItemsRemoved(containerId, item, count, state));
     }
 
     public InventoryResult MoveItems(ContainerId from, StackId stack, ContainerId to, int count)
@@ -82,14 +86,14 @@ public sealed class InventoryService(IItemCatalog catalog, IContainerRepository 
             return InventoryResult.Failure(InventoryError.InsufficientItems);
         }
 
-        if (destination.CheckFits(found.Item, count) is { } error)
+        if (destination.CheckFits(found.Item, count, found.State) is { } error)
         {
             return InventoryResult.Failure(error);
         }
 
         source.RemoveFromStack(stack, count);
-        destination.Add(found.Item, count);
-        return InventoryResult.Success(new ItemsMoved(from, to, found.Item, count));
+        destination.Add(found.Item, count, found.State);
+        return InventoryResult.Success(new ItemsMoved(from, to, found.Item, count, found.State));
     }
 
     public InventoryResult SplitStack(ContainerId containerId, StackId stack, int count)
@@ -110,7 +114,7 @@ public sealed class InventoryService(IItemCatalog catalog, IContainerRepository 
         }
 
         var created = container.Split(stack, count);
-        return InventoryResult.Success(new StackSplit(containerId, stack, created, count));
+        return InventoryResult.Success(new StackSplit(containerId, stack, created, count, found.State));
     }
 
     public InventoryResult MergeStacks(ContainerId containerId, StackId target, StackId source)
@@ -135,6 +139,11 @@ public sealed class InventoryService(IItemCatalog catalog, IContainerRepository 
             return InventoryResult.Failure(InventoryError.ItemMismatch);
         }
 
+        if (!Equals(to.State, from.State))
+        {
+            return InventoryResult.Failure(InventoryError.StateMismatch);
+        }
+
         if (!catalog.TryGet(to.Item, out var definition))
         {
             return InventoryResult.Failure(InventoryError.UnknownItem);
@@ -148,4 +157,6 @@ public sealed class InventoryService(IItemCatalog catalog, IContainerRepository 
         var resulting = container.Merge(target, source);
         return InventoryResult.Success(new StacksMerged(containerId, target, source, resulting));
     }
+
+    private static ItemState? Normalized(ItemState? state) => state is { IsEmpty: true } ? null : state;
 }

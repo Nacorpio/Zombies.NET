@@ -26,6 +26,21 @@ python .claude/skills/model-router/scripts/route.py classify "<task text>"
 - For an issue or ticket, send the title and the "What to build" paragraph, not the acceptance criteria. Live test on four ready-for-agent issues (2026-10-05): the full text, with its six or so criteria, scored every issue 1.9-2.1 difficulty and sent all four to `hard`; the description alone spread them across `hard`, `standard` and the default fallback. Criteria lists read as many parts, which inflates difficulty.
 - Description-only input lowers Jev's confidence (0.45-0.77 on difficulty), so more tasks fall back to `default_tier`. That is the intended safe outcome, but it means `min_confidence` matters more for ticket-style input.
 
+## Calibrate
+
+Thresholds are guesses until they are checked against outcomes. Log every routed task and say afterwards how it went:
+
+```bash
+route.py classify --log "#17" "<task>"                          # also stores the raw Jev answers (never the task text)
+route.py outcome "#17" fit=right result=ok duration_s=600 tokens=150000 tool_uses=40
+route.py report                                                # table plus an offline replay against candidate cutoffs
+```
+
+- `fit` is your verdict on the model that was used: `under` (needed a stronger one), `right`, or `over` (a weaker one would have done). `result` is `ok`, `rework` or `failed`.
+- `report` replays every entry that has raw answers and a `fit` against shifted `cutoffs` and different `min_confidence` values, so thresholds can be tuned without calling Jev again. It warns while there are fewer than 20 replayable entries; the Jev cookbook calibrates on 100 to 200.
+- The log is `calibration/log.jsonl`, committed so other sessions append to it. The six entries seeded from the first tickets have no raw answers (they were not saved) and are not replayable.
+- `cutoffs` and `stakes_bump` in `tiers.json` are the values `decide()` uses.
+
 ## Maintain
 
 - `tiers.json` has one primary model per tier (Claude, so tiers map onto subagent models) plus an `alternatives` directory: `tier` and `kind` lists of other OpenRouter models, ranked by my judgment from price and context size, **not benchmarked**. `classify` returns the ones that apply as `alternatives`, kind-specific first. To use one, call it yourself on OpenRouter; `run` always uses the primary. Only `anthropic/*` tiers can be a subagent `model`.

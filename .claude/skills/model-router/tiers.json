@@ -1,6 +1,12 @@
 {
   "default_tier": "standard",
   "min_confidence": 0.5,
+  "cutoffs": [
+    0.75,
+    1.75,
+    2.75
+  ],
+  "stakes_bump": 1,
   "tiers": {
     "fast": "anthropic/claude-haiku-4.5",
     "standard": "anthropic/claude-sonnet-5.5",

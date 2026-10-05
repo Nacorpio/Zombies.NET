@@ -48,10 +48,13 @@ python .claude/skills/model-router/scripts/route.py validate         # check tie
 
 `classify` returns `tier`, `model`, `kind`, `reason`, `system_prompt` and `alternatives`. To delegate to a Claude subagent, map the tier to the Agent tool's `model`: `fast` to haiku, `standard` to sonnet, `hard` to opus, `frontier` to fable, and start the agent's prompt with `system_prompt`. A skill cannot switch the main session's model. Candidates and thresholds live in `tiers.json` and `decide()` in `route.py`.
 
+Log routed tasks with `--log LABEL`, record outcomes with `route.py outcome`, and run `route.py report` to replay them against candidate thresholds. See the Calibrate section of the skill.
+
 ## Rules that came from testing (2026-10-05)
 
 - **Send the title and the "What to build" paragraph of a ticket, not the acceptance criteria.** The full text with about six criteria scored every ticket 1.9 to 2.1 on difficulty and sent all of them to `hard`. Criteria lists read as many parts.
 - Description-only input lowers confidence (0.45 to 0.77), so more tasks fall back to `default_tier`. That is intended; `min_confidence` is 0.5.
+- Low confidence on the task kind alone also forces the default tier. "Rename a local variable in one file" scored difficulty 0.26 (confidence 0.74) but kind confidence 0.43, so it went to `standard` instead of `fast`. Watch for this in `report`.
 - Keep each question atomic and combine answers in code. Jev reads instructions literally.
 - Do arithmetic, counting and date comparison in code, not in a question.
 - The order of `choice` options can bias the answer toward the first one. Reorder and re-check if a decision matters.

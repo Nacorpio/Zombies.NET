@@ -50,7 +50,7 @@ public sealed class VoxelTests
         Assert.Equal(0x2D6ECCC31C497AABUL, generator.Generate(new ChunkCoord(0, 0)).Hash());
         Assert.Equal(0xB548826F09E65DFEUL, generator.Generate(new ChunkCoord(1, 0)).Hash());
         Assert.Equal(0x95E14EAD5335468EUL, generator.Generate(new ChunkCoord(-3, 5)).Hash());
-        Assert.Equal(0x010101, WorldGenerator.GeneratorVersion);
+        Assert.Equal(0x01010101, WorldGenerator.GeneratorVersion);
     }
 
     [Fact]

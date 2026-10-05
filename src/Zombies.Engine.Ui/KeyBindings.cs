@@ -17,6 +17,7 @@ public enum GameAction
     Inventory,
     BodyScreen,
     ToggleMouse,
+    Interact,
 }
 
 /// <summary>
@@ -39,6 +40,7 @@ public sealed class KeyBindings
         [GameAction.Inventory] = Key.I,
         [GameAction.BodyScreen] = Key.H,
         [GameAction.ToggleMouse] = Key.Tab,
+        [GameAction.Interact] = Key.F,
     };
 
     private readonly Dictionary<GameAction, Key> _keys;

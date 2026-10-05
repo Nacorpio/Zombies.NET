@@ -20,6 +20,8 @@ public static class BaseDefinitionKinds
         ["item"] = typeof(ItemDefinitionDto),
         ["loot"] = typeof(LootTableDto),
         ["modifier"] = typeof(ModifierDefinitionDto),
+        ["settlement_type"] = typeof(SettlementTypeDto),
+        ["structure"] = typeof(StructureDto),
         ["attachment"] = typeof(AttachmentDto),
         ["item_action"] = typeof(ItemActionDto),
         ["status_effect"] = typeof(StatusEffectDto),

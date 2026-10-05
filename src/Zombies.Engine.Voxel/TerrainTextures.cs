@@ -11,8 +11,8 @@ public static class TerrainTextures
 {
     public const int TileSize = 16;
 
-    /// <summary>One tile per face kind (top, side, bottom) of each block id up to and including the lamp.</summary>
-    public const int TileCount = (Blocks.Lamp + 1) * 3;
+    /// <summary>One tile per face kind (top, side, bottom) of each block id up to and including the crate.</summary>
+    public const int TileCount = (Blocks.Crate + 1) * 3;
 
     private static readonly (byte R, byte G, byte B) Magenta = (255, 0, 255);
 
@@ -20,7 +20,7 @@ public static class TerrainTextures
     public static byte[] Generate()
     {
         var data = new byte[TileCount * TileSize * TileSize * 4];
-        for (ushort block = 0; block <= Blocks.Lamp; block++)
+        for (ushort block = 0; block <= Blocks.Crate; block++)
         {
             for (var kind = 0; kind < 3; kind++)
             {
@@ -62,6 +62,8 @@ public static class TerrainTextures
             Blocks.Log => kind == 1 ? Shade((98, 72, 44), grain + (x % 4 == 0 ? -20 : 0)) : Shade((150, 118, 76), grain + (Ring(x, y) ? -26 : 0)),
             Blocks.Leaves => Shade((52, 120, 48), grain * 2),
             Blocks.Lamp => Shade((255, 214, 120), grain / 2),
+            Blocks.Planks => Shade((176, 140, 92), (grain / 2) + (y % 4 == 0 ? -24 : 0)),
+            Blocks.Crate => Shade((120, 86, 50), (grain / 2) + ((x == y || x + y == TileSize - 1 || x % 15 == 0 || y % 15 == 0) ? -30 : 0)),
             _ => Magenta,
         };
     }

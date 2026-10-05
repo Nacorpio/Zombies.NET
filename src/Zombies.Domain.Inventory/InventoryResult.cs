@@ -13,6 +13,7 @@ public enum InventoryError
     ExceedsVolumeLimit,
     StackFull,
     ItemMismatch,
+    StateMismatch,
     SameStack,
     SameContainer,
     DuplicateContainer,

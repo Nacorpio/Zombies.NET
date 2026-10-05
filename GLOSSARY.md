@@ -266,6 +266,20 @@ _Avoid_: Relevancy, view distance
 A server event that clients turn into visuals and sound only, such as blood splatter or a ragdoll.
 _Avoid_: Effect
 
+## Saves
+
+**Save**:
+The one SQLite file that holds a world: its seed, generator version, mod list, chunk edits, and the domain aggregates. A Server loads it at start and refuses it when the generator or the mods differ.
+_Avoid_: Savegame, world file, database
+
+**Chunk edit**:
+A block a player changed in a Chunk, stored as the difference from what the world generator makes, so an untouched block always follows the generator.
+_Avoid_: Modified chunk, chunk delta
+
+**Schema version**:
+The number stored in a Save that says which layout its tables have, so a newer build can migrate an older Save forward and an older build refuses a newer one.
+_Avoid_: Save version, format version
+
 ## Interface and Tooling
 
 **Icon**:

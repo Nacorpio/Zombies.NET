@@ -90,6 +90,58 @@ public sealed class Body
 
     public bool IsMissing(BodyPart part) => _parts[part].IsMissing;
 
+    public BodySnapshot ToSnapshot() => new(
+        Id.Value,
+        IsAlive,
+        BloodVolume.Liters,
+        _nextWoundId,
+        [.. _parts.OrderBy(p => p.Key).Select(p => new PartSnapshot(p.Key, p.Value.Health, p.Value.IsMissing))],
+        [.. _wounds.Select(w => new WoundSnapshot(w.Id.Value, w.Part, w.Type, w.Severity, w.BleedRate.MillilitersPerMinute, w.IsBandaged, w.IsStump))]);
+
+    /// <summary>Rebuilds a Body from a snapshot. Throws <see cref="ArgumentException"/> when the snapshot is not a state a Body can be in.</summary>
+    public static Body Restore(BodySnapshot snapshot, BodyConfig? config = null)
+    {
+        ArgumentNullException.ThrowIfNull(snapshot);
+        var body = new Body(new BodyId(snapshot.Id), config);
+        if (!double.IsFinite(snapshot.BloodLiters) || snapshot.BloodLiters < 0)
+        {
+            throw new ArgumentException("Blood volume must be finite and not negative.", nameof(snapshot));
+        }
+
+        body.BloodVolume = Volume.FromLiters(snapshot.BloodLiters);
+        body.IsAlive = snapshot.IsAlive;
+
+        var seenParts = new HashSet<BodyPart>();
+        foreach (var part in snapshot.Parts)
+        {
+            if (!Enum.IsDefined(part.Part) || !seenParts.Add(part.Part) || !double.IsFinite(part.Health) || part.Health < 0 || (part.IsMissing && part.Part == BodyPart.Torso))
+            {
+                throw new ArgumentException($"The saved state of {part.Part} is not valid.", nameof(snapshot));
+            }
+
+            body._parts[part.Part].Health = part.Health;
+            body._parts[part.Part].IsMissing = part.IsMissing;
+        }
+
+        var seenWounds = new HashSet<int>();
+        foreach (var wound in snapshot.Wounds)
+        {
+            if (!Enum.IsDefined(wound.Part) || !Enum.IsDefined(wound.Type) || wound.Id < 1 || !seenWounds.Add(wound.Id)
+                || !double.IsFinite(wound.Severity) || !double.IsFinite(wound.BleedMillilitersPerMinute) || wound.BleedMillilitersPerMinute < 0)
+            {
+                throw new ArgumentException($"Wound {wound.Id} is not valid.", nameof(snapshot));
+            }
+
+            body._wounds.Add(new WoundState(new WoundId(wound.Id), wound.Part, wound.Type, wound.Severity, VolumeFlow.FromMillilitersPerMinute(wound.BleedMillilitersPerMinute), wound.IsStump)
+            {
+                IsBandaged = wound.IsBandaged,
+            });
+        }
+
+        body._nextWoundId = Math.Max(snapshot.NextWoundId, seenWounds.Count == 0 ? 1 : seenWounds.Max() + 1);
+        return body;
+    }
+
     public double Health(BodyPart part) => _parts[part].Health;
 
     /// <param name="protection">Fraction (0 to 1) of the damage absorbed by worn items on this part.</param>

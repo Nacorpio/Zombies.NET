@@ -1,3 +1,5 @@
 # SQLite for domain state and chunk edit logs
 
 A save stores the world seed, generator version, per-chunk edits as compressed binary, and domain aggregates in one SQLite file behind repository interfaces implemented in `Persistence.Sqlite`. Each save records its mod list, versions, and a schema version so it can be migrated. Per-file and custom binary formats were rejected for lack of transactions.
+
+Aggregates get one table per kind with typed columns, so the schema is explicit, queryable, and migratable; an opaque JSON blob per aggregate and event-sourced replay were rejected. Each aggregate exposes a plain-value snapshot and a restore that validates it, so a damaged file fails loudly as a corrupt save instead of loading a state the domain could never reach. Chunk edits are stored as a Brotli-compressed diff against the generated chunk, not a copy of it, so a generator fix still reaches every block nobody touched. The schema is an append-only list of migrations, and its number lives in SQLite's user_version; a build refuses a save with a higher number than it knows.

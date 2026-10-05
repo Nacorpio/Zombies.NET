@@ -73,6 +73,45 @@ public sealed class Container
         }
     }
 
+    /// <summary>Captures the Container as plain values, so a save can store it without reaching into its state.</summary>
+    public ContainerSnapshot ToSnapshot() => new(
+        Id.Value,
+        MassLimit.Kilograms,
+        VolumeLimit.CubicMeters,
+        _nextStackId,
+        [.. _entries.Select(e => new StackSnapshot(e.Id.Value, e.Item.Value, e.Count))]);
+
+    /// <summary>Rebuilds a Container from a snapshot. Throws <see cref="ArgumentException"/> when the snapshot is not a state a Container can be in.</summary>
+    public static Container Restore(ContainerSnapshot snapshot, IItemCatalog catalog)
+    {
+        ArgumentNullException.ThrowIfNull(snapshot);
+        ArgumentNullException.ThrowIfNull(catalog);
+        if (!double.IsFinite(snapshot.MassLimitKg) || !double.IsFinite(snapshot.VolumeLimitM3) || snapshot.MassLimitKg < 0 || snapshot.VolumeLimitM3 < 0)
+        {
+            throw new ArgumentException("A Container's limits must be finite and not negative.", nameof(snapshot));
+        }
+
+        var container = new Container(new ContainerId(snapshot.Id), Mass.FromKilograms(snapshot.MassLimitKg), Volume.FromCubicMeters(snapshot.VolumeLimitM3), catalog);
+        var seen = new HashSet<int>();
+        foreach (var stack in snapshot.Stacks)
+        {
+            if (!ItemId.TryParse(stack.Item, out var item))
+            {
+                throw new ArgumentException($"'{stack.Item}' is not a valid Content ID.", nameof(snapshot));
+            }
+
+            if (stack.Count < 1 || stack.Id < 1 || !seen.Add(stack.Id))
+            {
+                throw new ArgumentException($"Stack {stack.Id} of {item} is not valid: it needs a unique positive id and a positive count.", nameof(snapshot));
+            }
+
+            container._entries.Add(new Entry(new StackId(stack.Id), item, stack.Count));
+        }
+
+        container._nextStackId = Math.Max(snapshot.NextStackId, seen.Count == 0 ? 1 : seen.Max() + 1);
+        return container;
+    }
+
     public int CountOf(ItemId item) => _entries.Where(e => e.Item == item).Sum(e => e.Count);
 
     internal ItemStack? Find(StackId id)

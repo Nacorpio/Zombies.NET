@@ -92,8 +92,9 @@ public sealed class BaseRigDataTests
 
         animator.Update(0.2f, new AnimationInput(4.3f, 0.6f, 0.2f, MissingPartSet.None));
 
-        var legs = new[] { "leg_l", "leg_r" }.Select(n => animator.Pose.Local(skeleton.IndexOf(n)).Rotation).ToArray();
-        Assert.NotEqual(legs[0], legs[1]);
+        var leftLeg = animator.Pose.Local(skeleton.IndexOf("leg_l")).Rotation;
+        var rightLeg = animator.Pose.Local(skeleton.IndexOf("leg_r")).Rotation;
+        Assert.NotEqual(leftLeg, rightLeg);
         var facing = animator.Pose.World("head").TransformDirection(-Vector3.UnitZ);
         Assert.True(facing.X > 0.3f, "Looking right turns the head toward +X.");
         Assert.True(facing.Y > 0.05f, "Looking up tilts the head up.");

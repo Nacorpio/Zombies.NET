@@ -137,6 +137,69 @@ public sealed class CodeModTests
     }
 
     [Fact]
+    public void AModHandlerThatThrows_IsRefusedAsInvalid_AndLogged_WhileTheServerKeepsAnsweringOtherClients()
+    {
+        const ushort Broken = ModMessageTable.FirstNumber;
+        const ushort Working = ModMessageTable.FirstNumber + 1;
+        var server = RepositoryMods.For(ProcessRole.Server);
+        var network = new InMemoryNetwork();
+        var gameServer = new GameServer(network.CreateServer(), new ServerOptions(GameIdentity.From(server.Mods, WorldGenerator.GeneratorVersion), WorldSeed: 9));
+        var log = new StringWriter();
+        CodeModMessages.Register(
+            gameServer.Commands,
+            [
+                new ModMessageRegistration("buggy:message/crash", "buggy", Broken, (payload, _) => payload[5] == 0 ? throw new InvalidOperationException("the mod's bug") : ModMessageResult.Accepted),
+                new ModMessageRegistration("buggy:message/fine", "buggy", Working, (_, _) => ModMessageResult.Accepted),
+            ],
+            log);
+        var identity = GameIdentity.From(server.Mods, WorldGenerator.GeneratorVersion);
+        var alice = new GameClient(network.Connect(), identity, "alice");
+        var bob = new GameClient(network.Connect(), identity, "bob");
+        long tick = 0;
+        void Run(int ticks)
+        {
+            for (var i = 0; i < ticks; i++)
+            {
+                gameServer.Tick(tick++);
+                alice.Poll();
+                bob.Poll();
+            }
+        }
+
+        Run(3);
+        Assert.Equal(ClientState.Joined, alice.State);
+        Assert.Equal(ClientState.Joined, bob.State);
+
+        // Index out of range on a short payload, as a client controls it.
+        var crash = alice.Send(Broken, [0xAB, 0xCD]);
+        Run(2);
+        Assert.Equal(crash, alice.LastRejection!.Sequence);
+        Assert.Equal(CommandRejection.Invalid, alice.LastRejection.Reason);
+        Assert.Equal(ClientState.Joined, alice.State);
+
+        var logged = log.ToString();
+        Assert.Contains("buggy", logged, StringComparison.Ordinal);
+        Assert.Contains("buggy:message/crash", logged, StringComparison.Ordinal);
+        Assert.Contains(nameof(IndexOutOfRangeException), logged, StringComparison.Ordinal);
+        foreach (var payloadForm in new[] { "AB-CD", "ABCD", "AB CD", "171" })
+        {
+            Assert.DoesNotContain(payloadForm, logged, StringComparison.OrdinalIgnoreCase);
+        }
+
+        Assert.Single(logged.Split(Environment.NewLine, StringSplitOptions.RemoveEmptyEntries));
+
+        // The Server keeps ticking and answering: Bob's message is accepted, and a second crash is refused and logged again.
+        bob.Send(Working, [1]);
+        var again = alice.Send(Broken, [0, 0, 0, 0, 0, 0]);
+        Run(2);
+        Assert.Equal(0, bob.RejectionCount);
+        Assert.Equal(again, alice.LastRejection!.Sequence);
+        Assert.Equal(2, alice.RejectionCount);
+        Assert.Equal(2, log.ToString().Split(Environment.NewLine, StringSplitOptions.RemoveEmptyEntries).Length);
+        Assert.Equal(ClientState.Joined, bob.State);
+    }
+
+    [Fact]
     public void ShoutGetsTheNumberOfItsModsPlaceInTheSortedModList()
     {
         // The Server runs base, sample_code, and sample_data. Sorted by id, sample_code is second, so it owns the second block.

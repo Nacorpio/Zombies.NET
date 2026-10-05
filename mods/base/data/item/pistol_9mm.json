@@ -1,0 +1,7 @@
+﻿{
+  "id": "base:item/pistol_9mm",
+  "mass": "0.9 kg",
+  "volume": "700 ml",
+  "maxStack": 1
+}
+

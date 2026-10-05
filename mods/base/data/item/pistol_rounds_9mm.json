@@ -1,0 +1,7 @@
+﻿{
+  "id": "base:item/pistol_rounds_9mm",
+  "mass": "12 g",
+  "volume": "8 ml",
+  "maxStack": 50
+}
+

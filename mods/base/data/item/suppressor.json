@@ -1,0 +1,7 @@
+﻿{
+  "id": "base:item/suppressor",
+  "mass": "0.3 kg",
+  "volume": "250 ml",
+  "maxStack": 1
+}
+

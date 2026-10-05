@@ -1,0 +1,13 @@
+﻿{
+  "id": "base:weapon/baseball_bat",
+  "item": "base:item/baseball_bat",
+  "category": "base:weapon_category/blunt_melee",
+  "damage": 25,
+  "damageType": "blunt",
+  "rateOfFire": 1.2,
+  "reach": 1.1,
+  "noise": 30,
+  "handsNeeded": 2,
+  "wearPerUse": 2
+}
+

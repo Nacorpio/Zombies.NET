@@ -1,0 +1,7 @@
+﻿{
+  "id": "base:attachment/foregrip",
+  "item": "base:item/foregrip",
+  "mount": "grip",
+  "effects": [ { "stat": "handling", "operation": "add", "value": 3 } ]
+}
+

@@ -1,4 +1,5 @@
 using UnitsNet;
+using Zombies.Domain.Combat;
 using Zombies.Domain.Crafting;
 using Zombies.Domain.Inventory;
 using Zombies.Domain.Items;
@@ -30,7 +31,7 @@ public sealed class ModLoadingTests
 
         Assert.True(result.IsSuccess, string.Join(Environment.NewLine, result.Errors));
         Assert.Equal(["base", "sample_data"], result.Mods.Select(m => m.Manifest.Id));
-        Assert.Equal(8, result.Registry.Count);
+        Assert.Equal(32, result.Registry.Count);
     }
 
     [Fact]
@@ -133,5 +134,78 @@ public sealed class ModLoadingTests
     public void MissingModsFolder_IsReportedClearly()
     {
         Assert.Throws<DirectoryNotFoundException>(() => DirectoryModSource.Read(Path.Combine(RepoRoot(), "no_such_mods_folder")));
+    }
+
+    private static WeaponCatalog LoadWeapons(DefinitionRegistry registry) => new(
+        registry.OfKind("weapon_category").Select(d => WeaponDefinitionJson.ParseCategory(d.Json)),
+        registry.OfKind("weapon").Select(d => WeaponDefinitionJson.ParseWeapon(d.Json)),
+        registry.OfKind("attachment").Select(d => WeaponDefinitionJson.ParseAttachment(d.Json)));
+
+    [Fact]
+    public void BaseMod_ShipsWeaponCategoriesWeaponsAndAttachments()
+    {
+        var registry = LoadRepositoryMods().Registry;
+
+        Assert.Equal(["bladed_melee", "blunt_melee", "pistol"], registry.OfKind("weapon_category").Where(d => d.DefinedBy == "base").Select(d => d.Id.Value.Split('/')[1]).Order());
+        Assert.True(registry.OfKind("weapon").Count(d => d.DefinedBy == "base") >= 5);
+
+        var attachments = registry.OfKind("attachment").Select(d => WeaponDefinitionJson.ParseAttachment(d.Json)).ToList();
+        Assert.True(attachments.Count >= 4);
+        Assert.Equal(attachments.Count, attachments.Select(a => string.Join(',', a.Effects.Select(e => $"{e.Stat}:{e.Operation}").Order())).Distinct().Count());
+        Assert.Contains(attachments, a => a.Effects.Any(e => e.Stat.Value == "noise" && e.Operation == ModifierOperation.Multiply && e.Value < 1));
+    }
+
+    [Fact]
+    public void EveryItemCategoryAndMountReferenceInWeaponContentResolves()
+    {
+        var registry = LoadRepositoryMods().Registry;
+        var items = new ItemCatalog(registry.OfKind("item").Select(d => ItemDefinitionJson.Parse(d.Json)));
+        var catalog = LoadWeapons(registry);
+
+        var weapons = registry.OfKind("weapon").Select(d => WeaponDefinitionJson.ParseWeapon(d.Json)).ToList();
+        var categories = registry.OfKind("weapon_category").Select(d => WeaponDefinitionJson.ParseCategory(d.Json)).ToDictionary(c => c.Id);
+        var attachments = registry.OfKind("attachment").Select(d => WeaponDefinitionJson.ParseAttachment(d.Json)).ToList();
+
+        foreach (var weapon in weapons)
+        {
+            Assert.True(items.TryGet(weapon.Item, out _), $"{weapon.Item} is not an item");
+            Assert.True(weapon.AmmoItem is not { } ammo || items.TryGet(ammo, out _), $"{weapon.Item} ammo is not an item");
+            Assert.True(catalog.TryGetCategory(weapon.Category, out _), $"{weapon.Category} is not a category");
+        }
+
+        var mounts = weapons.SelectMany(w => categories[w.Category].Mounts.Concat(w.ExtraMounts)).ToHashSet();
+        foreach (var attachment in attachments)
+        {
+            Assert.True(items.TryGet(attachment.Item, out _), $"{attachment.Item} is not an item");
+            Assert.Contains(attachment.Mount, mounts);
+        }
+    }
+
+    [Fact]
+    public void SampleDataMod_AddsAWeaponAndPatchesABaseWeaponStat()
+    {
+        var registry = LoadRepositoryMods().Registry;
+        var weapons = registry.OfKind("weapon").ToDictionary(d => d.Id.Value);
+
+        var crowbar = WeaponDefinitionJson.ParseWeapon(weapons["base:weapon/crowbar"].Json);
+
+        Assert.Equal(26, crowbar.Damage);
+        Assert.Equal(["sample_data"], weapons["base:weapon/crowbar"].ModifiedBy);
+        Assert.Equal("sample_data", weapons["sample_data:weapon/fire_axe"].DefinedBy);
+    }
+
+    [Fact]
+    public void WeaponContentWorksThroughTheWeaponService()
+    {
+        var service = new WeaponService(LoadWeapons(LoadRepositoryMods().Registry));
+        var pistol = new ItemId("base:item/pistol_9mm");
+        var loaded = ItemState.Create([new(WeaponService.RoundsValue, 12)]);
+
+        var quiet = service.Attach(pistol, loaded, new ItemId("base:item/suppressor"));
+        var loud = service.Use(pistol, loaded);
+        var shot = service.Use(pistol, quiet.State);
+
+        Assert.True(quiet.IsSuccess);
+        Assert.True(((WeaponUsed)shot.Events[0]).Noise < ((WeaponUsed)loud.Events[0]).Noise);
     }
 }

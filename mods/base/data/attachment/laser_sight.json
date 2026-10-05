@@ -1,0 +1,7 @@
+﻿{
+  "id": "base:attachment/laser_sight",
+  "item": "base:item/laser_sight",
+  "mount": "laser",
+  "effects": [ { "stat": "handling", "operation": "add", "value": 1.5 }, { "stat": "noise", "operation": "add", "value": 5 } ]
+}
+

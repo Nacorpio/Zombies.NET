@@ -1,0 +1,7 @@
+﻿{
+  "id": "base:item/baseball_bat",
+  "mass": "1.0 kg",
+  "volume": "1 l",
+  "maxStack": 1
+}
+

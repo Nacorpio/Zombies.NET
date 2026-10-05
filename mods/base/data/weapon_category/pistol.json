@@ -1,0 +1,2 @@
+﻿{ "id": "base:weapon_category/pistol", "handling": 10, "mounts": ["muzzle", "optic", "grip", "laser"] }
+

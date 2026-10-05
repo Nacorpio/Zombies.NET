@@ -1,0 +1,13 @@
+﻿{
+  "id": "base:weapon/kitchen_knife",
+  "item": "base:item/kitchen_knife",
+  "category": "base:weapon_category/bladed_melee",
+  "damage": 12,
+  "damageType": "cut",
+  "rateOfFire": 2.5,
+  "reach": 0.4,
+  "noise": 15,
+  "handsNeeded": 1,
+  "wearPerUse": 3
+}
+

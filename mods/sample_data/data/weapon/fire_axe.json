@@ -1,0 +1,13 @@
+﻿{
+  "id": "sample_data:weapon/fire_axe",
+  "item": "sample_data:item/fire_axe",
+  "category": "base:weapon_category/bladed_melee",
+  "damage": 40,
+  "damageType": "cut",
+  "rateOfFire": 0.8,
+  "reach": 1.1,
+  "noise": 40,
+  "handsNeeded": 2,
+  "wearPerUse": 3
+}
+

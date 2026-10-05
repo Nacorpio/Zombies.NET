@@ -1,0 +1,7 @@
+﻿{
+  "id": "base:item/machete",
+  "mass": "0.7 kg",
+  "volume": "600 ml",
+  "maxStack": 1
+}
+

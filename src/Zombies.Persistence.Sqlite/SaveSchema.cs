@@ -112,5 +112,24 @@ internal static class SaveSchema
             PRIMARY KEY (owner_id, position)
         ) WITHOUT ROWID;
         """,
+
+        // Version 2: the Corpses players leave behind and the Memorial of each death.
+        """
+        CREATE TABLE corpses (
+            container_id INTEGER NOT NULL PRIMARY KEY,
+            owner        TEXT    NOT NULL,
+            x            REAL    NOT NULL,
+            y            REAL    NOT NULL,
+            z            REAL    NOT NULL
+        );
+
+        CREATE TABLE memorials (
+            id            INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+            player        TEXT    NOT NULL,
+            days_survived INTEGER NOT NULL,
+            kills         INTEGER NOT NULL,
+            cause         INTEGER NOT NULL
+        );
+        """,
     ];
 }

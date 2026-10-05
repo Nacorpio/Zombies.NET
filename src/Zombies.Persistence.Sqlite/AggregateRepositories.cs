@@ -9,8 +9,9 @@ namespace Zombies.Persistence.Sqlite;
 /// <summary>
 /// Stores Containers in the save. <see cref="TryGet"/> returns a fresh copy each time, so keep the Container you loaded,
 /// change it through the Inventory commands, and <see cref="Save"/> it when its state should be stored.
+/// With a <paramref name="migrator"/>, the Item ids in each Container are brought up to date as it is read.
 /// </summary>
-public sealed class SqliteContainerRepository(SaveDatabase database, IItemCatalog catalog) : IContainerRepository
+public sealed class SqliteContainerRepository(SaveDatabase database, IItemCatalog catalog, ContentIdMigrator? migrator = null) : IContainerRepository
 {
     public bool TryGet(ContainerId id, out Container container)
     {
@@ -56,7 +57,16 @@ public sealed class SqliteContainerRepository(SaveDatabase database, IItemCatalo
                 var stackId = reader.GetInt32(0);
                 var hasState = values.ContainsKey(stackId) || attached.ContainsKey(stackId);
                 var state = hasState ? new ItemStateSnapshot(values.GetValueOrDefault(stackId) ?? [], attached.GetValueOrDefault(stackId) ?? []) : null;
-                stacks.Add(new StackSnapshot(stackId, reader.GetString(1), reader.GetInt32(2), state));
+                StackSnapshot? stack = new(stackId, reader.GetString(1), reader.GetInt32(2), state);
+                if (migrator is not null)
+                {
+                    stack = migrator.Migrate(stack, id.ToString());
+                }
+
+                if (stack is not null)
+                {
+                    stacks.Add(stack);
+                }
             }
         }
 
@@ -341,7 +351,7 @@ public sealed class SqliteNeedsRepository(SaveDatabase database, NeedsConfig? co
 }
 
 /// <summary>Stores the Outfit of each character in the save, in the order the items were put on.</summary>
-public sealed class SqliteOutfitRepository(SaveDatabase database, IWearableCatalog catalog) : IOutfitRepository
+public sealed class SqliteOutfitRepository(SaveDatabase database, IWearableCatalog catalog, ContentIdMigrator? migrator = null) : IOutfitRepository
 {
     public bool TryGet(long owner, out Outfit outfit)
     {
@@ -360,7 +370,16 @@ public sealed class SqliteOutfitRepository(SaveDatabase database, IWearableCatal
         {
             while (reader.Read())
             {
-                worn.Add(new WornSnapshot(reader.GetString(0), reader.GetDouble(1), reader.GetDouble(2)));
+                var item = reader.GetString(0);
+                if (migrator is not null)
+                {
+                    item = migrator.Migrate(item, $"The Outfit of {owner}");
+                }
+
+                if (item is not null)
+                {
+                    worn.Add(new WornSnapshot(item, reader.GetDouble(1), reader.GetDouble(2)));
+                }
             }
         }
 

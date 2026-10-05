@@ -55,6 +55,12 @@ internal sealed class ClientOptions
 
     public ulong Seed { get; private set; } = 12345;
 
+    /// <summary>Content ID of the Profession the player starts solo play as, or null for none.</summary>
+    public string? Profession { get; private set; }
+
+    /// <summary>Content ID of the Scenario the solo world starts in, or null for none.</summary>
+    public string? Scenario { get; private set; }
+
     public string? SessionPath { get; private set; }
 
     /// <summary>Diagnostic: draw this many dummy bodies in front of the camera, to check the body render path without a second player.</summary>
@@ -141,6 +147,12 @@ internal sealed class ClientOptions
                     break;
                 case "--seed":
                     options.Seed = ulong.Parse(next(), CultureInfo.InvariantCulture);
+                    break;
+                case "--profession":
+                    options.Profession = next();
+                    break;
+                case "--scenario":
+                    options.Scenario = next();
                     break;
                 case "--session":
                     options.SessionPath = next();

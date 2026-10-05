@@ -1,6 +1,7 @@
 using System.Numerics;
 using UnitsNet;
 using Zombies.Domain.Combat;
+using Zombies.Domain.Crafting;
 using Zombies.Domain.Death;
 using Zombies.Domain.Inventory;
 using Zombies.Domain.Items;
@@ -57,6 +58,18 @@ public sealed record ServerOptions(GameIdentity Identity, ulong WorldSeed)
         [FatigueLevel.Tired] = "base:status_effect/tired",
         [FatigueLevel.Exhausted] = "base:status_effect/exhausted",
     };
+
+    /// <summary>The Professions a player can pick when they join. Defaults to none, so every player starts empty-handed.</summary>
+    public ProfessionCatalog Professions { get; init; } = new([]);
+
+    /// <summary>The loot tables a Profession can roll for starting items. Defaults to none.</summary>
+    public ILootTableCatalog Loot { get; init; } = new LootTableCatalog([]);
+
+    /// <summary>Where, when and in what state players begin. Defaults to none: they start at <see cref="SpawnPoint"/> in the morning, unhurt.</summary>
+    public Scenario? Scenario { get; init; }
+
+    /// <summary>Finds where a Scenario of the given kind starts a player. Defaults to leaving every player at <see cref="SpawnPoint"/>.</summary>
+    public Func<StartLocationKind, Vector3>? StartPoint { get; init; }
 }
 
 /// <summary>Decides how well a player rests at a position: on bare ground, in a shelter, or in a bed.</summary>
@@ -102,6 +115,12 @@ public sealed class PlayerSession
     /// <summary>What this player carries. Empty while they are dead, because it went into their Corpse.</summary>
     public Container Carried { get; internal set; } = null!;
 
+    /// <summary>The Content ID of the Profession this player picked when they joined, or null when they picked none.</summary>
+    public string? Profession { get; internal set; }
+
+    /// <summary>The Modifiers on this player's character: what their Profession gives them, for the whole of their life on the Server.</summary>
+    public ModifierSet Modifiers { get; } = new();
+
     /// <summary>Whether the Body is dead, which makes the player a Spectator who cannot act.</summary>
     public bool IsDead => !Body.IsAlive;
 
@@ -143,6 +162,9 @@ public sealed class GameServer : ITickable
 {
     private const int RefusalGraceTicks = Simulation.TickRateHz;
 
+    /// <summary>The time of day, as a fraction of a day, of a world with no Scenario: morning.</summary>
+    public const double DefaultStartTimeOfDay = 0.4;
+
     private readonly ITransport _transport;
     private readonly Dictionary<int, PlayerSession> _sessions = [];
     private readonly List<PlayerSession> _closing = [];
@@ -171,6 +193,7 @@ public sealed class GameServer : ITickable
             throw new ArgumentOutOfRangeException(nameof(options), "A day must last longer than nothing and a respawn delay cannot be negative.");
         }
 
+        StartingLoadout.Validate(options);
         _transport = transport;
         Options = options;
         _handler = new Handler(this);
@@ -199,6 +222,16 @@ public sealed class GameServer : ITickable
     public CommandRegistry Commands { get; } = new();
 
     public int PlayerCount { get; private set; }
+
+    /// <summary>The time of day now, as a fraction of a day from 0 at midnight: the Scenario's start time plus the days that have passed.</summary>
+    public double TimeOfDay
+    {
+        get
+        {
+            var elapsed = (Options.Scenario?.TimeOfDay ?? DefaultStartTimeOfDay) + ((double)_tick / _dayTicks);
+            return elapsed - Math.Floor(elapsed);
+        }
+    }
 
     /// <summary>Snapshots sent since start, over every client.</summary>
     public long SnapshotsSent { get; private set; }
@@ -495,12 +528,19 @@ public sealed class GameServer : ITickable
     {
         var identity = GameIdentity.Read(ref reader);
         var name = reader.ReadString();
+        var professionId = reader.ReadString();
         reader.EnsureEnd();
 
         var refusal = Options.Identity.Check(identity);
         if (refusal is null && PlayerCount >= Options.MaxPlayers)
         {
             refusal = (JoinRefusal.ServerFull, $"The Server is full ({Options.MaxPlayers} players).");
+        }
+
+        Profession? profession = null;
+        if (refusal is null && professionId.Length > 0 && !Options.Professions.TryGet(professionId, out profession))
+        {
+            refusal = (JoinRefusal.UnknownProfession, $"The Server has no profession '{professionId}'.");
         }
 
         _writer.Clear();
@@ -514,11 +554,12 @@ public sealed class GameServer : ITickable
             return;
         }
 
+        var start = Options.Scenario is { } scenario && Options.StartPoint is { } startPoint ? startPoint(scenario.StartLocation) : Options.SpawnPoint;
         session.IsJoined = true;
         session.Name = name;
-        session.EntityId = World.Spawn(EntityKind.Player, Options.SpawnPoint, 0f);
-        session.Movement = PlayerMoveState.At(Options.SpawnPoint);
-        session.Collision = Collision.Create(Options.SpawnPoint, PlayerMovement.StandingHeight);
+        session.EntityId = World.Spawn(EntityKind.Player, start, 0f);
+        session.Movement = PlayerMoveState.At(start);
+        session.Collision = Collision.Create(start, PlayerMovement.StandingHeight);
         session.Body = new Body(new BodyId(session.EntityId));
         session.Needs = new Needs(Options.Needs);
         session.Effects = new CreatureEffects(new CreatureId(session.EntityId), Options.StatusEffects);
@@ -526,6 +567,20 @@ public sealed class GameServer : ITickable
         session.Carried = new Container(_death.NextContainerId(), Options.CarryMass, Options.CarryVolume, Options.Items);
         session.LifeStartTick = _tick;
         PlayerCount++;
+        if (profession is not null)
+        {
+            session.Profession = profession.Id;
+            StartingLoadout.Grant(Options, profession, name, session.Outfit, session.Carried);
+            foreach (var modifier in profession.Modifiers)
+            {
+                session.Modifiers.Add(modifier.From(new ModifierSource(profession.Id)));
+            }
+        }
+
+        if (Options.Scenario is { } chosen)
+        {
+            StartIn(session, chosen.Condition);
+        }
 
         _writer.WriteByte((byte)MessageType.JoinAccepted);
         _writer.WriteUInt32(session.EntityId);
@@ -533,11 +588,22 @@ public sealed class GameServer : ITickable
         _writer.WriteUInt64((ulong)_tick);
         _writer.WriteByte(Simulation.TickRateHz);
         _writer.WriteByte((byte)Options.SnapshotRateHz);
-        _writer.WriteSingle(Options.SpawnPoint.X);
-        _writer.WriteSingle(Options.SpawnPoint.Y);
-        _writer.WriteSingle(Options.SpawnPoint.Z);
+        _writer.WriteSingle(start.X);
+        _writer.WriteSingle(start.Y);
+        _writer.WriteSingle(start.Z);
         _writer.WriteSingle(0f);
+        _writer.WriteSingle((float)TimeOfDay);
         _transport.Send(session.Connection, _writer.Written, Delivery.ReliableOrdered);
+    }
+
+    /// <summary>Starts a new character in the Scenario's condition: the Needs it names, and each of its Wounds as a hit nothing worn absorbs.</summary>
+    private void StartIn(PlayerSession session, StartingCondition condition)
+    {
+        session.Needs = Needs.Restore(session.Needs.ToSnapshot() with { Satiety = condition.Satiety, Hydration = condition.Hydration });
+        foreach (var wound in condition.Wounds)
+        {
+            Resolve(session, session.Body.TakeHit(wound.Part, wound.DamageType, wound.Damage));
+        }
     }
 
     private void RunCommand(PlayerSession session, ref NetReader reader)

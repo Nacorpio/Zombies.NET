@@ -1,5 +1,7 @@
 using System.Numerics;
+using Zombies.Domain.Items;
 using Zombies.Domain.Mods;
+using Zombies.Domain.Survival;
 using Zombies.Domain.World;
 using Zombies.Engine.Core;
 using Zombies.Engine.Core.Modding;
@@ -27,8 +29,23 @@ internal sealed class WorldSession : IDisposable
         }
 
         // Solo play: join an embedded Server and take the world seed from it, as a client of a dedicated server would.
-        var movementModes = MovementModeContentLoader.Load(mods.Registry);
-        Solo = new EmbeddedServer(new ServerOptions(GameIdentity.From(mods, WorldGenerator.GeneratorVersion), options.Seed) { MovementModes = movementModes }, string.IsNullOrEmpty(Environment.UserName) ? "player" : Environment.UserName);
+        var scenarios = StartingContentLoader.LoadScenarios(mods.Registry);
+        Scenario? scenario = null;
+        if (options.Scenario is not null && !scenarios.TryGet(options.Scenario, out scenario))
+        {
+            throw new InvalidOperationException($"There is no scenario '{options.Scenario}'. The mods declare: {string.Join(", ", scenarios.All.Select(s => s.Id))}.");
+        }
+
+        var serverOptions = new ServerOptions(GameIdentity.From(mods, WorldGenerator.GeneratorVersion), options.Seed)
+        {
+            Items = new ItemCatalog(mods.Registry.OfKind("item").Select(d => ItemDefinitionJson.Parse(d.Json))),
+            Wearables = StartingContentLoader.LoadWearables(mods.Registry),
+            Loot = StartingContentLoader.LoadLoot(mods.Registry),
+            Professions = StartingContentLoader.LoadProfessions(mods.Registry),
+            Scenario = scenario,
+            MovementModes = MovementModeContentLoader.Load(mods.Registry),
+        };
+        Solo = new EmbeddedServer(serverOptions, string.IsNullOrEmpty(Environment.UserName) ? "player" : Environment.UserName, options.Profession);
 
         var biomes = new BiomeCatalog(mods.Registry.OfKind("biome").Select(d => BiomeJson.Parse(d.Json)));
         _pipeline = new ChunkPipeline(new WorldGenerator(Solo.Client.WorldSeed, biomes, SettlementContentLoader.Load(mods.Registry)));
@@ -38,7 +55,7 @@ internal sealed class WorldSession : IDisposable
         // The player walks on Jolt terrain, and the Server moves them with the same character controller.
         _physics = new PhysicsWorld();
         Solo.Server.Collision = _physics;
-        Solo.Client.Local.Modes = movementModes;
+        Solo.Client.Local.Modes = serverOptions.MovementModes;
         Solo.Client.Collision = _physics.Create(Solo.Client.Local.State.Position, PlayerMovement.StandingHeight);
     }
 

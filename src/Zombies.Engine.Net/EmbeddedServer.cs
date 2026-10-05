@@ -14,14 +14,14 @@ public sealed class EmbeddedServer : IDisposable
     private long _tick;
 
     /// <summary>Starts the Server and joins it. Throws when the join is refused, which only a bug can cause here.</summary>
-    public EmbeddedServer(ServerOptions options, string playerName)
+    public EmbeddedServer(ServerOptions options, string playerName, string? profession = null)
     {
         ArgumentNullException.ThrowIfNull(options);
         var network = new InMemoryNetwork();
         _serverTransport = network.CreateServer();
         Server = new GameServer(_serverTransport, options);
         _clientTransport = network.Connect();
-        Client = new GameClient(_clientTransport, options.Identity, playerName);
+        Client = new GameClient(_clientTransport, options.Identity, playerName, profession);
 
         for (var i = 0; i < 4 && Client.State == ClientState.Connecting; i++)
         {

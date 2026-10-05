@@ -1,5 +1,7 @@
 using System.Globalization;
+using Zombies.Domain.Items;
 using Zombies.Domain.Mods;
+using Zombies.Domain.Survival;
 using Zombies.Engine.Core;
 using Zombies.Engine.Core.Modding;
 using Zombies.Engine.Net;
@@ -7,7 +9,8 @@ using Zombies.Engine.Voxel;
 
 /// <summary>
 /// Runs a Server with two fake clients over the in-memory transport, one of them walking, then checks that both clients
-/// see exactly the Server's entities and that a steady-state tick allocated nothing.
+/// see exactly the Server's entities and that a steady-state tick allocated nothing. Then it joins one client per
+/// Profession the mods declare, in the first Scenario they declare, and checks that each one got its loadout.
 /// </summary>
 internal static class NetReport
 {
@@ -63,6 +66,8 @@ internal static class NetReport
             failures.Add($"the prediction needed {alice.Local.ReconciliationCount} corrections");
         }
 
+        failures.AddRange(JoinWithEachProfession(mods, identity));
+
         Console.WriteLine(string.Create(
             CultureInfo.InvariantCulture,
             $"SimHarness net: {server.PlayerCount} players, {server.World.Count} entities, {server.SnapshotsSent} snapshots averaging {server.SnapshotBytesSent / Math.Max(1, server.SnapshotsSent)} bytes over {simulation.CurrentTick} ticks, steady-state allocation {allocated} bytes, prediction corrections {alice.Local.ReconciliationCount}"));
@@ -72,6 +77,56 @@ internal static class NetReport
         }
 
         return failures.Count == 0 ? 0 : 1;
+    }
+
+    private static List<string> JoinWithEachProfession(ModLoadResult mods, GameIdentity identity)
+    {
+        var failures = new List<string>();
+        var professions = StartingContentLoader.LoadProfessions(mods.Registry).All;
+        var scenarios = StartingContentLoader.LoadScenarios(mods.Registry).All;
+        var scenario = scenarios.Count > 0 ? scenarios[0] : null;
+        var network = new InMemoryNetwork();
+        using var serverTransport = network.CreateServer();
+        var server = new GameServer(serverTransport, new ServerOptions(identity, WorldSeed: 12345)
+        {
+            MaxPlayers = Math.Max(4, professions.Count),
+            Items = new ItemCatalog(mods.Registry.OfKind("item").Select(d => ItemDefinitionJson.Parse(d.Json))),
+            Wearables = StartingContentLoader.LoadWearables(mods.Registry),
+            Loot = StartingContentLoader.LoadLoot(mods.Registry),
+            Professions = StartingContentLoader.LoadProfessions(mods.Registry),
+            Scenario = scenario,
+        });
+        var transports = new List<ITransport>();
+        var clients = new List<GameClient>();
+        foreach (var profession in professions)
+        {
+            transports.Add(network.Connect());
+            clients.Add(new GameClient(transports[^1], identity, $"player{clients.Count}", profession.Id));
+        }
+
+        new Simulation([server, .. clients]).Run(10);
+        for (var i = 0; i < professions.Count; i++)
+        {
+            var profession = professions[i];
+            if (clients[i].State != ClientState.Joined || !server.TryGetPlayer(new ConnectionId(i + 1), out var session))
+            {
+                failures.Add($"the client with profession {profession.Id} is {clients[i].State}");
+            }
+            else if (session.Profession != profession.Id
+                || !session.Outfit.WornItems.SequenceEqual(profession.Outfit)
+                || profession.Items.Any(item => session.Carried.CountOf(item.Item) < item.Count)
+                || session.Modifiers.All.Count != profession.Modifiers.Count)
+            {
+                failures.Add($"the player with profession {profession.Id} did not get its loadout");
+            }
+        }
+
+        foreach (var transport in transports)
+        {
+            transport.Dispose();
+        }
+
+        return failures;
     }
 
     private sealed class Walker(GameClient client) : ITickable

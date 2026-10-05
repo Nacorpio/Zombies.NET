@@ -1,0 +1,7 @@
+{
+  "id": "base:wearable/baseball_cap",
+  "item": "base:item/baseball_cap",
+  "layer": "base",
+  "coverage": [ "head" ],
+  "insulation": 0.02
+}

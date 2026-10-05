@@ -1,0 +1,9 @@
+{
+  "id": "base:wearable/work_jacket",
+  "item": "base:item/work_jacket",
+  "layer": "outer",
+  "coverage": [ "torso", "leftArm", "rightArm" ],
+  "insulation": 0.15,
+  "protection": { "blunt": 0.1, "cut": 0.15, "bite": 0.1 },
+  "encumbrance": 0.05
+}

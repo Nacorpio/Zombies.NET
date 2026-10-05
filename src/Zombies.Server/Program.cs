@@ -3,6 +3,7 @@ using System.Globalization;
 using Zombies.Domain.Death;
 using Zombies.Domain.Items;
 using Zombies.Domain.Mods;
+using Zombies.Domain.Survival;
 using Zombies.Engine.Core;
 using Zombies.Engine.Core.Modding;
 using Zombies.Engine.Net;
@@ -10,12 +11,14 @@ using Zombies.Engine.Voxel;
 using Zombies.Persistence.Sqlite;
 
 // Headless dedicated Server. The same GameServer runs embedded in the client for solo play.
-//   Zombies.Server [--port N] [--seed N] [--mods DIR] [--max-players N] [--key TEXT] [--ticks N] [--save FILE] [--option ID=VALUE]... [--list-options]
+//   Zombies.Server [--port N] [--seed N] [--mods DIR] [--max-players N] [--key TEXT] [--ticks N] [--save FILE] [--option ID=VALUE]... [--list-options] [--scenario ID]
 //   --port 27015 by default; --ticks stops after N ticks (for smoke runs); Ctrl+C stops cleanly.
 //   --save FILE keeps the world in one SQLite file: a new file records the seed, generator, and mods; an existing file
 //   supplies the seed and is refused when its generator or mods differ from what is running.
 //   --option sets a world option when the world is created (repeatable); --list-options prints the options the mods declare
 //   and stops. A save keeps its options, so an existing --save is refused when --option disagrees with what it recorded.
+//   --scenario sets where, when and in what state players begin; it is not saved, so it applies to whoever joins this run.
+//   Each player picks their own profession when they join.
 var port = 27015;
 ulong seed = 12345;
 var seedGiven = false;
@@ -26,6 +29,7 @@ var key = "zombies";
 long? stopAfter = null;
 var chosenOptions = new Dictionary<string, double>(StringComparer.Ordinal);
 var listOptions = false;
+string? scenarioId = null;
 for (var i = 0; i < args.Length; i++)
 {
     string Next() => i + 1 < args.Length ? args[++i] : throw new ArgumentException($"{args[i]} needs a value.");
@@ -49,6 +53,7 @@ for (var i = 0; i < args.Length; i++)
             chosenOptions[assignment[..equals]] = optionValue;
             break;
         case "--list-options": listOptions = true; break;
+        case "--scenario": scenarioId = Next(); break;
         case "--ticks": stopAfter = long.Parse(Next(), CultureInfo.InvariantCulture); break;
         default:
             Console.Error.WriteLine($"Unknown option '{args[i]}'.");
@@ -158,7 +163,24 @@ if (savePath is not null)
 }
 
 var items = new ItemCatalog(mods.Registry.OfKind("item").Select(d => ItemDefinitionJson.Parse(d.Json)));
-var options = new ServerOptions(identity, seed) { MaxPlayers = maxPlayers, Items = items, MovementModes = MovementModeContentLoader.Load(mods.Registry) };
+var scenarios = StartingContentLoader.LoadScenarios(mods.Registry);
+Scenario? scenario = null;
+if (scenarioId is not null && !scenarios.TryGet(scenarioId, out scenario))
+{
+    Console.Error.WriteLine($"Zombies.Server: there is no scenario '{scenarioId}'. The mods declare: {string.Join(", ", scenarios.All.Select(s => s.Id))}.");
+    return 2;
+}
+
+var options = new ServerOptions(identity, seed)
+{
+    MaxPlayers = maxPlayers,
+    Items = items,
+    MovementModes = MovementModeContentLoader.Load(mods.Registry),
+    Wearables = StartingContentLoader.LoadWearables(mods.Registry),
+    Loot = StartingContentLoader.LoadLoot(mods.Registry),
+    Professions = StartingContentLoader.LoadProfessions(mods.Registry),
+    Scenario = scenario,
+};
 
 // With a save, Corpses and their Containers and the Memorials are kept in it; without one they last as long as the process.
 var deathStores = save is null

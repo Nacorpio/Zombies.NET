@@ -1,0 +1,12 @@
+{
+  "id": "base:profession/mechanic",
+  "items": [
+    { "item": "base:item/crowbar" },
+    { "item": "base:item/canned_beans", "count": 2 }
+  ],
+  "loot": [ "base:loot/garage" ],
+  "outfit": [ "base:item/tshirt", "base:item/jeans", "base:item/work_jacket" ],
+  "modifiers": [
+    { "stat": "repair_quality", "operation": "multiply", "value": 1.25 }
+  ]
+}

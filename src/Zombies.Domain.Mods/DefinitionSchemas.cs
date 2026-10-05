@@ -48,6 +48,11 @@ public static class DefinitionSchemas
                     obj["enum"] = new JsonArray([.. Enum.GetNames<BodyPart>().Select(n => (JsonNode)(char.ToLowerInvariant(n[0]) + n[1..]))]);
                 }
 
+                if (context.PropertyInfo?.Name is "layer")
+                {
+                    obj["enum"] = new JsonArray([.. Enum.GetNames<ClothingLayer>().Select(n => (JsonNode)n.ToLowerInvariant())]);
+                }
+
                 if (context.PropertyInfo?.Name is "label")
                 {
                     obj["pattern"] = LabelKeyPattern;

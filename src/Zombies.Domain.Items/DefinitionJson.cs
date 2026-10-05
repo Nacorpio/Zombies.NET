@@ -12,4 +12,21 @@ public static class DefinitionJson
         RespectNullableAnnotations = true,
         RespectRequiredConstructorParameters = true,
     };
+
+    /// <summary>Finds the member of enum <typeparamref name="T"/> that <paramref name="text"/> names, ignoring case. A number never names a member.</summary>
+    public static bool TryParseName<T>(string? text, out T value)
+        where T : struct, Enum
+    {
+        foreach (var candidate in Enum.GetValues<T>())
+        {
+            if (string.Equals(candidate.ToString(), text, StringComparison.OrdinalIgnoreCase))
+            {
+                value = candidate;
+                return true;
+            }
+        }
+
+        value = default;
+        return false;
+    }
 }

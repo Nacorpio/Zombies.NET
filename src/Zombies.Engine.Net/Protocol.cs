@@ -28,6 +28,7 @@ public enum JoinRefusal : byte
     ModListMismatch,
     ServerFull,
     WorldOptionMismatch,
+    UnknownProfession,
 }
 
 /// <summary>What a mod looks like at join: its id, version, and content hash.</summary>

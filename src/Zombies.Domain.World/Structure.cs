@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using System.Text.Json;
 using Zombies.Domain.Items;
 
@@ -30,6 +31,7 @@ public sealed record StructureContainer(string ContainerKind, StructurePos Posit
 /// A prefab voxel construction stamped into the world during generation: a grid of block names, the Areas it is divided
 /// into, and the Containers in them. The grid is described by block names, not ids, so this context does not depend on the voxel engine.
 /// </summary>
+[SuppressMessage("Naming", "CA1716", Justification = "Structure is the domain term in GLOSSARY.md; the project is C# only.")]
 public sealed class Structure
 {
     public const int MaxWidth = 32;

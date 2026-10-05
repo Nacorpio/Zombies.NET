@@ -1,6 +1,2 @@
-{
-  "id": "base:item/canned_beans",
-  "mass": "0.4 kg",
-  "volume": "350 ml",
-  "maxStack": 8
-}
+﻿{ "id": "base:item/canned_beans", "mass": "0.4 kg", "volume": "350 ml", "maxStack": 8, "edible": true }
+

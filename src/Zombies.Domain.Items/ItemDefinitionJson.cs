@@ -23,6 +23,12 @@ public sealed record ItemDefinitionDto
 
     /// <summary>How many units fit in one Stack. Defaults to 1.</summary>
     public int MaxStack { get; init; } = 1;
+
+    /// <summary>Whether the item can be eaten. Defaults to false.</summary>
+    public bool Edible { get; init; }
+
+    /// <summary>Whether the item can be drunk. Defaults to false.</summary>
+    public bool Drinkable { get; init; }
 }
 
 /// <summary>Parses an Item definition from JSON.</summary>
@@ -57,7 +63,7 @@ public static class ItemDefinitionJson
 
         try
         {
-            return new ItemDefinition(itemId, mass, volume, dto.MaxStack);
+            return new ItemDefinition(itemId, mass, volume, dto.MaxStack, dto.Edible, dto.Drinkable);
         }
         catch (ArgumentOutOfRangeException ex)
         {

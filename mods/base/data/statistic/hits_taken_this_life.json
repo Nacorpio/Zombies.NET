@@ -1,0 +1,9 @@
+{
+  "id": "base:statistic/hits_taken_this_life",
+  "scope": "life",
+  "counts": [
+    {
+      "event": "DamageTaken"
+    }
+  ]
+}

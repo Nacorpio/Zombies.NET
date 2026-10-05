@@ -1,0 +1,30 @@
+{
+  "type": "object",
+  "properties": {
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z0-9_]+:[a-z0-9_]+(/[a-z0-9_]+)*$"
+    },
+    "statistic": {
+      "type": "string",
+      "pattern": "^[a-z0-9_]+:[a-z0-9_]+(/[a-z0-9_]+)*$"
+    },
+    "comparison": {
+      "enum": [
+        "atLeast",
+        "atMost",
+        "exactly"
+      ]
+    },
+    "target": {
+      "type": "number"
+    }
+  },
+  "required": [
+    "id",
+    "statistic",
+    "comparison",
+    "target"
+  ],
+  "$schema": "https://json-schema.org/draft/2020-12/schema"
+}

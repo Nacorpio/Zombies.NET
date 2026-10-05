@@ -139,5 +139,21 @@ internal static class SaveSchema
             cause         INTEGER NOT NULL
         );
         """,
+
+        // Version 4: the value of each Statistic per player, and the Achievements each player has completed.
+        """
+        CREATE TABLE player_statistics (
+            player    TEXT NOT NULL,
+            statistic TEXT NOT NULL,
+            value     REAL NOT NULL,
+            PRIMARY KEY (player, statistic)
+        ) WITHOUT ROWID;
+
+        CREATE TABLE player_achievements (
+            player      TEXT NOT NULL,
+            achievement TEXT NOT NULL,
+            PRIMARY KEY (player, achievement)
+        ) WITHOUT ROWID;
+        """,
     ];
 }

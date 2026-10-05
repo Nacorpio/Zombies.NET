@@ -27,7 +27,7 @@ internal sealed class WorldSession : IDisposable
         }
 
         // Solo play: join an embedded Server and take the world seed from it, as a client of a dedicated server would.
-        Solo = new EmbeddedServer(new ServerOptions(GameIdentity.From(mods, WorldGenerator.GeneratorVersion), options.Seed), string.IsNullOrEmpty(Environment.UserName) ? "player" : Environment.UserName);
+        Solo = new EmbeddedServer(new ServerOptions(GameIdentity.From(mods, WorldGenerator.GeneratorVersion), options.Seed) { Statistics = StatisticsContentLoader.Load(mods.Registry) }, string.IsNullOrEmpty(Environment.UserName) ? "player" : Environment.UserName);
 
         var biomes = new BiomeCatalog(mods.Registry.OfKind("biome").Select(d => BiomeJson.Parse(d.Json)));
         _pipeline = new ChunkPipeline(new WorldGenerator(Solo.Client.WorldSeed, biomes, SettlementContentLoader.Load(mods.Registry)));

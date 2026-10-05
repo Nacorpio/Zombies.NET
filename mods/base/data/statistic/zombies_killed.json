@@ -1,0 +1,8 @@
+{
+  "id": "base:statistic/zombies_killed",
+  "counts": [
+    {
+      "event": "ZombieKilled"
+    }
+  ]
+}

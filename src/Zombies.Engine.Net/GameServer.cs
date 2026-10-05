@@ -4,6 +4,7 @@ using Zombies.Domain.Combat;
 using Zombies.Domain.Death;
 using Zombies.Domain.Inventory;
 using Zombies.Domain.Items;
+using Zombies.Domain.Statistics;
 using Zombies.Domain.Survival;
 using Zombies.Engine.Core;
 
@@ -37,12 +38,21 @@ public sealed record ServerOptions(GameIdentity Identity, ulong WorldSeed)
 
     /// <summary>How long a day lasts, which a Memorial counts a life in.</summary>
     public TimeSpan DayLength { get; init; } = TimeSpan.FromMinutes(24);
+
+    /// <summary>The Statistics, Achievements and Conducts every player's run is measured by. Defaults to none.</summary>
+    public StatisticsCatalog Statistics { get; init; } = StatisticsCatalog.Empty;
 }
 
 /// <summary>One connection to the Server, from connect to disconnect, and its player once it has joined.</summary>
 public sealed class PlayerSession
 {
-    internal PlayerSession(ConnectionId connection) => Connection = connection;
+    private readonly GameServer _server;
+
+    internal PlayerSession(ConnectionId connection, GameServer server)
+    {
+        Connection = connection;
+        _server = server;
+    }
 
     public ConnectionId Connection { get; }
 
@@ -71,8 +81,18 @@ public sealed class PlayerSession
     /// <summary>Zombies this player has killed in their current life, which a Memorial records.</summary>
     public int Kills { get; internal set; }
 
-    /// <summary>Counts a kill toward the Memorial of this player's current life.</summary>
-    public void CreditKill() => Kills++;
+    /// <summary>This player's statistics, which outlast their lives. Set when they join.</summary>
+    public PlayerStatistics Statistics { get; internal set; } = null!;
+
+    /// <summary>Counts a kill toward the Memorial of this player's current life and toward their statistics.</summary>
+    public void CreditKill()
+    {
+        Kills++;
+        _server.Record(this, ZombieKilled.Instance);
+    }
+
+    /// <summary>How far the player has walked since the last <see cref="DistanceWalked"/> step was counted, in blocks.</summary>
+    internal float WalkedSinceStep { get; set; }
 
     internal long LifeStartTick { get; set; }
 
@@ -112,6 +132,8 @@ public sealed class GameServer : ITickable
     private readonly NetWriter _writer = new(4096);
     private readonly Handler _handler;
     private readonly DeathService _death;
+    private readonly IStatisticsRepository _statistics;
+    private readonly DistanceWalked _walkedStep = DistanceWalked.Step;
     private readonly Dictionary<uint, Corpse> _corpses = [];
     private readonly long _dayTicks;
     private readonly long _respawnTicks;
@@ -119,7 +141,8 @@ public sealed class GameServer : ITickable
     private int _snapshotAccumulator;
 
     /// <param name="stores">Where Corpses, their Containers, and Memorials are kept. Defaults to memory; a Server with a save passes its own, and the Corpses it holds appear in the world.</param>
-    public GameServer(ITransport transport, ServerOptions options, DeathStores? stores = null)
+    /// <param name="statistics">Where each player's statistics are kept. Defaults to memory; a Server with a save passes its own.</param>
+    public GameServer(ITransport transport, ServerOptions options, DeathStores? stores = null, IStatisticsRepository? statistics = null)
     {
         ArgumentNullException.ThrowIfNull(transport);
         ArgumentNullException.ThrowIfNull(options);
@@ -138,6 +161,7 @@ public sealed class GameServer : ITickable
         _handler = new Handler(this);
         stores ??= DeathStores.InMemory();
         _death = new DeathService(options.Items, stores);
+        _statistics = statistics ?? new InMemoryStatisticsRepository();
         _dayTicks = Math.Max(1, (long)(options.DayLength.TotalSeconds * Simulation.TickRateHz));
         _respawnTicks = (long)Math.Ceiling(options.Death.RespawnDelay.TotalSeconds * Simulation.TickRateHz);
         Commands.Register<MovePlayer>(MovePlayer.Handle);
@@ -211,8 +235,48 @@ public sealed class GameServer : ITickable
         }
     }
 
+    /// <summary>
+    /// Counts a domain event toward a player's statistics. An Achievement it completes is stored and replicated to that player,
+    /// who sees a toast. The Server calls this for what happens to a player, as a zombie kill or a hit.
+    /// </summary>
+    public void Record(PlayerSession session, IDomainEvent domainEvent)
+    {
+        EnsureJoined(session);
+        var completed = session.Statistics.Record(domainEvent);
+        if (completed.Count == 0)
+        {
+            return;
+        }
+
+        foreach (var achievement in completed)
+        {
+            _writer.Clear();
+            _writer.WriteByte((byte)MessageType.AchievementCompleted);
+            _writer.WriteString(achievement);
+            _transport.Send(session.Connection, _writer.Written, Delivery.ReliableOrdered);
+        }
+
+        _statistics.Save(session.Name, session.Statistics);
+    }
+
+    /// <summary>Counts the distance a player's step covered, one <see cref="DistanceWalked"/> for every <see cref="DistanceWalked.StepMeters"/> blocks.</summary>
+    internal void Walked(PlayerSession session, Vector3 start, Vector3 end)
+    {
+        session.WalkedSinceStep += MathF.Sqrt(((end.X - start.X) * (end.X - start.X)) + ((end.Z - start.Z) * (end.Z - start.Z)));
+        while (session.WalkedSinceStep >= DistanceWalked.StepMeters)
+        {
+            session.WalkedSinceStep -= DistanceWalked.StepMeters;
+            Record(session, _walkedStep);
+        }
+    }
+
     private CombatResult Resolve(PlayerSession session, CombatResult result)
     {
+        foreach (var domainEvent in result.Events)
+        {
+            Record(session, domainEvent);
+        }
+
         if (result.Events.OfType<BodyDied>().FirstOrDefault() is { } died)
         {
             Die(session, died.Cause);
@@ -229,7 +293,31 @@ public sealed class GameServer : ITickable
         var report = _death.Die(session.Carried, session.Outfit, session.Name, cause, days, session.Kills, player.Position);
         _corpses[World.Spawn(EntityKind.Corpse, report.Corpse.Position, player.Yaw)] = report.Corpse;
         World.UpdatePlayer(session.EntityId, new PlayerState(Dead: true));
+        EndRun(session);
         session.RespawnAtTick = Options.Death.Policy == DeathPolicy.RespawnAfterDelay ? _tick + _respawnTicks : null;
+    }
+
+    /// <summary>The life is over: its scores and the Conducts the player kept go to them, and the next life counts from zero.</summary>
+    private void EndRun(PlayerSession session)
+    {
+        var run = session.Statistics.EndRun();
+        _statistics.Save(session.Name, session.Statistics);
+        _writer.Clear();
+        _writer.WriteByte((byte)MessageType.RunEnded);
+        _writer.WriteVarUInt((uint)run.Scores.Count);
+        foreach (var score in run.Scores)
+        {
+            _writer.WriteString(score.Statistic);
+            _writer.WriteUInt64(BitConverter.DoubleToUInt64Bits(score.Value));
+        }
+
+        _writer.WriteVarUInt((uint)run.ConductsKept.Count);
+        foreach (var conduct in run.ConductsKept)
+        {
+            _writer.WriteString(conduct);
+        }
+
+        _transport.Send(session.Connection, _writer.Written, Delivery.ReliableOrdered);
     }
 
     /// <summary>Gives a dead player a fresh Body and fresh Needs at the spawn point. What they carried stays in their Corpse.</summary>
@@ -256,9 +344,16 @@ public sealed class GameServer : ITickable
             return CommandResult.Invalid($"A Corpse can be looted from at most {LootCorpse.Reach} blocks away.");
         }
 
+        var carriedBefore = session.Carried.Stacks.Sum(s => s.Count);
         if (!_death.Loot(corpse, session.Carried, out var emptied))
         {
             return CommandResult.Invalid("The Corpse holds nothing.");
+        }
+
+        var looted = session.Carried.Stacks.Sum(s => s.Count) - carriedBefore;
+        if (looted > 0)
+        {
+            Record(session, new ItemsLooted(looted));
         }
 
         if (emptied)
@@ -280,6 +375,12 @@ public sealed class GameServer : ITickable
             if (session.RespawnAtTick <= _tick)
             {
                 Respawn(session);
+            }
+
+            if (session.IsJoined && !session.IsDead && _tick > session.LifeStartTick && (_tick - session.LifeStartTick) % _dayTicks == 0)
+            {
+                Record(session, DaySurvived.Instance);
+                _statistics.Save(session.Name, session.Statistics);
             }
         }
 
@@ -400,6 +501,7 @@ public sealed class GameServer : ITickable
         session.Outfit = new Outfit(Options.Wearables);
         session.Carried = new Container(_death.NextContainerId(), Options.CarryMass, Options.CarryVolume, Options.Items);
         session.LifeStartTick = _tick;
+        session.Statistics = _statistics.TryGet(name, Options.Statistics, out var kept) ? kept : new PlayerStatistics(Options.Statistics);
         PlayerCount++;
 
         _writer.WriteByte((byte)MessageType.JoinAccepted);
@@ -468,6 +570,7 @@ public sealed class GameServer : ITickable
     {
         if (_sessions.Remove(connection.Value, out var session) && session.IsJoined)
         {
+            _statistics.Save(session.Name, session.Statistics);
             World.Despawn(session.EntityId);
             PlayerCount--;
         }
@@ -475,7 +578,7 @@ public sealed class GameServer : ITickable
 
     private sealed class Handler(GameServer server) : ITransportHandler
     {
-        public void OnConnected(ConnectionId connection) => server._sessions[connection.Value] = new PlayerSession(connection);
+        public void OnConnected(ConnectionId connection) => server._sessions[connection.Value] = new PlayerSession(connection, server);
 
         public void OnReceived(ConnectionId connection, ReadOnlySpan<byte> payload, Delivery delivery) => server.OnReceived(connection, payload);
 

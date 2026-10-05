@@ -211,6 +211,7 @@ public readonly record struct PlayerInputCommand(PlayerInput Input) : INetComman
 
         context.Player.Movement = next;
         world.Move(id, next.Position, next.Yaw);
+        context.Server.Walked(context.Player, state.Position, next.Position);
         return CommandResult.Accepted;
     }
 }

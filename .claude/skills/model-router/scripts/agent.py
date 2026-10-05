@@ -8,6 +8,7 @@ Tools (OpenAI function-calling format, via /chat/completions):
   list_dir, read_file            always on, confined to --cwd
   write_file                     only with --allow-write, confined to --cwd
   run_command                    only with --allow-shell; runs with cwd=--cwd, 60s timeout, NOT sandboxed
+                                 (secret-named environment variables are removed, but it can still read any file you can)
 
 Env: OPENROUTER_API_KEY. Stdlib only. The key is never printed.
 """
@@ -35,6 +36,15 @@ def tool_specs(allow_write, allow_shell):
     return t
 
 
+SECRET_WORDS = ("KEY", "TOKEN", "SECRET", "PASSWORD", "PASSWD", "CREDENTIAL", "AUTH")
+
+
+def shell_env():
+    """The environment for run_command: the parent's, minus variables whose names look like secrets, so a model that runs
+    `env` cannot read OPENROUTER_API_KEY. Files the shell can reach (for example ~/.aws) are not protected."""
+    return {k: v for k, v in os.environ.items() if not any(w in k.upper() for w in SECRET_WORDS)}
+
+
 def resolve(root, rel):
     p = (root / (rel or ".")).resolve()
     if p != root and root not in p.parents:
@@ -55,7 +65,8 @@ def run_tool(name, args, root, allow_write, allow_shell):
             p.write_text(args["content"])
             return f"wrote {len(args['content'])} chars to {args['path']}"
         if name == "run_command" and allow_shell:
-            r = subprocess.run(args["command"], shell=True, cwd=root, capture_output=True, text=True, timeout=60)
+            r = subprocess.run(args["command"], shell=True, cwd=root, capture_output=True, text=True, timeout=60,
+                               env=shell_env())
             return f"exit={r.returncode}\n{(r.stdout + r.stderr)[:MAX_READ]}"
         return f"error: unknown or disabled tool {name}"
     except subprocess.TimeoutExpired:

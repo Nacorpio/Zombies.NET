@@ -59,12 +59,26 @@ public sealed class ResponseCache(string directory)
     public void Put(string key, SystemOneResponse response)
     {
         ArgumentNullException.ThrowIfNull(response);
-        System.IO.Directory.CreateDirectory(Directory);
-        var path = PathFor(key);
-        var temporary = path + "." + Environment.ProcessId + ".tmp";
-        File.WriteAllText(temporary, response.ToJsonString(indented: true));
-        File.Move(temporary, path, overwrite: true);
+        try
+        {
+            System.IO.Directory.CreateDirectory(Directory);
+            var path = PathFor(key);
+            var temporary = path + "." + Environment.ProcessId + ".tmp";
+            File.WriteAllText(temporary, response.ToJsonString(indented: true));
+            File.Move(temporary, path, overwrite: true);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            // A cache that cannot be written must not lose the run. Warn once, not once per judge.
+            if (!_warned)
+            {
+                _warned = true;
+                Console.Error.WriteLine($"ContentJudge: warning: could not write the response cache in '{Directory}' ({ex.GetType().Name}: {ex.Message}); continuing without caching.");
+            }
+        }
     }
+
+    private bool _warned;
 
     private static void Append(IncrementalHash hash, string label, byte[] data)
     {

@@ -16,6 +16,9 @@ public static class JudgeExitCode
     public const int ReviewNeeded = 2;
     public const int TransportError = 3;
 
+    /// <summary>A usage or input error, such as a mods folder that cannot be read. Not a judging outcome.</summary>
+    public const int UsageError = 64;
+
     /// <summary>
     /// 3 if any result could not be judged (the run is incomplete), else 1 if a deterministic check failed, else 2 if
     /// anything needs review, else 0.

@@ -10,6 +10,10 @@
   </ItemGroup>
 
   <ItemGroup>
+    <InternalsVisibleTo Include="ContentJudge.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
     <None Include="thresholds.json" CopyToOutputDirectory="PreserveNewest" />
     <None Include="models.json" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>

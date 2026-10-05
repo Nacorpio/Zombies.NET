@@ -11,7 +11,7 @@ using Zombies.Engine.Core.Modding;
 //       judge every definition and write content-judge.md and content-judge.json (default artifacts/judge-reports)
 // Both take --thresholds PATH and --models PATH (default tools/ContentJudge/*.json).
 // Keys come only from the environment: TYPESAFE_API_KEY (Jev), CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID (Clef Flash).
-// Exit codes: 0 pass, 1 deterministic fail, 2 review needed, 3 transport error.
+// Exit codes: 0 pass, 1 deterministic fail, 2 review needed, 3 transport error, 64 usage or input error (unreadable mods folder, bad arguments).
 if (args.Length > 0 && args[0] == "dry-run")
 {
     return Cli.DryRun(args[1..]);
@@ -32,9 +32,9 @@ namespace Zombies.ContentJudge
         public static int DryRun(string[] args)
         {
             var options = CliOptions.Parse(args);
-            if (!TryLoad(options, out var subjects, out var models, out var judges))
+            if (!TryLoad(options, out var subjects, out var models, out var judges, out var loadFailure))
             {
-                return JudgeExitCode.DeterministicFail;
+                return loadFailure;
             }
 
             var count = 0;
@@ -64,9 +64,9 @@ namespace Zombies.ContentJudge
         public static async Task<int> RunAsync(string[] args)
         {
             var options = CliOptions.Parse(args);
-            if (!TryLoad(options, out var subjects, out var models, out var judges))
+            if (!TryLoad(options, out var subjects, out var models, out var judges, out var loadFailure))
             {
-                return JudgeExitCode.DeterministicFail;
+                return loadFailure;
             }
 
             Thresholds thresholds;
@@ -91,8 +91,9 @@ namespace Zombies.ContentJudge
             return exitCode;
         }
 
-        private static bool TryLoad(CliOptions options, out IReadOnlyList<JudgeSubject> subjects, out IReadOnlyDictionary<string, ModelEndpoint> models, out IReadOnlyList<IJudge> judges)
+        private static bool TryLoad(CliOptions options, out IReadOnlyList<JudgeSubject> subjects, out IReadOnlyDictionary<string, ModelEndpoint> models, out IReadOnlyList<IJudge> judges, out int exitCode)
         {
+            exitCode = JudgeExitCode.DeterministicFail;
             subjects = [];
             models = new Dictionary<string, ModelEndpoint>();
             judges = [.. JudgeCatalog.All.Where(j => options.Judge is null || string.Equals(j.Name, options.Judge, StringComparison.Ordinal))];
@@ -120,7 +121,19 @@ namespace Zombies.ContentJudge
                 return false;
             }
 
-            var result = ModLoader.Load(DirectoryModSource.Read(options.ModsDirectory));
+            IReadOnlyList<ModPackage> packages;
+            try
+            {
+                packages = DirectoryModSource.Read(options.ModsDirectory);
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                Console.Error.WriteLine($"ContentJudge: mods folder '{options.ModsDirectory}' could not be read: {ex.Message}");
+                exitCode = JudgeExitCode.UsageError;
+                return false;
+            }
+
+            var result = ModLoader.Load(packages);
             foreach (var error in result.Errors)
             {
                 Console.Error.WriteLine(error);

@@ -47,7 +47,10 @@ public sealed class HudTests
               "hud.score.cause.injured": "Injured",
               "hud.score.cause.wounded": "Wounded",
               "hud.score.cause.encumbered": "Encumbered",
-              "limb_score.test.limb_score.movement": "Movement" } }
+              "limb_score.test.limb_score.movement": "Movement",
+              "wound_kind.test.wound_kind.scratch": "Scratch",
+              "treatment.test.treatment.bandage": "Bandage",
+              "treatment.test.treatment.dress": "Dress scratch" } }
             """, out var table, out var error), error);
         return new Localizer([table]);
     }
@@ -282,6 +285,32 @@ public sealed class HudTests
         Assert.Equal(0.2, score.Value, 6);
         Assert.Equal(PaletteRole.Danger, score.Role);
         Assert.Equal([new LimbScoreReason("Left leg", "Missing"), new LimbScoreReason("Right leg", "Encumbered")], score.Reasons);
+    }
+
+    [Fact]
+    public void BodyParts_ListTheirWoundKinds_AndOfferTheTreatmentsThatApply()
+    {
+        var kinds = new WoundKindCatalog([WoundKindJson.Parse("""{ "id": "test:wound_kind/scratch", "damageTypes": ["cut"], "bleedRate": 3, "healingTime": 600 }""")]);
+        var treatments = new TreatmentCatalog(
+            [
+                TreatmentJson.Parse("""{ "id": "test:treatment/bandage", "stopsBleeding": true, "time": 5, "consumes": "test:item/bandage" }"""),
+                TreatmentJson.Parse("""{ "id": "test:treatment/dress", "removes": ["test:wound_kind/scratch"], "time": 8, "consumes": "test:item/dressing" }"""),
+            ],
+            kinds);
+        var body = new Body(new BodyId(1), new BodyConfig { WoundKinds = kinds });
+        body.TakeHit(BodyPart.LeftArm, DamageType.Cut, 5);
+
+        var model = new HudModel(body, new Needs(), null, null, English(), treatments: treatments, holds: item => item == new ItemId("test:item/bandage"));
+        var parts = model.Parts;
+
+        var arm = parts.Single(p => p.Part == BodyPart.LeftArm);
+        Assert.Equal(["Scratch"], arm.WoundKinds);
+        Assert.Equal(
+            [new TreatmentOffer("test:treatment/bandage", "Bandage", HasItem: true), new TreatmentOffer("test:treatment/dress", "Dress scratch", HasItem: false)],
+            arm.Treatments);
+        var leg = parts.Single(p => p.Part == BodyPart.LeftLeg);
+        Assert.Empty(leg.WoundKinds);
+        Assert.Empty(leg.Treatments);
     }
 
     [Fact]

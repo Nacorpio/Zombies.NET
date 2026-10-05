@@ -1,0 +1,6 @@
+{
+  "id": "base:treatment/bandage",
+  "stopsBleeding": true,
+  "time": 5,
+  "consumes": "base:item/bandage"
+}

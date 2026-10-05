@@ -29,6 +29,8 @@ public static class BaseDefinitionKinds
         ["status_effect"] = typeof(StatusEffectDto),
         ["weapon"] = typeof(WeaponDto),
         ["weapon_category"] = typeof(WeaponCategoryDto),
+        ["treatment"] = typeof(TreatmentDto),
+        ["wound_kind"] = typeof(WoundKindDto),
         ["zombie"] = typeof(ZombieTypeDto),
     };
 }

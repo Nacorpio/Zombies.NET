@@ -114,6 +114,14 @@ _Avoid_: Limb, hitbox
 An injury on a body part with a type, severity, and bleed rate.
 _Avoid_: Damage, injury
 
+**Wound kind**:
+A definition of a named sort of Wound, such as a scratch or a bite: the damage that causes it, how it bleeds, how long it takes to heal, and the chance that an untreated Wound worsens into another kind instead.
+_Avoid_: Wound type, injury kind
+
+**Treatment**:
+A definition of what applying an Item to a Body part does to its Wounds: which Wound kinds it removes or adds, whether it stops bleeding, how long it takes, and the Item it consumes. A bandage is a Treatment.
+_Avoid_: Cure, medicine
+
 **Limb score**:
 How well a capability such as movement, grip, manipulation, blocking, or vision works, from 0 to 1, computed from the health, Wounds, and Missing parts of the Body parts that perform it and the encumbrance of what is worn there. It is exposed as a Modifier and never drops below its floor.
 _Avoid_: Skill, penalty

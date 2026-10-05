@@ -5,8 +5,21 @@ using Zombies.Domain.Survival;
 
 namespace Zombies.Engine.Ui;
 
-/// <summary>One body part as the health screen shows it.</summary>
-public sealed record BodyPartStatus(BodyPart Part, string Label, double HealthFraction, bool IsMissing, bool IsBleeding, bool IsBandaged, string? StateLabel, PaletteRole Role);
+/// <summary>A Treatment the health screen offers for a body part. It can be started only when the player holds the Item it consumes.</summary>
+public sealed record TreatmentOffer(string Id, string Label, bool HasItem);
+
+/// <summary>One body part as the health screen shows it, with the kinds of its Wounds and the Treatments that would help.</summary>
+public sealed record BodyPartStatus(
+    BodyPart Part,
+    string Label,
+    double HealthFraction,
+    bool IsMissing,
+    bool IsBleeding,
+    bool IsBandaged,
+    string? StateLabel,
+    PaletteRole Role,
+    IReadOnlyList<string> WoundKinds,
+    IReadOnlyList<TreatmentOffer> Treatments);
 
 /// <summary>Why a body part holds a Limb score back, as the health screen words it: the part and the cause.</summary>
 public sealed record LimbScoreReason(string Part, string Cause);
@@ -26,7 +39,9 @@ public sealed class HudModel(
     ItemState? weaponState,
     Localizer localizer,
     IReadOnlyList<LimbScoreDefinition>? limbScores = null,
-    IReadOnlyList<WearableDefinition>? worn = null)
+    IReadOnlyList<WearableDefinition>? worn = null,
+    TreatmentCatalog? treatments = null,
+    Func<ItemId, bool>? holds = null)
 {
     /// <summary>Health below this fraction is a warning.</summary>
     public const double WarningThreshold = 0.6;
@@ -93,7 +108,7 @@ public sealed class HudModel(
         [.. LimbScores.Compute(limbScores ?? [], body, worn ?? []).Where(s => s.IsReduced).Select(Score)];
 
     private LimbScoreStatus Score(LimbScore score) => new(
-        localizer.Get($"limb_score.{score.Definition.Replace(':', '.').Replace('/', '.')}"),
+        localizer.Get(ContentKey("limb_score", score.Definition)),
         score.Value,
         [.. score.Reductions.Select(r => new LimbScoreReason(localizer.Get($"hud.part.{Snake(r.Part.ToString())}"), localizer.Get($"hud.score.cause.{Snake(r.Cause.ToString())}")))],
         Role(score.Value));
@@ -108,8 +123,14 @@ public sealed class HudModel(
         var state = missing ? "hud.part.missing" : bleeding ? "hud.bleeding" : bandaged ? "hud.part.bandaged" : null;
         var role = missing || bleeding ? PaletteRole.Danger : bandaged ? PaletteRole.Good : Role(health);
 
-        return new BodyPartStatus(part, localizer.Get($"hud.part.{Snake(part.ToString())}"), health, missing, bleeding, bandaged, state is null ? null : localizer.Get(state), role);
+        var kinds = body.Wounds.Where(w => w.Part == part && w.Kind is not null).Select(w => localizer.Get(ContentKey("wound_kind", w.Kind!))).Distinct();
+        var offers = (treatments?.Available(body, part) ?? []).Select(t => new TreatmentOffer(t.Id, localizer.Get(ContentKey("treatment", t.Id)), holds?.Invoke(t.Consumes) ?? false));
+
+        return new BodyPartStatus(part, localizer.Get($"hud.part.{Snake(part.ToString())}"), health, missing, bleeding, bandaged, state is null ? null : localizer.Get(state), role, [.. kinds], [.. offers]);
     }
+
+    /// <summary>The text key of a definition, such as <c>wound_kind.base.wound_kind.scratch</c>.</summary>
+    private static string ContentKey(string kind, string id) => $"{kind}.{id.Replace(':', '.').Replace('/', '.')}";
 
     /// <summary>The health of the part that is worst off. A part that is gone counts as no health at all.</summary>
     private double WorstPartHealth()

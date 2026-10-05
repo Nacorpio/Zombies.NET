@@ -1,3 +1,5 @@
+using Zombies.Domain.Combat;
+
 namespace Zombies.Domain.Zombies;
 
 /// <summary>
@@ -10,8 +12,8 @@ public sealed class ZombieCatalog
     private readonly Dictionary<string, int> _index;
     private readonly Dictionary<string, WeakpointSet> _weakpointSets = [];
 
-    /// <exception cref="ArgumentException">A type is defined twice, names a Weakpoint set or an upgrade target that does not exist, or upgrades into itself through a chain.</exception>
-    public ZombieCatalog(IEnumerable<ZombieTypeDefinition> types, IEnumerable<WeakpointSet>? weakpointSets = null)
+    /// <exception cref="ArgumentException">A type is defined twice, names a Weakpoint set or an upgrade target that does not exist, holds something that is not a melee Weapon, or upgrades into itself through a chain.</exception>
+    public ZombieCatalog(IEnumerable<ZombieTypeDefinition> types, IEnumerable<WeakpointSet>? weakpointSets = null, WeaponCatalog? weapons = null)
     {
         ArgumentNullException.ThrowIfNull(types);
         _ordered = [.. types.OrderBy(t => t.Id, StringComparer.Ordinal)];
@@ -47,6 +49,20 @@ public sealed class ZombieCatalog
             throw new ArgumentException($"Zombie type '{orphan.Id}' upgrades into '{orphan.Upgrade!.ZombieType}', which does not exist.", nameof(types));
         }
 
+        Weapons = weapons;
+        foreach (var held in _ordered.SelectMany(t => t.HeldWeapons.Where(h => h.Item is not null).Select(h => (Type: t, Item: h.Item!.Value))))
+        {
+            if (weapons is null || !weapons.TryGetWeapon(held.Item, out var weapon))
+            {
+                throw new ArgumentException($"Zombie type '{held.Type.Id}' holds '{held.Item}', which is not a Weapon.", nameof(weapons));
+            }
+
+            if (weapon.AmmoItem is not null)
+            {
+                throw new ArgumentException($"Zombie type '{held.Type.Id}' holds '{held.Item}', which is not a melee weapon.", nameof(weapons));
+            }
+        }
+
         foreach (var start in _ordered)
         {
             CheckUpgradeChain(start);
@@ -54,6 +70,9 @@ public sealed class ZombieCatalog
     }
 
     public IReadOnlyList<ZombieTypeDefinition> Types => _ordered;
+
+    /// <summary>The Weapons the held weapons of the types are looked up in, or null when none were given.</summary>
+    public WeaponCatalog? Weapons { get; }
 
     public bool TryGet(string id, out ZombieTypeDefinition type)
     {

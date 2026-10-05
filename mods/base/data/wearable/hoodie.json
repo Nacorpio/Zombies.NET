@@ -1,0 +1,8 @@
+{
+  "id": "base:wearable/hoodie",
+  "item": "base:item/hoodie",
+  "layer": "mid",
+  "coverage": [ "torso", "leftArm", "rightArm" ],
+  "insulation": 0.12,
+  "protection": { "blunt": 0.05 }
+}

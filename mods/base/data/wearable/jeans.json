@@ -1,0 +1,8 @@
+{
+  "id": "base:wearable/jeans",
+  "item": "base:item/jeans",
+  "layer": "base",
+  "coverage": [ "leftLeg", "rightLeg" ],
+  "insulation": 0.08,
+  "protection": { "cut": 0.05, "bite": 0.05 }
+}

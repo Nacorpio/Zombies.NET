@@ -1,0 +1,13 @@
+{
+  "id": "base:profession/nurse",
+  "items": [
+    { "item": "base:item/bandage", "count": 4 },
+    { "item": "base:item/antibiotics" },
+    { "item": "base:item/water_bottle" }
+  ],
+  "loot": [ "base:loot/medical" ],
+  "outfit": [ "base:item/tshirt", "base:item/jeans" ],
+  "modifiers": [
+    { "stat": "treatment_speed", "operation": "multiply", "value": 1.5 }
+  ]
+}

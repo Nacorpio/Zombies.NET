@@ -191,11 +191,13 @@ public sealed class GameClient : ITickable
     private readonly ITransport _transport;
     private readonly GameIdentity _identity;
     private readonly string _playerName;
+    private readonly string _profession;
     private readonly NetWriter _writer = new(1024);
     private readonly Handler _handler;
     private uint _nextCommand = 1;
 
-    public GameClient(ITransport transport, GameIdentity identity, string playerName)
+    /// <param name="profession">Content ID of the Profession this player picks, or null to start with none. The Server refuses a join that names one it does not have.</param>
+    public GameClient(ITransport transport, GameIdentity identity, string playerName, string? profession = null)
     {
         ArgumentNullException.ThrowIfNull(transport);
         ArgumentNullException.ThrowIfNull(identity);
@@ -203,6 +205,7 @@ public sealed class GameClient : ITickable
         _transport = transport;
         _identity = identity;
         _playerName = playerName;
+        _profession = profession ?? string.Empty;
         _handler = new Handler(this);
     }
 
@@ -216,6 +219,9 @@ public sealed class GameClient : ITickable
     public uint PlayerEntityId { get; private set; }
 
     public ulong WorldSeed { get; private set; }
+
+    /// <summary>The time of day when this client joined, as a fraction of a day from 0 at midnight, for the sky to start at.</summary>
+    public float StartTimeOfDay { get; private set; }
 
     public ReplicatedWorld World { get; } = new();
 
@@ -293,6 +299,7 @@ public sealed class GameClient : ITickable
         _writer.WriteByte((byte)MessageType.JoinRequest);
         _identity.Write(_writer);
         _writer.WriteString(_playerName);
+        _writer.WriteString(_profession);
         _transport.Send(ConnectionId.Server, _writer.Written, Delivery.ReliableOrdered);
     }
 
@@ -311,6 +318,7 @@ public sealed class GameClient : ITickable
                     reader.ReadByte();
                     var spawn = new Vector3(reader.ReadSingle(), reader.ReadSingle(), reader.ReadSingle());
                     var yaw = reader.ReadSingle();
+                    StartTimeOfDay = reader.ReadSingle();
                     Local.Reset(PlayerMoveState.At(spawn, yaw));
                     State = ClientState.Joined;
                     break;

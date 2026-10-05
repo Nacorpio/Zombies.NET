@@ -1,0 +1,7 @@
+{
+  "id": "base:wearable/tshirt",
+  "item": "base:item/tshirt",
+  "layer": "base",
+  "coverage": [ "torso", "leftArm", "rightArm" ],
+  "insulation": 0.05
+}

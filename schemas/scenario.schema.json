@@ -1,0 +1,71 @@
+{
+  "type": "object",
+  "properties": {
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z0-9_]+:[a-z0-9_]+(/[a-z0-9_]+)*$"
+    },
+    "startLocation": {
+      "enum": [
+        "settlement",
+        "wilderness"
+      ]
+    },
+    "timeOfDay": {
+      "type": "number"
+    },
+    "startingCondition": {
+      "type": "object",
+      "properties": {
+        "satiety": {
+          "type": "number"
+        },
+        "hydration": {
+          "type": "number"
+        },
+        "wounds": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "part": {
+                "type": "string",
+                "enum": [
+                  "head",
+                  "torso",
+                  "leftArm",
+                  "rightArm",
+                  "leftLeg",
+                  "rightLeg"
+                ]
+              },
+              "damageType": {
+                "type": "string",
+                "enum": [
+                  "blunt",
+                  "cut",
+                  "pierce",
+                  "bite"
+                ]
+              },
+              "damage": {
+                "type": "number"
+              }
+            },
+            "required": [
+              "part",
+              "damageType",
+              "damage"
+            ]
+          }
+        }
+      }
+    }
+  },
+  "required": [
+    "id",
+    "startLocation",
+    "timeOfDay"
+  ],
+  "$schema": "https://json-schema.org/draft/2020-12/schema"
+}

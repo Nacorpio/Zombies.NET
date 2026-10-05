@@ -20,6 +20,7 @@ using Zombies.Engine.Ui;
 //   --frames N        quit after N frames                       --capture f.png   save the last frame
 //   --shot f.png      load the world, wait until it settles, save a picture, quit
 //   --bench           fly a fixed path at 1080p and report frame times; exit code 1 if over --budget-ms (default 16.6)
+//   --profession ID   start solo play as this profession      --scenario ID     start the solo world in this scenario
 //   --session F       show a debug session badge (top right) that follows the JSON file F; F4 pins it open, hovering opens it
 //   --screen NAME     open a screen at startup (inventory, body, options, dialog) so a screenshot can show it
 //   --smoke           scripted resize / minimize / restore / input check; exit code 0 means it all worked

@@ -1,0 +1,13 @@
+{
+  "id": "base:profession/cook",
+  "items": [
+    { "item": "base:item/kitchen_knife" },
+    { "item": "base:item/canned_beans", "count": 3 },
+    { "item": "base:item/water_bottle" }
+  ],
+  "loot": [ "base:loot/kitchen" ],
+  "outfit": [ "base:item/tshirt", "base:item/jeans", "base:item/baseball_cap" ],
+  "modifiers": [
+    { "stat": "food_nutrition", "operation": "multiply", "value": 1.2 }
+  ]
+}

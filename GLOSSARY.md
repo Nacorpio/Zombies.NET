@@ -230,6 +230,14 @@ _Avoid_: Attribute, property
 A JSON-defined change to a stat, recipe availability, or interaction, granted by a perk, an attachment, or a status effect, and removed when its source is removed.
 _Avoid_: Buff, bonus, boost
 
+**Profession**:
+A definition of what a player starts with and is good at: starting items, what they wear, loot tables rolled for more items, and Modifiers. Each player picks their own when they join, and the Server grants the same loadout to the same player in the same world every time.
+_Avoid_: Class, job, loadout (that is only the items)
+
+**Scenario**:
+A definition of where, when and in what state a world's players begin: a kind of start location, a time of day, and a starting condition of Needs and Wounds. The host picks one when the world is created.
+_Avoid_: Challenge, start mode, difficulty
+
 ## Death
 
 **Corpse**:

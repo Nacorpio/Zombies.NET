@@ -18,7 +18,7 @@ public enum MessageType : byte
 public static class NetProtocol
 {
     /// <summary>Bump whenever any message layout changes, so old clients are refused instead of misreading.</summary>
-    public const ushort Version = 5;
+    public const ushort Version = 6;
 }
 
 /// <summary>Why the Server refused a join.</summary>
@@ -28,6 +28,7 @@ public enum JoinRefusal : byte
     ModListMismatch,
     ServerFull,
     WorldOptionMismatch,
+    UnknownProfession,
 }
 
 /// <summary>What a mod looks like at join: its id, version, and content hash.</summary>

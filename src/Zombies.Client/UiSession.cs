@@ -1,3 +1,4 @@
+using Zombies.Domain.Actions;
 using Zombies.Domain.Combat;
 using Zombies.Domain.Inventory;
 using Zombies.Domain.Items;
@@ -61,6 +62,9 @@ internal sealed class UiSession : IDisposable
     private UiContext _context = new(new Localizer([]), 1f, 1);
     private int _textScale = 1;
     private bool _mouseWasDown;
+    private float _mouseX;
+    private float _mouseY;
+    private StackId? _heldStack;
 
     public UiSession(ClientOptions options, PlayerStatus status)
     {
@@ -102,7 +106,12 @@ internal sealed class UiSession : IDisposable
         _catalog = new ItemCatalog(mods.Registry.OfKind("item").Select(d => ItemDefinitionJson.Parse(d.Json)));
         _containers = new InMemoryContainerRepository();
         _inventoryService = new InventoryService(_catalog, _containers);
-        _inventoryView = new InventoryView(_inventoryService, _containers, _catalog, _localizer);
+        var weapons = new WeaponCatalog(
+            mods.Registry.OfKind("weapon_category").Select(d => WeaponDefinitionJson.ParseCategory(d.Json)),
+            mods.Registry.OfKind("weapon").Select(d => WeaponDefinitionJson.ParseWeapon(d.Json)),
+            mods.Registry.OfKind("attachment").Select(d => WeaponDefinitionJson.ParseAttachment(d.Json)));
+        var fitting = new WeaponFittingService(_inventoryService, _containers, new WeaponService(weapons));
+        _inventoryView = new InventoryView(_inventoryService, _containers, _catalog, _localizer, fitting);
 
         // A backpack and the ground, filled with a few things so the screen has something to show.
         var backpack = new ContainerId(1);
@@ -275,18 +284,33 @@ internal sealed class UiSession : IDisposable
             return;
         }
 
+        _mouseX = input.MouseX;
+        _mouseY = input.MouseY;
+
+        // A right click on a weapon opens it to show its Mounts.
+        if (input.WasPressed(MouseButton.Right) && BackpackSlotAt(input.MouseX, input.MouseY) is { } opened)
+        {
+            if (!_inventoryView.OpenWeapon(Backpack, opened))
+            {
+                _inventoryView.CloseWeapon();
+            }
+
+            return;
+        }
+
         if (input.WasPressed(MouseButton.Left))
         {
             _mouseWasDown = true;
-            var panel = _inventoryView.Panel(Backpack);
-            var slots = _inventoryView.ArrangeSlots(Backpack, _inventoryLayout.Find("inv.backpack")!.Bounds, _textScale);
-            for (var i = 0; i < slots.Count && i < panel.Slots.Count; i++)
+            if (MountAt(input.MouseX, input.MouseY) is { } mount)
             {
-                if (slots[i].Contains(input.MouseX, input.MouseY))
-                {
-                    _inventoryView.BeginDrag(Backpack, panel.Slots[i].Stack);
-                    return;
-                }
+                _inventoryView.BeginDragFromMount(mount);
+                return;
+            }
+
+            if (BackpackSlotAt(input.MouseX, input.MouseY) is { } stack)
+            {
+                _inventoryView.BeginDrag(Backpack, stack);
+                return;
             }
         }
 
@@ -296,9 +320,64 @@ internal sealed class UiSession : IDisposable
             _mouseWasDown = false;
             if (_inventoryView.Dragging is not null)
             {
-                var ground = _inventoryLayout.Find("inv.ground")!.Bounds;
-                _inventoryView.DropOn(ground.Contains(input.MouseX, input.MouseY) ? Ground : Backpack);
+                if (MountAt(input.MouseX, input.MouseY) is { } mount)
+                {
+                    _inventoryView.DropOnMount(mount);
+                }
+                else
+                {
+                    var ground = _inventoryLayout.Find("inv.ground")!.Bounds;
+                    _inventoryView.DropOn(ground.Contains(input.MouseX, input.MouseY) ? Ground : Backpack);
+                }
+
+                if (_inventoryView.Refusal is { } refusal)
+                {
+                    refusal.Arrange(_screenRect.Width > 0 ? _screenRect : new UiRect(0, 0, 1280, 720), _textScale);
+                    _dialogs.Add(refusal);
+                    _inventoryView.DismissRefusal();
+                }
+
+                SyncHeldWeapon();
             }
+        }
+    }
+
+    private StackId? BackpackSlotAt(float x, float y)
+    {
+        var panel = _inventoryView.Panel(Backpack);
+        var slots = _inventoryView.ArrangeSlots(Backpack, _inventoryLayout.Find("inv.backpack")!.Bounds, _textScale);
+        for (var i = 0; i < slots.Count && i < panel.Slots.Count; i++)
+        {
+            if (slots[i].Contains(x, y))
+            {
+                return panel.Slots[i].Stack;
+            }
+        }
+
+        return null;
+    }
+
+    private string? MountAt(float x, float y)
+    {
+        var mounts = _inventoryView.Mounts;
+        var rects = _inventoryView.ArrangeMounts(_inventoryLayout.Find("inv.mounts")!.Bounds, _textScale);
+        for (var i = 0; i < rects.Count && i < mounts.Count; i++)
+        {
+            if (rects[i].Contains(x, y))
+            {
+                return mounts[i].Mount;
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>The HUD reads the held weapon's state, so it follows the Stack when an Attachment is fitted or taken off.</summary>
+    private void SyncHeldWeapon()
+    {
+        if (_heldStack is { } held && _containers.TryGet(Backpack, out var backpack) && backpack.Stacks.FirstOrDefault(s => s.Id == held) is { } stack)
+        {
+            _status.WeaponState = stack.State;
         }
     }
 
@@ -380,6 +459,7 @@ internal sealed class UiSession : IDisposable
 
         DrawSlots(sprites, palette, Backpack, _inventoryLayout.Find("inv.backpack")!.Bounds);
         DrawSlots(sprites, palette, Ground, _inventoryLayout.Find("inv.ground")!.Bounds);
+        DrawMounts(sprites, palette, _inventoryLayout.Find("inv.mounts")!.Bounds);
 
         if (_inventoryView.Message is { } message)
         {
@@ -399,6 +479,35 @@ internal sealed class UiSession : IDisposable
             sprites.FillRect(rect.X, rect.Y, rect.Width, rect.Height, palette.Color(dragging ? PaletteRole.Info : PaletteRole.Muted));
             var label = slot.Count > 1 ? $"{slot.Label} x{slot.Count}" : slot.Label;
             sprites.DrawText(label, rect.X + (2 * _textScale), rect.Y + (2 * _textScale), _textScale, palette.Color(PaletteRole.Text));
+        }
+    }
+
+    /// <summary>Draws the opened weapon's Mounts, each with its Attachment, and the tooltip of the Mount under the pointer.</summary>
+    private void DrawMounts(SpriteBatch sprites, UiPalette palette, UiRect panel)
+    {
+        var mounts = _inventoryView.Mounts;
+        var rects = _inventoryView.ArrangeMounts(panel, _textScale);
+        string? hovered = null;
+        for (var i = 0; i < rects.Count && i < mounts.Count; i++)
+        {
+            var mount = mounts[i];
+            var rect = rects[i];
+            sprites.FillRect(rect.X, rect.Y, rect.Width, rect.Height, palette.Color(mount.Fitted is null ? PaletteRole.Muted : PaletteRole.Info));
+            sprites.DrawText(mount.Label, rect.X + (2 * _textScale), rect.Y + (2 * _textScale), _textScale, palette.Color(PaletteRole.Text));
+            if (mount.FittedLabel is { } fitted)
+            {
+                sprites.DrawText(fitted, rect.X + (2 * _textScale), rect.Y + (11 * _textScale), _textScale, palette.Color(PaletteRole.Text));
+            }
+
+            if (rect.Contains(_mouseX, _mouseY))
+            {
+                hovered = mount.Mount;
+            }
+        }
+
+        if (hovered is not null)
+        {
+            UiRenderer.DrawTooltip(sprites, _inventoryView.MountTooltip(hovered), palette, _mouseX, _mouseY, _screenRect, _textScale);
         }
     }
 
@@ -436,6 +545,8 @@ internal sealed class UiSession : IDisposable
             ("base:item/bandage", 4),
             ("base:item/water_bottle", 1),
             ("base:item/crowbar", 1),
+            ("base:item/suppressor", 1),
+            ("base:item/red_dot_sight", 1),
         })
         {
             if (ItemId.TryParse(item, out var id) && _catalog.TryGet(id, out _))
@@ -450,6 +561,7 @@ internal sealed class UiSession : IDisposable
             _inventoryService.AddItems(Backpack, pistol, 1, state);
             _status.Weapon = pistol;
             _status.WeaponState = state;
+            _heldStack = _inventoryView.Slots(Backpack).LastOrDefault(s => s.Item == pistol)?.Stack;
         }
     }
 

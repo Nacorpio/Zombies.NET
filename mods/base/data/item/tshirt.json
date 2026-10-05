@@ -1,0 +1,6 @@
+{
+  "id": "base:item/tshirt",
+  "mass": "180 g",
+  "volume": "400 ml",
+  "maxStack": 1
+}

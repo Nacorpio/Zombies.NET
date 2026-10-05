@@ -25,6 +25,7 @@
     <ProjectReference Include="../../src/Zombies.Domain.Mods/Zombies.Domain.Mods.csproj" />
     <ProjectReference Include="../../src/Zombies.Domain.Crafting/Zombies.Domain.Crafting.csproj" />
     <ProjectReference Include="../../src/Zombies.Domain.World/Zombies.Domain.World.csproj" />
+    <ProjectReference Include="../../src/Zombies.Domain.Zombies/Zombies.Domain.Zombies.csproj" />
   </ItemGroup>
 
 </Project>

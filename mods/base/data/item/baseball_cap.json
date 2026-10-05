@@ -1,0 +1,6 @@
+{
+  "id": "base:item/baseball_cap",
+  "mass": "90 g",
+  "volume": "300 ml",
+  "maxStack": 1
+}

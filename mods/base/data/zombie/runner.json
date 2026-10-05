@@ -1,0 +1,33 @@
+{
+  "id": "base:zombie/runner",
+  "stats": { "partHealth": 25, "damage": 10, "speed": 1.6, "maxLevel": 10, "perLevelBonus": 0.08 },
+  "senses": { "sight": 25, "hearing": 40 },
+  "traits": [
+    { "trait": "base:trait/runner", "values": { "speedMultiplier": 2.2 } }
+  ],
+  "appearance": {
+    "height": { "min": 0.96, "max": 1.08 },
+    "build": { "min": 0.82, "max": 0.94 },
+    "skinTones": ["#a3a58b", "#b0a98f", "#94a381"]
+  },
+  "outfit": {
+    "clothing": [
+      { "item": "base:item/tshirt", "weight": 5 },
+      { "item": "base:item/jeans", "weight": 5 },
+      { "item": "base:item/hoodie", "weight": 1 }
+    ],
+    "clothingCount": { "min": 1, "max": 2 },
+    "headwear": [
+      { "weight": 8 },
+      { "item": "base:item/baseball_cap", "weight": 1 }
+    ],
+    "backpacks": [
+      { "weight": 9 },
+      { "item": "base:item/backpack_small", "weight": 1 }
+    ]
+  },
+  "missingParts": [
+    { "part": "leftArm", "chance": 0.03 },
+    { "part": "rightArm", "chance": 0.03 }
+  ]
+}

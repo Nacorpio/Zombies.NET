@@ -33,7 +33,7 @@ public sealed class ModLoadingTests
 
         Assert.True(result.IsSuccess, string.Join(Environment.NewLine, result.Errors));
         Assert.Equal(["base", "sample_data"], result.Mods.Select(m => m.Manifest.Id));
-        Assert.Equal(53, result.Registry.Count);
+        Assert.Equal(63, result.Registry.Count);
     }
 
     [Fact]

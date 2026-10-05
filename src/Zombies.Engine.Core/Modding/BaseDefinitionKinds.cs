@@ -4,6 +4,7 @@ using Zombies.Domain.Crafting;
 using Zombies.Domain.Items;
 using Zombies.Domain.StatusEffects;
 using Zombies.Domain.World;
+using Zombies.Domain.Zombies;
 
 namespace Zombies.Engine.Core.Modding;
 
@@ -27,5 +28,6 @@ public static class BaseDefinitionKinds
         ["status_effect"] = typeof(StatusEffectDto),
         ["weapon"] = typeof(WeaponDto),
         ["weapon_category"] = typeof(WeaponCategoryDto),
+        ["zombie"] = typeof(ZombieTypeDto),
     };
 }

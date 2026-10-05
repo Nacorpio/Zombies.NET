@@ -2,14 +2,23 @@ using System.Numerics;
 
 namespace Zombies.Engine.Net;
 
-/// <summary>Kinds of replicated entity. Later milestones add zombies, dropped items, and deployables.</summary>
+/// <summary>Kinds of replicated entity. Later milestones add dropped items and deployables.</summary>
 public static class EntityKind
 {
     public const ushort Player = 1;
+
+    public const ushort Zombie = 2;
 }
 
+/// <summary>
+/// What a client needs to draw a zombie. The spec (<see cref="Seed"/>, <see cref="Type"/>, <see cref="Level"/>) is all it sends of
+/// the look: every client derives the same proportions, skin, outfit, and starting Missing parts from it. <see cref="Missing"/>
+/// is the Server's current Missing parts, one bit per body part, which grows as the Server dismembers.
+/// </summary>
+public readonly record struct ZombieState(ulong Seed, ushort Type, byte Level, byte Missing, bool Dead);
+
 /// <summary>The replicated state of one entity, as the Server sends it and a client sees it.</summary>
-public readonly record struct EntityState(uint Id, ushort Kind, Vector3 Position, float Yaw)
+public readonly record struct EntityState(uint Id, ushort Kind, Vector3 Position, float Yaw, ZombieState Zombie = default)
 {
     /// <summary>Side length of a chunk in blocks, matching <c>ChunkConstants.Size</c> in Zombies.Engine.Voxel. Interest is measured in chunks.</summary>
     public const int ChunkSize = 16;

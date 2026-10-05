@@ -1,0 +1,6 @@
+{
+  "id": "base:item/backpack_small",
+  "mass": "800 g",
+  "volume": "1.2 l",
+  "maxStack": 1
+}

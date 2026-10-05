@@ -30,6 +30,25 @@ public sealed class ServerWorld
         return id;
     }
 
+    /// <summary>Spawns a zombie. Its look follows from <paramref name="zombie"/>'s spec, so the Server sends no more than that.</summary>
+    public uint SpawnZombie(Vector3 position, float yaw, ZombieState zombie)
+    {
+        var id = Spawn(EntityKind.Zombie, position, yaw);
+        _entities[_indexById[id]] = _entities[_indexById[id]] with { Zombie = zombie };
+        return id;
+    }
+
+    /// <summary>Changes a zombie's Missing parts or whether it is dead, the two things that change after it spawns.</summary>
+    public void UpdateZombie(uint id, ZombieState zombie)
+    {
+        if (!_indexById.TryGetValue(id, out var index) || _entities[index].Kind != EntityKind.Zombie)
+        {
+            throw new KeyNotFoundException($"No zombie has id {id}.");
+        }
+
+        _entities[index] = _entities[index] with { Zombie = zombie };
+    }
+
     public bool Despawn(uint id)
     {
         if (!_indexById.Remove(id, out var index))

@@ -1,0 +1,6 @@
+{
+  "id": "base:item/jeans",
+  "mass": "600 g",
+  "volume": "900 ml",
+  "maxStack": 1
+}

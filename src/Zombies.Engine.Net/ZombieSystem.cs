@@ -1,0 +1,294 @@
+using System.Numerics;
+using Zombies.Domain.Combat;
+using Zombies.Domain.Items;
+using Zombies.Domain.World;
+using Zombies.Domain.Zombies;
+using Zombies.Engine.Animation;
+using Zombies.Engine.Core;
+using Zombies.Engine.Ecs;
+
+namespace Zombies.Engine.Net;
+
+/// <summary>How the Server runs its zombies.</summary>
+public sealed record ZombieOptions
+{
+    /// <summary>How long a dead zombie stays in the world, so clients can play its fall, before the Server removes it.</summary>
+    public int CorpseTicks { get; init; } = 30 * Simulation.TickRateHz;
+}
+
+/// <summary>A zombie died. <see cref="Drops"/> is what it was wearing, which falls where it died.</summary>
+public sealed record ZombieDied(uint Entity, ZombieSpec Spec, Vector3 Position, IReadOnlyList<ItemId> Drops);
+
+/// <summary>What one hit on a zombie did.</summary>
+public sealed record ZombieHit(uint Entity, BodyPart Part, float Distance, Vector3 Point, bool Killed, bool LostPart, IReadOnlyList<IDomainEvent> Events);
+
+public sealed record ZombieSpawnReport(IReadOnlyList<uint> Spawned, IReadOnlyList<string> Problems);
+
+/// <summary>
+/// The Server's zombies. A zombie is a replicated entity (<see cref="ServerWorld"/>), an ECS entity carrying the components of its
+/// Traits, and a Combat <see cref="Body"/>. The Server alone decides what a hit does: it tests the ray against per-part boxes on
+/// a kinematic pose of the skeleton and applies the damage to the Body, which owns Dismemberment and Missing parts (ADR 0007).
+/// Only the spec, the Missing parts, and whether it is dead are replicated; every client derives the look from the spec.
+/// </summary>
+public sealed class ZombieSystem : ITickable
+{
+    private const int SaltYaw = 119;
+
+    private sealed class ZombieData(uint id, Entity entity, ZombieSpec spec, ZombieTypeDefinition type, ZombieAppearance appearance, Body body, Animator animator, long spawnedTick)
+    {
+        public uint Id { get; } = id;
+
+        public Entity Entity { get; } = entity;
+
+        public ZombieSpec Spec { get; } = spec;
+
+        public ZombieTypeDefinition Type { get; } = type;
+
+        public ZombieAppearance Appearance { get; } = appearance;
+
+        public Body Body { get; } = body;
+
+        public Animator Animator { get; } = animator;
+
+        public long PoseTick { get; set; } = spawnedTick;
+
+        public Vector3 Scale { get; } = new(appearance.BuildScale, appearance.HeightScale, appearance.BuildScale);
+    }
+
+    private readonly ServerWorld _world;
+    private readonly Skeleton _skeleton;
+    private readonly ClipSet _clips;
+    private readonly ZombieOptions _options;
+    private readonly Dictionary<uint, ZombieData> _zombies = [];
+    private readonly Queue<(uint Id, long RemoveAt)> _corpses = new();
+    private long _tick;
+
+    /// <exception cref="ArgumentException">A Zombie type names a Trait nothing has registered.</exception>
+    public ZombieSystem(ServerWorld world, ZombieCatalog catalog, TraitRegistry traits, Skeleton skeleton, ClipSet clips, ZombieOptions? options = null)
+    {
+        ArgumentNullException.ThrowIfNull(world);
+        ArgumentNullException.ThrowIfNull(catalog);
+        ArgumentNullException.ThrowIfNull(traits);
+        ArgumentNullException.ThrowIfNull(skeleton);
+        ArgumentNullException.ThrowIfNull(clips);
+        var unknown = catalog.Types
+            .SelectMany(t => t.Traits.Where(r => !traits.IsRegistered(r.Trait)).Select(r => $"'{r.Trait}' on '{t.Id}'"))
+            .ToList();
+        if (unknown.Count > 0)
+        {
+            throw new ArgumentException($"No Trait is registered for {string.Join(", ", unknown)}.", nameof(traits));
+        }
+
+        // The animator refuses clips for bones the skeleton lacks; build one now so a bad rig fails at startup.
+        _ = new Animator(skeleton, clips);
+        _world = world;
+        Catalog = catalog;
+        Traits = traits;
+        _skeleton = skeleton;
+        _clips = clips;
+        _options = options ?? new ZombieOptions();
+    }
+
+    public ZombieCatalog Catalog { get; }
+
+    public TraitRegistry Traits { get; }
+
+    /// <summary>The ECS world holding every zombie's Trait components.</summary>
+    public EcsWorld Ecs { get; } = new();
+
+    /// <summary>Zombies in the world, dead ones included until they are removed.</summary>
+    public int Count => _zombies.Count;
+
+    /// <summary>Raised when a zombie dies from a hit.</summary>
+    public event Action<ZombieDied>? Died;
+
+    public bool TryGetEntity(uint id, out Entity entity)
+    {
+        if (_zombies.TryGetValue(id, out var data))
+        {
+            entity = data.Entity;
+            return true;
+        }
+
+        entity = default;
+        return false;
+    }
+
+    public bool TryGetBody(uint id, out Body body)
+    {
+        if (_zombies.TryGetValue(id, out var data))
+        {
+            body = data.Body;
+            return true;
+        }
+
+        body = null!;
+        return false;
+    }
+
+    public bool TryGetAppearance(uint id, out ZombieAppearance appearance)
+    {
+        if (_zombies.TryGetValue(id, out var data))
+        {
+            appearance = data.Appearance;
+            return true;
+        }
+
+        appearance = null!;
+        return false;
+    }
+
+    /// <summary>Spawns a zombie from its spec. False, with the reason, when the spec names an unknown type or a Level out of its range.</summary>
+    public bool TrySpawn(ZombieSpec spec, Vector3 position, float yaw, out uint id, out string? problem)
+    {
+        id = 0;
+        if (!Catalog.TryGet(spec.Type, out var type))
+        {
+            problem = $"There is no Zombie type '{spec.Type}'.";
+            return false;
+        }
+
+        if (spec.Level < 1 || spec.Level > type.TopLevel)
+        {
+            problem = $"Level {spec.Level} is outside 1 to {type.TopLevel} for '{type.Id}'.";
+            return false;
+        }
+
+        if (!float.IsFinite(position.X) || !float.IsFinite(position.Y) || !float.IsFinite(position.Z) || !float.IsFinite(yaw))
+        {
+            problem = "A zombie needs a real position and yaw.";
+            return false;
+        }
+
+        var appearance = ZombieGenerator.Generate(type, spec);
+        var missing = MissingParts.From(appearance.MissingParts);
+        id = _world.SpawnZombie(position, yaw, new ZombieState(spec.Seed, (ushort)Catalog.IndexOf(type.Id), (byte)spec.Level, (byte)missing, Dead: false));
+
+        var entity = Ecs.Create();
+        foreach (var trait in type.Traits)
+        {
+            Traits.TryApply(trait.Trait, Ecs, entity, trait.Values);
+        }
+
+        var body = new Body(new BodyId(id), new BodyConfig { PartHealth = type.PartHealthAt(spec.Level) }, appearance.MissingParts);
+        _zombies[id] = new ZombieData(id, entity, spec, type, appearance, body, new Animator(_skeleton, _clips), _tick);
+        problem = null;
+        return true;
+    }
+
+    /// <summary>
+    /// Spawns the zombies a Settlement's plan calls for, each with a spec the world seed and the plan decide. The Level is the
+    /// Region's Danger, held to the type's top Level. A spawn that cannot happen is reported, never skipped silently.
+    /// </summary>
+    public ZombieSpawnReport SpawnSettlement(SettlementPlan plan, Func<int, int, float> groundHeight)
+    {
+        ArgumentNullException.ThrowIfNull(plan);
+        ArgumentNullException.ThrowIfNull(groundHeight);
+        var spawned = new List<uint>();
+        var problems = new List<string>();
+        for (var i = 0; i < plan.ZombieSpawns.Count; i++)
+        {
+            var spawn = plan.ZombieSpawns[i];
+            var level = Catalog.TryGet(spawn.ZombieType, out var type) ? Math.Clamp(plan.Danger, 1, type.TopLevel) : 1;
+            var seed = WorldHash.Mix(plan.Site.Seed, i, spawn.X ^ spawn.Z, SaltYaw);
+            var yaw = (seed % 360UL) * (MathF.PI / 180f);
+            var position = new Vector3(spawn.X + 0.5f, groundHeight(spawn.X, spawn.Z), spawn.Z + 0.5f);
+            if (TrySpawn(new ZombieSpec(seed, spawn.ZombieType, level), position, yaw, out var id, out var problem))
+            {
+                spawned.Add(id);
+            }
+            else
+            {
+                problems.Add($"Zombie {i} of the Settlement at {plan.Site.X},{plan.Site.Z}: {problem}");
+            }
+        }
+
+        return new ZombieSpawnReport(spawned, problems);
+    }
+
+    /// <summary>
+    /// Fires a ray into the world and applies <paramref name="damage"/> to the nearest living zombie it hits, on the Body part it
+    /// hits. Null when it hits nothing. The Server is the only caller: a client asks to attack and never says what it hit.
+    /// </summary>
+    public ZombieHit? Hit(Vector3 origin, Vector3 direction, float maxDistance, DamageType type, double damage)
+    {
+        if (!float.IsFinite(maxDistance) || maxDistance <= 0)
+        {
+            return null;
+        }
+
+        ZombieData? nearestZombie = null;
+        PartHit nearest = default;
+        foreach (var data in _zombies.Values)
+        {
+            if (!data.Body.IsAlive || !_world.TryGet(data.Id, out var state))
+            {
+                continue;
+            }
+
+            // A zombie is under 3 m tall, so one farther than the reach plus that cannot be hit.
+            if (Vector3.DistanceSquared(state.Position, origin) > (maxDistance + 3f) * (maxDistance + 3f))
+            {
+                continue;
+            }
+
+            var elapsed = (_tick - data.PoseTick) / (float)Simulation.TickRateHz;
+            data.PoseTick = _tick;
+            data.Animator.Update(elapsed, new AnimationInput(0f, 0f, 0f, MissingParts.From(data.Body.MissingParts)));
+            if (PartHitTest.TryRaycast(data.Animator.Pose, state.Position, state.Yaw, data.Scale, origin, direction, maxDistance, out var hit)
+                && (nearestZombie is null || hit.Distance < nearest.Distance))
+            {
+                nearestZombie = data;
+                nearest = hit;
+            }
+        }
+
+        return nearestZombie is null ? null : Apply(nearestZombie, nearest, type, damage);
+    }
+
+    public void Tick(long tick)
+    {
+        _tick = tick;
+        while (_corpses.Count > 0 && _corpses.Peek().RemoveAt <= tick)
+        {
+            Remove(_corpses.Dequeue().Id);
+        }
+    }
+
+    private ZombieHit? Apply(ZombieData data, PartHit hit, DamageType type, double damage)
+    {
+        var result = data.Body.TakeHit(hit.Part, type, damage);
+        if (!result.IsSuccess)
+        {
+            return null;
+        }
+
+        var killed = result.Events.OfType<BodyDied>().Any();
+        var lost = result.Events.OfType<BodyPartLost>().Any();
+        if (killed || lost)
+        {
+            var missing = (byte)MissingParts.From(data.Body.MissingParts);
+            _world.TryGet(data.Id, out var state);
+            _world.UpdateZombie(data.Id, state.Zombie with { Missing = missing, Dead = !data.Body.IsAlive });
+        }
+
+        if (killed)
+        {
+            _world.TryGet(data.Id, out var state);
+            _corpses.Enqueue((data.Id, _tick + _options.CorpseTicks));
+            Died?.Invoke(new ZombieDied(data.Id, data.Spec, state.Position, data.Appearance.WornItems));
+        }
+
+        return new ZombieHit(data.Id, hit.Part, hit.Distance, hit.Point, killed, lost, result.Events);
+    }
+
+    private void Remove(uint id)
+    {
+        if (_zombies.Remove(id, out var data))
+        {
+            Ecs.Destroy(data.Entity);
+        }
+
+        _world.Despawn(id);
+    }
+}

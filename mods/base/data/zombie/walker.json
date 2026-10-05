@@ -1,0 +1,37 @@
+{
+  "id": "base:zombie/walker",
+  "stats": { "partHealth": 40, "damage": 12, "speed": 1.4, "maxLevel": 10, "perLevelBonus": 0.1 },
+  "senses": { "sight": 20, "hearing": 30 },
+  "traits": [
+    { "trait": "base:trait/shambler", "values": { "speedMultiplier": 0.8 } }
+  ],
+  "appearance": {
+    "height": { "min": 0.94, "max": 1.06 },
+    "build": { "min": 0.9, "max": 1.1 },
+    "skinTones": ["#8fa07a", "#9aa88a", "#a3a58b", "#7d9272"]
+  },
+  "outfit": {
+    "clothing": [
+      { "item": "base:item/tshirt", "weight": 4 },
+      { "item": "base:item/jeans", "weight": 4 },
+      { "item": "base:item/hoodie", "weight": 2 },
+      { "item": "base:item/work_jacket", "weight": 1 }
+    ],
+    "clothingCount": { "min": 1, "max": 3 },
+    "headwear": [
+      { "weight": 6 },
+      { "item": "base:item/baseball_cap", "weight": 2 },
+      { "item": "base:item/beanie", "weight": 1 }
+    ],
+    "backpacks": [
+      { "weight": 7 },
+      { "item": "base:item/backpack_small", "weight": 2 }
+    ]
+  },
+  "missingParts": [
+    { "part": "leftArm", "chance": 0.05 },
+    { "part": "rightArm", "chance": 0.05 },
+    { "part": "leftLeg", "chance": 0.08 },
+    { "part": "rightLeg", "chance": 0.08 }
+  ]
+}

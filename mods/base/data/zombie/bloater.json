@@ -1,0 +1,29 @@
+{
+  "id": "base:zombie/bloater",
+  "stats": { "partHealth": 80, "damage": 15, "speed": 1.0, "maxLevel": 10, "perLevelBonus": 0.12 },
+  "senses": { "sight": 12, "hearing": 20 },
+  "traits": [
+    { "trait": "base:trait/shambler", "values": { "speedMultiplier": 0.6 } },
+    { "trait": "base:trait/bloater", "values": { "burstRadius": 3, "burstDamage": 25 } }
+  ],
+  "appearance": {
+    "height": { "min": 0.96, "max": 1.06 },
+    "build": { "min": 1.25, "max": 1.45 },
+    "skinTones": ["#9fae6c", "#a9b575"]
+  },
+  "outfit": {
+    "clothing": [
+      { "item": "base:item/hoodie", "weight": 3 },
+      { "item": "base:item/work_jacket", "weight": 2 },
+      { "item": "base:item/tshirt", "weight": 1 }
+    ],
+    "clothingCount": { "min": 1, "max": 1 },
+    "headwear": [
+      { "weight": 1 }
+    ],
+    "backpacks": [
+      { "weight": 1 }
+    ]
+  },
+  "missingParts": []
+}

@@ -27,6 +27,9 @@
     <ProjectReference Include="../../src/Zombies.Domain.Combat/Zombies.Domain.Combat.csproj" />
     <ProjectReference Include="../../src/Zombies.Domain.Survival/Zombies.Domain.Survival.csproj" />
     <ProjectReference Include="../../src/Zombies.Engine.Physics/Zombies.Engine.Physics.csproj" />
+    <ProjectReference Include="../../src/Zombies.Domain.Zombies/Zombies.Domain.Zombies.csproj" />
+    <ProjectReference Include="../../src/Zombies.Engine.Ecs/Zombies.Engine.Ecs.csproj" />
+    <ProjectReference Include="../../src/Zombies.Domain.World/Zombies.Domain.World.csproj" />
   </ItemGroup>
 
 </Project>

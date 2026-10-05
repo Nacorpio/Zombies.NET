@@ -1,5 +1,7 @@
 using System.Numerics;
+using Zombies.Domain.Items;
 using Zombies.Domain.Mods;
+using Zombies.Domain.StatusEffects;
 using Zombies.Engine.Core;
 using Zombies.Engine.Core.Modding;
 using Zombies.Engine.Net;
@@ -427,6 +429,32 @@ public sealed class NetTests
         Assert.Equal(ClientState.Joined, alice.State);
         Assert.True(bob.World.TryGet(alice.PlayerEntityId, out var seen));
         Assert.NotEqual(rig.Server.Options.SpawnPoint, seen.Position);
+        Assert.Equal(0, allocated);
+    }
+
+    [Fact]
+    public void SteadyStateTick_WithAnInfectedPlayerOnPainkillers_DoesNotAllocate()
+    {
+        // The base game's own infection (no duration, staged, with Modifiers) and painkiller (timed, with a Modifier).
+        static StatusEffectDefinition Base(string name) =>
+            StatusEffectJson.Parse(File.ReadAllText(Path.Combine(RepoRoot(), "mods", "base", "data", "status_effect", $"{name}.json")));
+        var effects = new StatusEffectCatalog([Base("infection"), Base("painkiller")]);
+        var rig = new Rig(new ServerOptions(Identity, WorldSeed: 777) { Effects = effects });
+        var alice = rig.Join("alice");
+        var bob = rig.Join("bob");
+        var mover = new Mover(alice, rig.Server.Options.SpawnPoint);
+        var simulation = new Simulation(mover, rig.Server, alice, bob);
+        simulation.Run(10);
+        Assert.True(rig.Server.TryGetPlayer(new ConnectionId(1), out var session));
+        Assert.True(rig.Server.ApplyEffect(session, "base:status_effect/infection").IsSuccess);
+        Assert.True(rig.Server.ApplyEffect(session, "base:status_effect/painkiller").IsSuccess);
+
+        // Neither effect changes stage, ticks, or ends within the window, so every measured tick is steady state.
+        var allocated = AllocationProbe.MeasureSteadyState(simulation, warmupTicks: 150, ticks: 600);
+
+        Assert.Equal(2, session.Effects.Count);
+        Assert.Equal(2, alice.Effects.Count);
+        Assert.Equal(0.9 * 5, session.Effects.EffectiveValue(new StatName("move_speed"), 5), 9);
         Assert.Equal(0, allocated);
     }
 

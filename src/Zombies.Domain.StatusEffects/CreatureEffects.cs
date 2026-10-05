@@ -37,6 +37,7 @@ public sealed class CreatureEffects(CreatureId id, StatusEffectCatalog catalog)
     }
 
     private readonly List<Active> _active = [];
+    private readonly List<IDomainEvent> _advanceEvents = [];
     private ModifierSet _modifiers = new();
 
     public CreatureId Id { get; } = id;
@@ -172,22 +173,44 @@ public sealed class CreatureEffects(CreatureId id, StatusEffectCatalog catalog)
             return EffectResult.Failure(EffectError.InvalidDuration);
         }
 
-        var events = new List<IDomainEvent>();
         if (elapsed == TimeSpan.Zero)
         {
-            return EffectResult.Success(events);
+            return EffectResult.NoChange;
         }
 
-        foreach (var active in _active.ToList())
+        // This runs every Server tick, so it allocates nothing unless something happened: events go into a reused buffer,
+        // and the Modifiers are only rebuilt when a stage changed or an effect ended.
+        var events = _advanceEvents;
+        var modifiersChanged = false;
+        var i = 0;
+        while (i < _active.Count)
         {
+            var active = _active[i];
+            var stage = active.StageIndex;
             if (!AdvanceOne(active, elapsed, events))
             {
-                _active.Remove(active);
+                _active.RemoveAt(i);
+                modifiersChanged = true;
+                continue;
             }
+
+            modifiersChanged |= active.StageIndex != stage;
+            i++;
         }
 
-        RebuildModifiers();
-        return EffectResult.Success(events);
+        if (modifiersChanged)
+        {
+            RebuildModifiers();
+        }
+
+        if (events.Count == 0)
+        {
+            return EffectResult.NoChange;
+        }
+
+        IDomainEvent[] raised = [.. events];
+        events.Clear();
+        return EffectResult.Success(raised);
     }
 
     private void Restack(Active existing, List<IDomainEvent> events)
@@ -270,8 +293,14 @@ public sealed class CreatureEffects(CreatureId id, StatusEffectCatalog catalog)
             }
 
             EnterDueStages(active, events);
-            foreach (var periodic in active.Periodic.ToList().Where(p => p.Due <= active.Elapsed))
+            for (var p = 0; p < active.Periodic.Count; p++)
             {
+                var periodic = active.Periodic[p];
+                if (periodic.Due > active.Elapsed)
+                {
+                    continue;
+                }
+
                 events.Add(new EffectPeriodicChange(Id, active.Definition.Id, periodic.Change.Change, periodic.Change.Amount * active.Stacks));
                 periodic.Due += periodic.Change.Every;
             }

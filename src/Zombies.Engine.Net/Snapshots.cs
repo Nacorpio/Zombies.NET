@@ -82,6 +82,8 @@ internal static class SnapshotCodec
     private const byte PositionChanged = 2;
     private const byte YawChanged = 4;
     private const byte Removed = 8;
+    private const byte ZombieChanged = 16;
+    private const byte UpdateMask = PositionChanged | YawChanged | ZombieChanged;
 
     public static void Write(NetWriter writer, SnapshotFrame? baseline, SnapshotFrame current)
     {
@@ -113,6 +115,11 @@ internal static class SnapshotCodec
                 writer.WriteUInt16(e.Kind);
                 WritePosition(writer, e);
                 writer.WriteSingle(e.Yaw);
+                if (e.Kind == EntityKind.Zombie)
+                {
+                    WriteZombie(writer, e.Zombie, whole: true);
+                }
+
                 n++;
                 count++;
             }
@@ -120,7 +127,7 @@ internal static class SnapshotCodec
             {
                 var old = before[b];
                 var e = now[n];
-                var flags = (byte)((old.Position != e.Position ? PositionChanged : 0) | (BitConverter.SingleToInt32Bits(old.Yaw) != BitConverter.SingleToInt32Bits(e.Yaw) ? YawChanged : 0));
+                var flags = (byte)((old.Position != e.Position ? PositionChanged : 0) | (BitConverter.SingleToInt32Bits(old.Yaw) != BitConverter.SingleToInt32Bits(e.Yaw) ? YawChanged : 0) | (old.Zombie != e.Zombie ? ZombieChanged : 0));
                 if (old.Kind != e.Kind)
                 {
                     // An id is never reused for another kind; treat it as a fresh entity if it ever is.
@@ -144,6 +151,11 @@ internal static class SnapshotCodec
                     if ((flags & (Created | YawChanged)) != 0)
                     {
                         writer.WriteSingle(e.Yaw);
+                    }
+
+                    if (e.Kind == EntityKind.Zombie && (flags & (Created | ZombieChanged)) != 0)
+                    {
+                        WriteZombie(writer, e.Zombie, whole: flags == Created);
                     }
 
                     count++;
@@ -197,14 +209,17 @@ internal static class SnapshotCodec
                     b++;
                     break;
                 case Created:
-                    target.Add(new EntityState(id, reader.ReadUInt16(), ReadPosition(ref reader), reader.ReadSingle()));
+                    var kind = reader.ReadUInt16();
+                    var created = new EntityState(id, kind, ReadPosition(ref reader), reader.ReadSingle());
+                    target.Add(kind == EntityKind.Zombie ? created with { Zombie = ReadZombie(ref reader, default, whole: true) } : created);
                     b += known ? 1 : 0;
                     break;
-                case > 0 and <= (PositionChanged | YawChanged) when known && (flags & Created) == 0:
+                case > 0 when known && (flags & ~UpdateMask) == 0:
                     var old = before[b++];
                     var position = (flags & PositionChanged) != 0 ? ReadPosition(ref reader) : old.Position;
                     var yaw = (flags & YawChanged) != 0 ? reader.ReadSingle() : old.Yaw;
-                    target.Add(old with { Position = position, Yaw = yaw });
+                    var zombie = (flags & ZombieChanged) != 0 && old.Kind == EntityKind.Zombie ? ReadZombie(ref reader, old.Zombie, whole: false) : old.Zombie;
+                    target.Add(old with { Position = position, Yaw = yaw, Zombie = zombie });
                     break;
                 default:
                     throw new MalformedMessageException($"Snapshot entry for entity {id} has flags {flags} that do not fit its baseline.");
@@ -215,6 +230,29 @@ internal static class SnapshotCodec
         {
             target.Add(before[b++]);
         }
+    }
+
+    private static void WriteZombie(NetWriter writer, in ZombieState zombie, bool whole)
+    {
+        if (whole)
+        {
+            writer.WriteUInt64(zombie.Seed);
+            writer.WriteUInt16(zombie.Type);
+            writer.WriteByte(zombie.Level);
+        }
+
+        writer.WriteByte(zombie.Missing);
+        writer.WriteBool(zombie.Dead);
+    }
+
+    private static ZombieState ReadZombie(ref NetReader reader, ZombieState old, bool whole)
+    {
+        if (!whole)
+        {
+            return old with { Missing = reader.ReadByte(), Dead = reader.ReadBool() };
+        }
+
+        return new ZombieState(reader.ReadUInt64(), reader.ReadUInt16(), reader.ReadByte(), reader.ReadByte(), reader.ReadBool());
     }
 
     private static void WritePosition(NetWriter writer, in EntityState e)

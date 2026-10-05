@@ -1,0 +1,6 @@
+{
+  "id": "base:item/work_jacket",
+  "mass": "1.1 kg",
+  "volume": "2.2 l",
+  "maxStack": 1
+}

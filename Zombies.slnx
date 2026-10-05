@@ -14,6 +14,7 @@
     <Project Path="src/Zombies.Domain.StatusEffects/Zombies.Domain.StatusEffects.csproj" />
     <Project Path="src/Zombies.Domain.Survival/Zombies.Domain.Survival.csproj" />
     <Project Path="src/Zombies.Domain.World/Zombies.Domain.World.csproj" />
+    <Project Path="src/Zombies.Domain.Zombies/Zombies.Domain.Zombies.csproj" />
     <Project Path="src/Zombies.Engine.Animation/Zombies.Engine.Animation.csproj" />
     <Project Path="src/Zombies.Engine.Audio/Zombies.Engine.Audio.csproj" />
     <Project Path="src/Zombies.Engine.Core/Zombies.Engine.Core.csproj" />

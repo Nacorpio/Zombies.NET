@@ -1,0 +1,197 @@
+{
+  "type": "object",
+  "properties": {
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z0-9_]+:[a-z0-9_]+(/[a-z0-9_]+)*$"
+    },
+    "stats": {
+      "type": "object",
+      "properties": {
+        "partHealth": {
+          "type": "number"
+        },
+        "damage": {
+          "type": "number"
+        },
+        "speed": {
+          "type": "number"
+        },
+        "maxLevel": {
+          "type": "integer"
+        },
+        "perLevelBonus": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "partHealth",
+        "damage",
+        "speed"
+      ]
+    },
+    "senses": {
+      "type": "object",
+      "properties": {
+        "sight": {
+          "type": "number"
+        },
+        "hearing": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "sight",
+        "hearing"
+      ]
+    },
+    "traits": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "trait": {
+            "type": "string",
+            "pattern": "^[a-z0-9_]+:[a-z0-9_]+(/[a-z0-9_]+)*$"
+          },
+          "values": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "number"
+            }
+          }
+        },
+        "required": [
+          "trait"
+        ]
+      }
+    },
+    "appearance": {
+      "type": "object",
+      "properties": {
+        "height": {
+          "type": "object",
+          "properties": {
+            "min": {
+              "type": "number"
+            },
+            "max": {
+              "type": "number"
+            }
+          },
+          "required": [
+            "min",
+            "max"
+          ]
+        },
+        "build": {
+          "type": "object",
+          "properties": {
+            "min": {
+              "type": "number"
+            },
+            "max": {
+              "type": "number"
+            }
+          },
+          "required": [
+            "min",
+            "max"
+          ]
+        },
+        "skinTones": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "skinTones"
+      ]
+    },
+    "outfit": {
+      "type": "object",
+      "properties": {
+        "clothing": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "item": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "pattern": "^[a-z0-9_]+:[a-z0-9_]+(/[a-z0-9_]+)*$"
+              },
+              "weight": {
+                "type": "integer"
+              }
+            }
+          }
+        },
+        "clothingCount": {
+          "type": "object",
+          "properties": {
+            "min": {
+              "type": "integer"
+            },
+            "max": {
+              "type": "integer"
+            }
+          },
+          "required": [
+            "min",
+            "max"
+          ]
+        },
+        "headwear": {
+          "type": "array",
+          "items": {
+            "$ref": "#/properties/outfit/properties/clothing/items"
+          }
+        },
+        "backpacks": {
+          "type": "array",
+          "items": {
+            "$ref": "#/properties/outfit/properties/clothing/items"
+          }
+        }
+      }
+    },
+    "missingParts": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "part": {
+            "type": "string",
+            "enum": [
+              "head",
+              "torso",
+              "leftArm",
+              "rightArm",
+              "leftLeg",
+              "rightLeg"
+            ]
+          },
+          "chance": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "part",
+          "chance"
+        ]
+      }
+    }
+  },
+  "required": [
+    "id",
+    "stats",
+    "senses",
+    "appearance"
+  ],
+  "$schema": "https://json-schema.org/draft/2020-12/schema"
+}

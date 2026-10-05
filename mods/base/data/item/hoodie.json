@@ -1,0 +1,6 @@
+{
+  "id": "base:item/hoodie",
+  "mass": "700 g",
+  "volume": "1.6 l",
+  "maxStack": 1
+}

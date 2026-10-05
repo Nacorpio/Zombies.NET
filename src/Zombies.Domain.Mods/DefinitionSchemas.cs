@@ -33,7 +33,7 @@ public static class DefinitionSchemas
                     obj["$schema"] = "https://json-schema.org/draft/2020-12/schema";
                 }
 
-                if (context.PropertyInfo?.Name is "id" or "item" or "category" or "ammoItem" or "areaType" or "structure" or "zombieType")
+                if (context.PropertyInfo?.Name is "id" or "item" or "category" or "ammoItem" or "areaType" or "structure" or "zombieType" or "trait")
                 {
                     obj["pattern"] = ContentIdPattern;
                 }
@@ -41,6 +41,11 @@ public static class DefinitionSchemas
                 if (context.PropertyInfo?.Name is "damageType")
                 {
                     obj["enum"] = new JsonArray([.. Enum.GetNames<DamageType>().Select(n => (JsonNode)n.ToLowerInvariant())]);
+                }
+
+                if (context.PropertyInfo?.Name is "part")
+                {
+                    obj["enum"] = new JsonArray([.. Enum.GetNames<BodyPart>().Select(n => (JsonNode)(char.ToLowerInvariant(n[0]) + n[1..]))]);
                 }
 
                 if (context.PropertyInfo?.Name is "label")

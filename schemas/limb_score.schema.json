@@ -1,0 +1,56 @@
+{
+  "type": "object",
+  "properties": {
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z0-9_]+:[a-z0-9_]+(/[a-z0-9_]+)*$"
+    },
+    "stat": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_]*$"
+    },
+    "parts": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "part": {
+            "type": "string",
+            "enum": [
+              "head",
+              "torso",
+              "leftArm",
+              "rightArm",
+              "leftLeg",
+              "rightLeg"
+            ]
+          },
+          "weight": {
+            "type": "number"
+          },
+          "required": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "part"
+        ]
+      }
+    },
+    "floor": {
+      "type": "number"
+    },
+    "woundsReduce": {
+      "type": "boolean"
+    },
+    "encumbranceReduces": {
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "id",
+    "stat",
+    "parts"
+  ],
+  "$schema": "https://json-schema.org/draft/2020-12/schema"
+}

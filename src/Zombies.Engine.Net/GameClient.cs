@@ -227,6 +227,12 @@ public sealed class GameClient : ITickable
 
     public long SnapshotsReceived { get; private set; }
 
+    /// <summary>
+    /// Whether this client's own player is dead and spectating, as the newest snapshot says. A spectator sends no input, since the
+    /// Server rejects every command from a dead player.
+    /// </summary>
+    public bool IsSpectating => World.TryGet(PlayerEntityId, out var entity) && entity.Player.Dead;
+
     public CommandRejected? LastRejection { get; private set; }
 
     public int RejectionCount { get; private set; }
@@ -238,10 +244,15 @@ public sealed class GameClient : ITickable
 
     /// <summary>
     /// Predicts one fixed step from the player's input, sends it, and returns its sequence. The Server runs the same step,
-    /// so the next snapshot confirms the prediction instead of correcting it.
+    /// so the next snapshot confirms the prediction instead of correcting it. A spectator sends nothing and gets 0.
     /// </summary>
     public uint SendInput(in PlayerInput input)
     {
+        if (IsSpectating)
+        {
+            return 0;
+        }
+
         var sequence = _nextCommand++;
         Local.Predict(sequence, input, Collision);
         SendWithSequence(sequence, new PlayerInputCommand(input));
@@ -348,6 +359,13 @@ public sealed class GameClient : ITickable
     {
         if (!World.TryGet(PlayerEntityId, out var entity))
         {
+            return;
+        }
+
+        // A dead player is not moving: drop the inputs the Server rejected instead of replaying them.
+        if (entity.Player.Dead)
+        {
+            Local.Reset(PlayerMoveState.At(entity.Position, entity.Yaw));
             return;
         }
 

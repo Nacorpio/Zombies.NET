@@ -1,4 +1,10 @@
 using System.Numerics;
+using UnitsNet;
+using Zombies.Domain.Combat;
+using Zombies.Domain.Death;
+using Zombies.Domain.Inventory;
+using Zombies.Domain.Items;
+using Zombies.Domain.Survival;
 using Zombies.Engine.Core;
 
 namespace Zombies.Engine.Net;
@@ -14,6 +20,23 @@ public sealed record ServerOptions(GameIdentity Identity, ulong WorldSeed)
     public int SnapshotRateHz { get; init; } = 20;
 
     public Vector3 SpawnPoint { get; init; } = new(8, 80, 8);
+
+    /// <summary>Every item a player can carry, which the Container they carry and a Corpse hold. Defaults to none.</summary>
+    public IItemCatalog Items { get; init; } = new ItemCatalog([]);
+
+    /// <summary>What a player can wear. Defaults to nothing.</summary>
+    public IWearableCatalog Wearables { get; init; } = new WearableCatalog([]);
+
+    /// <summary>What happens when a player's Body dies. Defaults to respawning at <see cref="SpawnPoint"/> after a delay.</summary>
+    public DeathOptions Death { get; init; } = new();
+
+    /// <summary>How much a player carries in their Container.</summary>
+    public Mass CarryMass { get; init; } = Mass.FromKilograms(40);
+
+    public Volume CarryVolume { get; init; } = Volume.FromLiters(60);
+
+    /// <summary>How long a day lasts, which a Memorial counts a life in.</summary>
+    public TimeSpan DayLength { get; init; } = TimeSpan.FromMinutes(24);
 }
 
 /// <summary>One connection to the Server, from connect to disconnect, and its player once it has joined.</summary>
@@ -31,6 +54,30 @@ public sealed class PlayerSession
 
     /// <summary>The Server's authoritative movement state for this player, advanced one fixed step per input command.</summary>
     public PlayerMoveState Movement { get; internal set; }
+
+    /// <summary>This player's Body, replaced with a fresh one when they respawn. Set when they join.</summary>
+    public Body Body { get; internal set; } = null!;
+
+    public Needs Needs { get; internal set; } = null!;
+
+    public Outfit Outfit { get; internal set; } = null!;
+
+    /// <summary>What this player carries. Empty while they are dead, because it went into their Corpse.</summary>
+    public Container Carried { get; internal set; } = null!;
+
+    /// <summary>Whether the Body is dead, which makes the player a Spectator who cannot act.</summary>
+    public bool IsDead => !Body.IsAlive;
+
+    /// <summary>Zombies this player has killed in their current life, which a Memorial records.</summary>
+    public int Kills { get; internal set; }
+
+    /// <summary>Counts a kill toward the Memorial of this player's current life.</summary>
+    public void CreditKill() => Kills++;
+
+    internal long LifeStartTick { get; set; }
+
+    /// <summary>When set, the tick at which a dead player respawns.</summary>
+    internal long? RespawnAtTick { get; set; }
 
     /// <summary>This player's character controller, created when they join.</summary>
     public IPlayerCollision Collision { get; internal set; } = FlatFloorCollision.Instance;
@@ -64,10 +111,15 @@ public sealed class GameServer : ITickable
     private readonly List<PlayerSession> _closing = [];
     private readonly NetWriter _writer = new(4096);
     private readonly Handler _handler;
+    private readonly DeathService _death;
+    private readonly Dictionary<uint, Corpse> _corpses = [];
+    private readonly long _dayTicks;
+    private readonly long _respawnTicks;
     private long _tick;
     private int _snapshotAccumulator;
 
-    public GameServer(ITransport transport, ServerOptions options)
+    /// <param name="stores">Where Corpses, their Containers, and Memorials are kept. Defaults to memory; a Server with a save passes its own, and the Corpses it holds appear in the world.</param>
+    public GameServer(ITransport transport, ServerOptions options, DeathStores? stores = null)
     {
         ArgumentNullException.ThrowIfNull(transport);
         ArgumentNullException.ThrowIfNull(options);
@@ -76,11 +128,25 @@ public sealed class GameServer : ITickable
             throw new ArgumentOutOfRangeException(nameof(options), $"Snapshot rate must be between 1 and {Simulation.TickRateHz} Hz.");
         }
 
+        if (options.DayLength <= TimeSpan.Zero || options.Death.RespawnDelay < TimeSpan.Zero)
+        {
+            throw new ArgumentOutOfRangeException(nameof(options), "A day must last longer than nothing and a respawn delay cannot be negative.");
+        }
+
         _transport = transport;
         Options = options;
         _handler = new Handler(this);
+        stores ??= DeathStores.InMemory();
+        _death = new DeathService(options.Items, stores);
+        _dayTicks = Math.Max(1, (long)(options.DayLength.TotalSeconds * Simulation.TickRateHz));
+        _respawnTicks = (long)Math.Ceiling(options.Death.RespawnDelay.TotalSeconds * Simulation.TickRateHz);
         Commands.Register<MovePlayer>(MovePlayer.Handle);
         Commands.Register<PlayerInputCommand>(PlayerInputCommand.Handle);
+        Commands.Register<LootCorpse>(LootCorpse.Handle);
+        foreach (var corpse in stores.Corpses.All())
+        {
+            _corpses[World.Spawn(EntityKind.Corpse, corpse.Position, 0f)] = corpse;
+        }
     }
 
     public ServerOptions Options { get; }
@@ -119,11 +185,103 @@ public sealed class GameServer : ITickable
         return true;
     }
 
+    /// <summary>
+    /// Applies a hit to a player's Body, with the protection of what they wear. The Server is the only caller, as an attacking zombie
+    /// or a trap would be. A hit that kills sends the player to spectate and leaves a Corpse.
+    /// </summary>
+    public CombatResult Damage(PlayerSession session, BodyPart part, DamageType type, double damage)
+    {
+        EnsureJoined(session);
+        return Resolve(session, session.Body.TakeHit(part, type, damage, session.Outfit.Protection(part, type)));
+    }
+
+    /// <summary>Lets time pass on a player's Body, which bleeds and can die of it.</summary>
+    public CombatResult AdvanceBody(PlayerSession session, TimeSpan elapsed)
+    {
+        EnsureJoined(session);
+        return Resolve(session, session.Body.Advance(elapsed));
+    }
+
+    private static void EnsureJoined(PlayerSession session)
+    {
+        ArgumentNullException.ThrowIfNull(session);
+        if (!session.IsJoined)
+        {
+            throw new InvalidOperationException("The player has not joined.");
+        }
+    }
+
+    private CombatResult Resolve(PlayerSession session, CombatResult result)
+    {
+        if (result.Events.OfType<BodyDied>().FirstOrDefault() is { } died)
+        {
+            Die(session, died.Cause);
+        }
+
+        return result;
+    }
+
+    /// <summary>The Body died: everything carried and worn goes into a Corpse where they fell, and the player spectates until they respawn.</summary>
+    private void Die(PlayerSession session, DeathCause cause)
+    {
+        World.TryGet(session.EntityId, out var player);
+        var days = (int)((_tick - session.LifeStartTick) / _dayTicks);
+        var report = _death.Die(session.Carried, session.Outfit, session.Name, cause, days, session.Kills, player.Position);
+        _corpses[World.Spawn(EntityKind.Corpse, report.Corpse.Position, player.Yaw)] = report.Corpse;
+        World.UpdatePlayer(session.EntityId, new PlayerState(Dead: true));
+        session.RespawnAtTick = Options.Death.Policy == DeathPolicy.RespawnAfterDelay ? _tick + _respawnTicks : null;
+    }
+
+    /// <summary>Gives a dead player a fresh Body and fresh Needs at the spawn point. What they carried stays in their Corpse.</summary>
+    private void Respawn(PlayerSession session)
+    {
+        session.Body = new Body(new BodyId(session.EntityId));
+        session.Needs = new Needs();
+        session.Kills = 0;
+        session.LifeStartTick = _tick;
+        session.RespawnAtTick = null;
+        Teleport(session, Options.SpawnPoint, 0f);
+        World.UpdatePlayer(session.EntityId, default);
+    }
+
+    internal CommandResult Loot(PlayerSession session, uint corpseEntity)
+    {
+        if (!_corpses.TryGetValue(corpseEntity, out var corpse) || !World.TryGet(session.EntityId, out var player))
+        {
+            return CommandResult.Invalid("There is no such Corpse.");
+        }
+
+        if (Vector3.DistanceSquared(player.Position, corpse.Position) > LootCorpse.Reach * LootCorpse.Reach)
+        {
+            return CommandResult.Invalid($"A Corpse can be looted from at most {LootCorpse.Reach} blocks away.");
+        }
+
+        if (!_death.Loot(corpse, session.Carried, out var emptied))
+        {
+            return CommandResult.Invalid("The Corpse holds nothing.");
+        }
+
+        if (emptied)
+        {
+            _corpses.Remove(corpseEntity);
+            World.Despawn(corpseEntity);
+        }
+
+        return CommandResult.Accepted;
+    }
+
     public void Tick(long tick)
     {
         _tick = tick;
         _transport.Poll(_handler);
         CloseRefused();
+        foreach (var session in _sessions.Values)
+        {
+            if (session.RespawnAtTick <= _tick)
+            {
+                Respawn(session);
+            }
+        }
 
         _snapshotAccumulator += Options.SnapshotRateHz;
         if (_snapshotAccumulator >= Simulation.TickRateHz)
@@ -237,6 +395,11 @@ public sealed class GameServer : ITickable
         session.EntityId = World.Spawn(EntityKind.Player, Options.SpawnPoint, 0f);
         session.Movement = PlayerMoveState.At(Options.SpawnPoint);
         session.Collision = Collision.Create(Options.SpawnPoint, PlayerMovement.StandingHeight);
+        session.Body = new Body(new BodyId(session.EntityId));
+        session.Needs = new Needs();
+        session.Outfit = new Outfit(Options.Wearables);
+        session.Carried = new Container(_death.NextContainerId(), Options.CarryMass, Options.CarryVolume, Options.Items);
+        session.LifeStartTick = _tick;
         PlayerCount++;
 
         _writer.WriteByte((byte)MessageType.JoinAccepted);
@@ -256,7 +419,9 @@ public sealed class GameServer : ITickable
     {
         var sequence = reader.ReadUInt32();
         var commandId = reader.ReadUInt16();
-        var result = Commands.Handle(commandId, ref reader, new CommandContext(this, session));
+        var result = session.IsDead
+            ? new CommandResult(CommandRejection.Dead, "A dead player is spectating and cannot act.")
+            : Commands.Handle(commandId, ref reader, new CommandContext(this, session));
         if (result.IsAccepted)
         {
             if (commandId == PlayerInputCommand.CommandId)

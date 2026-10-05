@@ -1,0 +1,6 @@
+{
+  "id": "base:treatment/antibiotics",
+  "removes": [ "base:wound_kind/infected_wound" ],
+  "time": 10,
+  "consumes": "base:item/antibiotics"
+}

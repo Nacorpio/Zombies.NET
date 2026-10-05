@@ -83,7 +83,8 @@ internal static class SnapshotCodec
     private const byte YawChanged = 4;
     private const byte Removed = 8;
     private const byte ZombieChanged = 16;
-    private const byte UpdateMask = PositionChanged | YawChanged | ZombieChanged;
+    private const byte PlayerChanged = 32;
+    private const byte UpdateMask = PositionChanged | YawChanged | ZombieChanged | PlayerChanged;
 
     public static void Write(NetWriter writer, SnapshotFrame? baseline, SnapshotFrame current)
     {
@@ -119,6 +120,10 @@ internal static class SnapshotCodec
                 {
                     WriteZombie(writer, e.Zombie, whole: true);
                 }
+                else if (e.Kind == EntityKind.Player)
+                {
+                    writer.WriteBool(e.Player.Dead);
+                }
 
                 n++;
                 count++;
@@ -127,7 +132,7 @@ internal static class SnapshotCodec
             {
                 var old = before[b];
                 var e = now[n];
-                var flags = (byte)((old.Position != e.Position ? PositionChanged : 0) | (BitConverter.SingleToInt32Bits(old.Yaw) != BitConverter.SingleToInt32Bits(e.Yaw) ? YawChanged : 0) | (old.Zombie != e.Zombie ? ZombieChanged : 0));
+                var flags = (byte)((old.Position != e.Position ? PositionChanged : 0) | (BitConverter.SingleToInt32Bits(old.Yaw) != BitConverter.SingleToInt32Bits(e.Yaw) ? YawChanged : 0) | (old.Zombie != e.Zombie ? ZombieChanged : 0) | (old.Player != e.Player ? PlayerChanged : 0));
                 if (old.Kind != e.Kind)
                 {
                     // An id is never reused for another kind; treat it as a fresh entity if it ever is.
@@ -156,6 +161,11 @@ internal static class SnapshotCodec
                     if (e.Kind == EntityKind.Zombie && (flags & (Created | ZombieChanged)) != 0)
                     {
                         WriteZombie(writer, e.Zombie, whole: flags == Created);
+                    }
+
+                    if (e.Kind == EntityKind.Player && (flags & (Created | PlayerChanged)) != 0)
+                    {
+                        writer.WriteBool(e.Player.Dead);
                     }
 
                     count++;
@@ -211,7 +221,12 @@ internal static class SnapshotCodec
                 case Created:
                     var kind = reader.ReadUInt16();
                     var created = new EntityState(id, kind, ReadPosition(ref reader), reader.ReadSingle());
-                    target.Add(kind == EntityKind.Zombie ? created with { Zombie = ReadZombie(ref reader, default, whole: true) } : created);
+                    target.Add(kind switch
+                    {
+                        EntityKind.Zombie => created with { Zombie = ReadZombie(ref reader, default, whole: true) },
+                        EntityKind.Player => created with { Player = new PlayerState(reader.ReadBool()) },
+                        _ => created,
+                    });
                     b += known ? 1 : 0;
                     break;
                 case > 0 when known && (flags & ~UpdateMask) == 0:
@@ -219,7 +234,8 @@ internal static class SnapshotCodec
                     var position = (flags & PositionChanged) != 0 ? ReadPosition(ref reader) : old.Position;
                     var yaw = (flags & YawChanged) != 0 ? reader.ReadSingle() : old.Yaw;
                     var zombie = (flags & ZombieChanged) != 0 && old.Kind == EntityKind.Zombie ? ReadZombie(ref reader, old.Zombie, whole: false) : old.Zombie;
-                    target.Add(old with { Position = position, Yaw = yaw, Zombie = zombie });
+                    var player = (flags & PlayerChanged) != 0 && old.Kind == EntityKind.Player ? new PlayerState(reader.ReadBool()) : old.Player;
+                    target.Add(old with { Position = position, Yaw = yaw, Zombie = zombie, Player = player });
                     break;
                 default:
                     throw new MalformedMessageException($"Snapshot entry for entity {id} has flags {flags} that do not fit its baseline.");

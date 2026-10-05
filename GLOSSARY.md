@@ -21,16 +21,24 @@ A namespaced identifier of the form `namespace:name` that uniquely names a defin
 _Avoid_: Key, slug, internal name
 
 **Patch**:
-A JSON Merge Patch from one mod that edits a definition owned by another.
+A JSON Merge Patch from one mod that edits a definition owned by another. Besides merging fields it can use the operators `extend`, `delete`, `relative` and `proportional` to change part of an array or number, resolved before the result is validated. A definition can also inherit another with `copy-from`.
 _Avoid_: Override, tweak
 
 **Override**:
 An explicit declaration that a mod replaces a whole definition with the same Content ID.
 _Avoid_: Patch, replace
 
+**Migration**:
+A definition that maps an old Content ID to a new one, or marks it removed, so a Save made before a mod renamed or removed something still loads. Chains such as A to B to C resolve to the last id, and a cycle is rejected when the mods load. Not the same as a Schema version step, which changes the layout of a Save.
+_Avoid_: Obsoletion, alias, redirect
+
 **Icon**:
 A named 32 by 32 picture used by the UI, supplied as a PNG named after the icon in a mod's icons folder and normalized to hard edges when loaded. A mod can add Icons and replace those of mods it depends on.
 _Avoid_: Sprite, glyph
+
+**World option**:
+A tunable rule of one world, declared by a mod with a Content ID, type, range, default, and description. The host chooses values when the world is created, the save keeps them with the mod list, and a client must hold the same values as the Server to join. Visual and accessibility settings such as gore intensity are not World options.
+_Avoid_: Setting, config, game rule, difficulty setting
 
 ## Items and Inventory
 
@@ -114,6 +122,18 @@ _Avoid_: Limb, hitbox
 An injury on a body part with a type, severity, and bleed rate.
 _Avoid_: Damage, injury
 
+**Wound kind**:
+A definition of a named sort of Wound, such as a scratch or a bite: the damage that causes it, how it bleeds, how long it takes to heal, and the chance that an untreated Wound worsens into another kind instead.
+_Avoid_: Wound type, injury kind
+
+**Treatment**:
+A definition of what applying an Item to a Body part does to its Wounds: which Wound kinds it removes or adds, whether it stops bleeding, how long it takes, and the Item it consumes. A bandage is a Treatment.
+_Avoid_: Cure, medicine
+
+**Limb score**:
+How well a capability such as movement, grip, manipulation, blocking, or vision works, from 0 to 1, computed from the health, Wounds, and Missing parts of the Body parts that perform it and the encumbrance of what is worn there. It is exposed as a Modifier and never drops below its floor.
+_Avoid_: Skill, penalty
+
 **Dismemberment**:
 The loss of a body part from damage.
 _Avoid_: Gibbing, severing
@@ -139,6 +159,14 @@ _Avoid_: Rank, tier
 **Zombie spec**:
 The seed, type, and level from which a zombie's appearance, outfit, and missing parts are derived.
 _Avoid_: Zombie data, blueprint
+
+**Weakpoint**:
+A small region inside a body part of a zombie type where a hit does more damage and may stagger the zombie, such as the eyes in the head. The Server resolves it from where a hit lands; a harder weakpoint is a smaller target.
+_Avoid_: Critical zone, headshot box
+
+**Evolution**:
+A zombie type upgrading into another after a number of world days. The zombie spec derives the type from its seed and the world's age, so nothing is saved per zombie.
+_Avoid_: Mutation, promotion
 
 **Outfit table**:
 A weighted definition of what clothing, headwear, and backpacks a zombie type can spawn wearing.
@@ -201,6 +229,24 @@ _Avoid_: Attribute, property
 **Modifier**:
 A JSON-defined change to a stat, recipe availability, or interaction, granted by a perk, an attachment, or a status effect, and removed when its source is removed.
 _Avoid_: Buff, bonus, boost
+
+## Death
+
+**Corpse**:
+The Container a dead player leaves where they died, holding everything they carried and wore with its Item state intact. Any player can loot it, and it persists in the Save until it is emptied.
+_Avoid_: Body (that is the Combat context's), grave, loot bag, death drop
+
+**Spectator**:
+A player whose Body has died. The Server rejects every command from them until they respawn, and clients see them as dead.
+_Avoid_: Ghost, observer, dead player (as a state name)
+
+**Respawn**:
+A Spectator coming back to life after the configured delay at the spawn point, with a fresh Body and fresh Needs and nothing carried. The death policy decides whether they respawn at all.
+_Avoid_: Revive, resurrect
+
+**Memorial**:
+The record of one death: the player's name, the days they survived, the zombies they killed, and the cause of death the Combat context raised. It outlives the Corpse.
+_Avoid_: Obituary, scoreboard entry, death log
 
 ## World
 

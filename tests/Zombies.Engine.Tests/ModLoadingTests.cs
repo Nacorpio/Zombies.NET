@@ -33,7 +33,7 @@ public sealed class ModLoadingTests
 
         Assert.True(result.IsSuccess, string.Join(Environment.NewLine, result.Errors));
         Assert.Equal(["base", "sample_data"], result.Mods.Select(m => m.Manifest.Id));
-        Assert.Equal(63, result.Registry.Count);
+        Assert.Equal(79, result.Registry.Count);
     }
 
     [Fact]
@@ -60,6 +60,32 @@ public sealed class ModLoadingTests
         Assert.True(catalog.TryGet(new ItemId("base:item/bandage"), out _));
     }
 
+    [Fact]
+    public void BaseLimbScores_ParseAndScoreAWholeBodyAsFull()
+    {
+        var scores = LoadRepositoryMods().Registry.OfKind("limb_score").Select(d => LimbScoreJson.Parse(d.Json)).ToList();
+
+        Assert.Equal(["blocking", "grip", "manipulation", "movement", "vision"], scores.Select(s => s.Id.Split('/')[1]).Order());
+        Assert.All(LimbScores.Compute(scores, new Body(new BodyId(1)), []), s => Assert.Equal(1, s.Value));
+    }
+
+    [Fact]
+    public void BaseWoundKindsAndTreatments_ParseIntoCatalogs_ThatTheBandageItemFits()
+    {
+        var registry = LoadRepositoryMods().Registry;
+        var items = new ItemCatalog(registry.OfKind("item").Select(d => ItemDefinitionJson.Parse(d.Json)));
+
+        var kinds = new WoundKindCatalog(registry.OfKind("wound_kind").Select(d => WoundKindJson.Parse(d.Json)));
+        var treatments = new TreatmentCatalog(registry.OfKind("treatment").Select(d => TreatmentJson.Parse(d.Json)), kinds);
+
+        Assert.True(kinds.All.Count >= 3);
+        Assert.True(treatments.All.Count >= 2);
+        Assert.All(treatments.All, t => Assert.True(items.TryGet(t.Consumes, out _), $"{t.Id} consumes unknown item {t.Consumes}."));
+        Assert.True(treatments.TryGet("base:treatment/bandage", out var bandage));
+        Assert.True(bandage.StopsBleeding);
+        Assert.Equal(new ItemId("base:item/bandage"), bandage.Consumes);
+    }
+
     private static (ItemCatalog Items, LootTableCatalog Loot) LoadCatalogs()
     {
         var registry = LoadRepositoryMods().Registry;
@@ -78,6 +104,29 @@ public sealed class ModLoadingTests
         Assert.Equal((2, 4), (kitchen.MinRolls, kitchen.MaxRolls));
         Assert.Equal(["sample_data"], registry.OfKind("loot").Single(d => d.Id.Value == "base:loot/kitchen").ModifiedBy);
         Assert.Equal("sample_data", registry.OfKind("loot").Single(d => d.Id.Value == "sample_data:loot/gym_locker").DefinedBy);
+    }
+
+    [Fact]
+    public void SampleDataMod_ExtendsALootTableWithoutRestatingItsEntries()
+    {
+        var registry = LoadRepositoryMods().Registry;
+        var entry = registry.OfKind("loot").Single(d => d.Id.Value == "base:loot/garage");
+
+        var garage = LootTableJson.Parse(entry.Json);
+
+        Assert.Contains(garage.Entries, e => e.Item.Value == "base:item/crowbar");
+        Assert.Contains(garage.Entries, e => e.Item.Value == "sample_data:item/protein_bar");
+        Assert.Contains("sample_data", entry.ModifiedBy);
+    }
+
+    [Fact]
+    public void SampleDataMod_ScalesAStackSizeByAFactor()
+    {
+        var registry = LoadRepositoryMods().Registry;
+
+        var water = ItemDefinitionJson.Parse(registry.OfKind("item").Single(d => d.Id.Value == "base:item/water_bottle").Json);
+
+        Assert.Equal(5, water.MaxStack);
     }
 
     [Fact]
@@ -130,6 +179,27 @@ public sealed class ModLoadingTests
             var committed = File.ReadAllText(path).Replace("\r\n", "\n", StringComparison.Ordinal);
             Assert.Equal(generated, committed);
         }
+    }
+
+    [Fact]
+    public void BaseMod_DeclaresTheZombieDensityAndLootRarityOptions_DefaultingToOne()
+    {
+        var catalog = WorldOptionCatalog.From(LoadRepositoryMods().Registry);
+        var options = new WorldOptions(catalog);
+
+        Assert.Equal([BaseWorldOptions.LootRarity, BaseWorldOptions.ZombieDensity], catalog.All.Select(o => o.Id.Value));
+        Assert.Equal(100, BaseWorldOptions.ZombieDensityPercent(options));
+        Assert.Equal(100, BaseWorldOptions.LootRarityPercent(options));
+    }
+
+    [Fact]
+    public void BaseWorldOptions_TurnTheChosenMultipliersIntoPercentages()
+    {
+        var catalog = WorldOptionCatalog.From(LoadRepositoryMods().Registry);
+        var options = new WorldOptions(catalog, [KeyValuePair.Create(BaseWorldOptions.ZombieDensity, 1.5), KeyValuePair.Create(BaseWorldOptions.LootRarity, 0.25)]);
+
+        Assert.Equal(150, BaseWorldOptions.ZombieDensityPercent(options));
+        Assert.Equal(25, BaseWorldOptions.LootRarityPercent(options));
     }
 
     [Fact]

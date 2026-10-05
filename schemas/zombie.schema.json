@@ -185,6 +185,32 @@
           "chance"
         ]
       }
+    },
+    "weakpointSet": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "pattern": "^[a-z0-9_]+:[a-z0-9_]+(/[a-z0-9_]+)*$"
+    },
+    "upgrade": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "properties": {
+        "zombieType": {
+          "type": "string",
+          "pattern": "^[a-z0-9_]+:[a-z0-9_]+(/[a-z0-9_]+)*$"
+        },
+        "afterDays": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "zombieType",
+        "afterDays"
+      ]
     }
   },
   "required": [

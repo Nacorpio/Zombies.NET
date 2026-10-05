@@ -1,0 +1,11 @@
+{
+  "id": "base:limb_score/movement",
+  "stat": "move_speed",
+  "parts": [
+    { "part": "leftLeg", "required": true },
+    { "part": "rightLeg", "required": true }
+  ],
+  "floor": 0.2,
+  "woundsReduce": true,
+  "encumbranceReduces": true
+}

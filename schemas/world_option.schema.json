@@ -1,0 +1,44 @@
+{
+  "type": "object",
+  "properties": {
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z0-9_]+:[a-z0-9_]+(/[a-z0-9_]+)*$"
+    },
+    "type": {
+      "enum": [
+        "boolean",
+        "integer",
+        "number"
+      ]
+    },
+    "min": {
+      "type": [
+        "number",
+        "null"
+      ]
+    },
+    "max": {
+      "type": [
+        "number",
+        "null"
+      ]
+    },
+    "default": {
+      "type": "number"
+    },
+    "description": {
+      "type": "string"
+    },
+    "affectsSimulation": {
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "id",
+    "type",
+    "default",
+    "description"
+  ],
+  "$schema": "https://json-schema.org/draft/2020-12/schema"
+}

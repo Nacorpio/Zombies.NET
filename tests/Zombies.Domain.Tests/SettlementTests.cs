@@ -447,6 +447,45 @@ public sealed class SettlementTests
         }
     }
 
+    [Theory]
+    [InlineData(0)]
+    [InlineData(50)]
+    [InlineData(200)]
+    [InlineData(400)]
+    public void Plan_ZombieDensityScalesTheSpawnsAndNothingElse(int percent)
+    {
+        var content = Content(Type("t:settlement_type/hamlet", zombies: [new ZombieSpawnRule("t:zombie/walker", 10, 10)]));
+        var regions = SomeRegions().ToList();
+
+        var normal = regions.Select(r => SettlementPlanner.Plan(content, EverySite, r)!).ToList();
+        var scaled = regions.Select(r => SettlementPlanner.Plan(content, EverySite, r, percent)!).ToList();
+
+        Assert.Equal(normal.Select(p => p.Structures.Select(s => (s.X, s.Z)).ToList()), scaled.Select(p => p.Structures.Select(s => (s.X, s.Z)).ToList()));
+        Assert.Equal(normal.Select(p => p.ContainersAt(_ => 0).Select(c => c.Seed).ToList()), scaled.Select(p => p.ContainersAt(_ => 0).Select(c => c.Seed).ToList()));
+        Assert.All(scaled, p => Assert.Equal(10 * percent / 100, p.ZombieSpawns.Count));
+    }
+
+    [Fact]
+    public void Plan_ZombieDensityRoundsTheRemainderSoTheAverageIsExact()
+    {
+        var content = Content(Type("t:settlement_type/hamlet", zombies: [new ZombieSpawnRule("t:zombie/walker", 5, 5)]));
+        var regions = SomeRegions();
+
+        var total = regions.Sum(r => SettlementPlanner.Plan(content, EverySite, r, 50)!.ZombieSpawns.Count);
+
+        Assert.InRange(total, regions.Count * 2.5 * 0.9, regions.Count * 2.5 * 1.1);
+    }
+
+    [Fact]
+    public void Plan_ZombieDensityNeverExceedsTheSettlementCap()
+    {
+        var content = Content(Type("t:settlement_type/hamlet", zombies: [new ZombieSpawnRule("t:zombie/walker", 30, 30)]));
+
+        var plan = SettlementPlanner.Plan(content, EverySite, new RegionCoord(2, 2), 400)!;
+
+        Assert.Equal(SettlementType.MaxZombies, plan.ZombieSpawns.Count);
+    }
+
     [Fact]
     public void Plan_ASettlementTypeWithNoZombiesSpawnsNone_AndInhabitedIsJustCarried()
     {

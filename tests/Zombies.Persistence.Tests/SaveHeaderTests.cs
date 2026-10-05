@@ -34,6 +34,48 @@ public sealed class SaveHeaderTests
     }
 
     [Fact]
+    public void Write_ThenLoad_RoundTripsTheChosenWorldOptions()
+    {
+        using var save = new TempSave();
+        var options = new[] { new SavedOption("base:world_option/loot_rarity", 0.25), new SavedOption("base:world_option/zombie_density", 3) };
+        using (var database = save.Open())
+        {
+            new SqliteSaveHeaderRepository(database).Write(Header() with { Options = options });
+        }
+
+        using var reopened = save.Open();
+        var loaded = new SqliteSaveHeaderRepository(reopened).Load()!;
+
+        Assert.Equal(options, loaded.Options);
+        Assert.Equal(Header().Mods, loaded.Mods);
+    }
+
+    [Fact]
+    public void Load_OfASaveWrittenWithoutOptions_HasNone()
+    {
+        using var save = new TempSave();
+        using var database = save.Open();
+        var repository = new SqliteSaveHeaderRepository(database);
+
+        repository.Write(Header());
+
+        Assert.Empty(repository.Load()!.Options);
+    }
+
+    [Fact]
+    public void Write_Twice_ReplacesTheEarlierOptionsToo()
+    {
+        using var save = new TempSave();
+        using var database = save.Open();
+        var repository = new SqliteSaveHeaderRepository(database);
+
+        repository.Write(Header() with { Options = [new SavedOption("base:world_option/loot_rarity", 2)] });
+        repository.Write(Header() with { Options = [new SavedOption("base:world_option/zombie_density", 0)] });
+
+        Assert.Equal([new SavedOption("base:world_option/zombie_density", 0)], repository.Load()!.Options);
+    }
+
+    [Fact]
     public void Write_Twice_ReplacesTheEarlierHeader()
     {
         using var save = new TempSave();

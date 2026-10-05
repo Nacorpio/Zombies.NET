@@ -62,15 +62,25 @@ public sealed class LootTableCatalog : ILootTableCatalog
     public bool TryGet(string id, out LootTable table) => _tables.TryGetValue(id, out table!);
 }
 
-/// <summary>Rolls loot tables deterministically and offers the result to an <see cref="IItemSink"/>.</summary>
-public sealed class LootService(ILootTableCatalog tables)
+/// <summary>
+/// Rolls loot tables deterministically and offers the result to an <see cref="IItemSink"/>.
+/// <paramref name="amountPercent"/> scales how many times every table is rolled: 100 as the table declares, 200 doubles it, 0 yields nothing.
+/// </summary>
+public sealed class LootService(ILootTableCatalog tables, int amountPercent = 100)
 {
-    /// <summary>The same table and seed always produce the same drops, in the same order.</summary>
-    public static IReadOnlyList<LootDrop> Roll(LootTable table, ulong seed)
+    /// <summary>The same table, seed, and percentage always produce the same drops, in the same order.</summary>
+    public static IReadOnlyList<LootDrop> Roll(LootTable table, ulong seed, int amountPercent = 100)
     {
         ArgumentNullException.ThrowIfNull(table);
+        ArgumentOutOfRangeException.ThrowIfNegative(amountPercent);
         var random = new DeterministicRandom(seed);
         var rolls = random.NextInt(table.MinRolls, table.MaxRolls);
+        if (amountPercent != 100)
+        {
+            // The remainder rounds up or down by chance so the average amount matches the percentage.
+            var scaled = (long)rolls * amountPercent;
+            rolls = (int)(scaled / 100) + ((long)random.NextBelow(100) < scaled % 100 ? 1 : 0);
+        }
 
         var drops = new List<LootDrop>();
         for (var i = 0; i < rolls; i++)
@@ -112,7 +122,7 @@ public sealed class LootService(ILootTableCatalog tables)
             return LootFillResult.Failure(LootError.UnknownTable);
         }
 
-        var rolled = Roll(table, seed);
+        var rolled = Roll(table, seed, amountPercent);
         var placed = new List<LootDrop>();
         var discarded = new List<LootDrop>();
         foreach (var drop in rolled)

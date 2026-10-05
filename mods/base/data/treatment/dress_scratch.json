@@ -1,0 +1,6 @@
+{
+  "id": "base:treatment/dress_scratch",
+  "removes": [ "base:wound_kind/scratch" ],
+  "time": 8,
+  "consumes": "base:item/bandage"
+}

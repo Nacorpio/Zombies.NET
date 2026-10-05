@@ -1,0 +1,8 @@
+{
+  "id": "base:world_option/loot_rarity",
+  "type": "number",
+  "min": 0,
+  "max": 4,
+  "default": 1,
+  "description": "Multiplies how much loot each container holds. Below 1 loot is scarcer, above 1 it is plentiful."
+}

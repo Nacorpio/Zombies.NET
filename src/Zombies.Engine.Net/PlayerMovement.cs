@@ -1,4 +1,5 @@
 using System.Numerics;
+using Zombies.Domain.Items;
 using Zombies.Engine.Core;
 
 namespace Zombies.Engine.Net;
@@ -102,9 +103,15 @@ public static class PlayerMovement
     /// <summary>Where the eye is, given the feet position and the stance.</summary>
     public static Vector3 EyePosition(in PlayerMoveState state) => state.Position + new Vector3(0, EyeHeightFor(state.Crouched), 0);
 
-    /// <summary>Horizontal speed the input asks for, before acceleration.</summary>
-    public static float TargetSpeed(in PlayerInput input) =>
-        input.Crouch ? CrouchSpeed : input.Sprint ? SprintSpeed : WalkSpeed;
+    /// <summary>The Stat that the movement Limb score and other Modifiers change.</summary>
+    public static readonly StatName MoveSpeed = new("move_speed");
+
+    /// <summary>Horizontal speed the input asks for, before acceleration, after the <paramref name="modifiers"/> on <see cref="MoveSpeed"/>.</summary>
+    public static float TargetSpeed(in PlayerInput input, ModifierSet? modifiers = null)
+    {
+        var speed = input.Crouch ? CrouchSpeed : input.Sprint ? SprintSpeed : WalkSpeed;
+        return modifiers is null ? speed : MathF.Max(0f, (float)modifiers.EffectiveValue(MoveSpeed, speed));
+    }
 
     /// <summary>The horizontal direction the input asks for, in world space, already normalized.</summary>
     public static Vector3 WishDirection(in PlayerInput input)
@@ -118,15 +125,16 @@ public static class PlayerMovement
 
     /// <summary>
     /// One fixed step. <paramref name="collide"/> resolves the move against the world and reports whether the player ended
-    /// on the ground; the Server passes a Jolt character, a test can pass a flat floor.
+    /// on the ground; the Server passes a Jolt character, a test can pass a flat floor. <paramref name="modifiers"/> are the
+    /// Modifiers acting on the player, such as the Limb scores, and leave the speed alone when null.
     /// </summary>
-    public static PlayerMoveState Step(in PlayerMoveState state, in PlayerInput input, float seconds, IPlayerCollision collide)
+    public static PlayerMoveState Step(in PlayerMoveState state, in PlayerInput input, float seconds, IPlayerCollision collide, ModifierSet? modifiers = null)
     {
         ArgumentNullException.ThrowIfNull(collide);
 
         var crouched = input.Crouch;
         var wish = WishDirection(input);
-        var target = wish * TargetSpeed(input);
+        var target = wish * TargetSpeed(input, modifiers);
         var velocity = state.Velocity;
 
         var horizontal = new Vector3(velocity.X, 0, velocity.Z);

@@ -3,8 +3,12 @@ using Zombies.Domain.Items;
 
 namespace Zombies.Engine.Animation;
 
-/// <summary>The Body part a ray hit, the bone and distance where it hit, and the point in world space.</summary>
-public readonly record struct PartHit(BodyPart Part, int Bone, float Distance, Vector3 Point);
+/// <summary>
+/// The Body part a ray hit, the bone and distance where it hit, and the point in world space. <see cref="BoxOrigin"/> and
+/// <see cref="BoxDirection"/> are the ray in the hit box's own space, where the box spans 0 to 1 on each axis, and a distance along
+/// the direction is still a distance in the world; they place a hit inside the part.
+/// </summary>
+public readonly record struct PartHit(BodyPart Part, int Bone, float Distance, Vector3 Point, Vector3 BoxOrigin, Vector3 BoxDirection);
 
 /// <summary>
 /// Tests a ray against the boxes of a posed skeleton, one Body part at a time. The Server uses it on a kinematic pose instead of
@@ -47,6 +51,8 @@ public static class PartHitTest
         var skeleton = pose.Skeleton;
         var nearest = float.MaxValue;
         var nearestBone = -1;
+        var nearestOrigin = Vector3.Zero;
+        var nearestDirection = Vector3.Zero;
         for (var bone = 0; bone < pose.BoneCount; bone++)
         {
             if (skeleton.PartOf(bone) is null || !pose.IsVisible(bone))
@@ -63,6 +69,8 @@ public static class PartHitTest
                 {
                     nearest = t;
                     nearestBone = bone;
+                    nearestOrigin = (boneOrigin - box.MinMeters) / box.SizeMeters;
+                    nearestDirection = boneDirection / box.SizeMeters;
                 }
             }
         }
@@ -72,7 +80,7 @@ public static class PartHitTest
             return false;
         }
 
-        hit = new PartHit(skeleton.PartOf(nearestBone)!.Value, nearestBone, nearest, origin + (direction * nearest));
+        hit = new PartHit(skeleton.PartOf(nearestBone)!.Value, nearestBone, nearest, origin + (direction * nearest), nearestOrigin, nearestDirection);
         return true;
     }
 

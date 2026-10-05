@@ -1,0 +1,9 @@
+{
+  "id": "base:limb_score/vision",
+  "stat": "vision_range",
+  "parts": [
+    { "part": "head", "required": true }
+  ],
+  "floor": 0.1,
+  "woundsReduce": true
+}

@@ -1,0 +1,5 @@
+{
+  "id": "base:wound_kind/infected_wound",
+  "bleedRate": 5,
+  "healingTime": 7200
+}

@@ -117,6 +117,45 @@ public sealed class LootTests
         }
     }
 
+    [Theory]
+    [InlineData(0, 0)]
+    [InlineData(50, 2)]
+    [InlineData(200, 8)]
+    [InlineData(400, 16)]
+    public void Roll_AmountPercentScalesHowManyTimesTheTableIsRolled(int percent, int expected)
+    {
+        // Each roll of this single-entry table drops exactly one bean, so the drop count is the roll count.
+        var table = Table(4, 4, new LootEntry(Beans, 1, 1, 1));
+
+        var counts = Enumerable.Range(0, 50).Select(s => LootService.Roll(table, (ulong)s, percent).Sum(d => d.Count));
+
+        Assert.All(counts, c => Assert.Equal(expected, c));
+    }
+
+    [Fact]
+    public void Roll_AmountPercentIsExactOnAverageAndRepeatable()
+    {
+        var table = Table(3, 3, new LootEntry(Beans, 1, 1, 1));
+
+        var counts = Enumerable.Range(0, 1000).Select(s => LootService.Roll(table, (ulong)s, 50).Sum(d => d.Count)).ToList();
+
+        Assert.All(counts, c => Assert.InRange(c, 1, 2));
+        Assert.InRange(counts.Average(), 1.4, 1.6);
+        Assert.Equal(counts, Enumerable.Range(0, 1000).Select(s => LootService.Roll(table, (ulong)s, 50).Sum(d => d.Count)).ToList());
+    }
+
+    [Fact]
+    public void Fill_UsesTheServicesAmountPercent()
+    {
+        var table = Table(2, 2, new LootEntry(Beans, 1, 1, 1));
+        var (_, _, sink) = NewBag(Mass.FromKilograms(50), Volume.FromLiters(50));
+
+        var result = new LootService(new LootTableCatalog([table]), amountPercent: 300).Fill(table.Id, 1, sink);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(6, result.Rolled.Sum(d => d.Count));
+    }
+
     [Fact]
     public void Roll_WeightsBiasThePicks()
     {

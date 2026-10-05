@@ -1,0 +1,7 @@
+{
+  "id": "base:wound_kind/bite_wound",
+  "damageTypes": [ "bite" ],
+  "bleedRate": 25,
+  "healingTime": 3600,
+  "worsens": { "kind": "base:wound_kind/infected_wound", "chance": 0.5 }
+}

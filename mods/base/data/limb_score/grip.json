@@ -1,0 +1,11 @@
+{
+  "id": "base:limb_score/grip",
+  "stat": "handling",
+  "parts": [
+    { "part": "leftArm" },
+    { "part": "rightArm", "weight": 1.5 }
+  ],
+  "floor": 0.1,
+  "woundsReduce": true,
+  "encumbranceReduces": true
+}

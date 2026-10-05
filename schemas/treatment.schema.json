@@ -1,0 +1,37 @@
+{
+  "type": "object",
+  "properties": {
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z0-9_]+:[a-z0-9_]+(/[a-z0-9_]+)*$"
+    },
+    "removes": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "adds": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "stopsBleeding": {
+      "type": "boolean"
+    },
+    "time": {
+      "type": "number"
+    },
+    "consumes": {
+      "type": "string",
+      "pattern": "^[a-z0-9_]+:[a-z0-9_]+(/[a-z0-9_]+)*$"
+    }
+  },
+  "required": [
+    "id",
+    "time",
+    "consumes"
+  ],
+  "$schema": "https://json-schema.org/draft/2020-12/schema"
+}

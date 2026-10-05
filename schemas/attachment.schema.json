@@ -1,0 +1,49 @@
+{
+  "type": "object",
+  "properties": {
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z0-9_]+:[a-z0-9_]+(/[a-z0-9_]+)*$"
+    },
+    "item": {
+      "type": "string",
+      "pattern": "^[a-z0-9_]+:[a-z0-9_]+(/[a-z0-9_]+)*$"
+    },
+    "mount": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_]*$"
+    },
+    "effects": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "stat": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_]*$"
+          },
+          "operation": {
+            "enum": [
+              "add",
+              "multiply"
+            ]
+          },
+          "value": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "stat",
+          "operation",
+          "value"
+        ]
+      }
+    }
+  },
+  "required": [
+    "id",
+    "item",
+    "mount"
+  ],
+  "$schema": "https://json-schema.org/draft/2020-12/schema"
+}

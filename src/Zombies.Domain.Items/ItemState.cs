@@ -1,4 +1,4 @@
-﻿using System.Collections.Immutable;
+using System.Collections.Immutable;
 
 namespace Zombies.Domain.Items;
 
@@ -39,6 +39,17 @@ public sealed class ItemState : IEquatable<ItemState>
         return new ItemState(sortedValues, sortedAttached);
     }
 
+    /// <summary>A copy of this state with the named value set.</summary>
+    public ItemState With(string name, int value) =>
+        Create(Values.Where(v => v.Key != name).Append(new(name, value)), Attached);
+
+    /// <summary>A copy of this state with <paramref name="count"/> of an attached item, replacing any earlier count.</summary>
+    public ItemState WithAttached(ItemId item, int count) =>
+        Create(Values, Attached.Where(a => a.Key != item).Append(new(item, count)));
+
+    /// <summary>A copy of this state without the attached item.</summary>
+    public ItemState WithoutAttached(ItemId item) =>
+        Create(Values, Attached.Where(a => a.Key != item));
     public bool Equals(ItemState? other) =>
         other is not null
         && Values.SequenceEqual(other.Values)

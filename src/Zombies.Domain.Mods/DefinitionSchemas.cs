@@ -32,12 +32,17 @@ public static class DefinitionSchemas
                     obj["$schema"] = "https://json-schema.org/draft/2020-12/schema";
                 }
 
-                if (context.PropertyInfo?.Name is "id" or "item")
+                if (context.PropertyInfo?.Name is "id" or "item" or "category" or "ammoItem")
                 {
                     obj["pattern"] = ContentIdPattern;
                 }
 
-                if (context.PropertyInfo?.Name is "stat")
+                if (context.PropertyInfo?.Name is "damageType")
+                {
+                    obj["enum"] = new JsonArray([.. Enum.GetNames<DamageType>().Select(n => (JsonNode)n.ToLowerInvariant())]);
+                }
+
+                if (context.PropertyInfo?.Name is "stat" or "mount")
                 {
                     obj["pattern"] = StatNamePattern;
                 }

@@ -1,0 +1,74 @@
+{
+  "type": "object",
+  "properties": {
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z0-9_]+:[a-z0-9_]+(/[a-z0-9_]+)*$"
+    },
+    "item": {
+      "type": "string",
+      "pattern": "^[a-z0-9_]+:[a-z0-9_]+(/[a-z0-9_]+)*$"
+    },
+    "category": {
+      "type": "string",
+      "pattern": "^[a-z0-9_]+:[a-z0-9_]+(/[a-z0-9_]+)*$"
+    },
+    "damage": {
+      "type": "number"
+    },
+    "damageType": {
+      "type": "string",
+      "enum": [
+        "blunt",
+        "cut",
+        "pierce",
+        "bite"
+      ]
+    },
+    "rateOfFire": {
+      "type": "number"
+    },
+    "reach": {
+      "type": "number"
+    },
+    "noise": {
+      "type": "number"
+    },
+    "handsNeeded": {
+      "type": "integer"
+    },
+    "handling": {
+      "type": [
+        "number",
+        "null"
+      ]
+    },
+    "ammoItem": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "pattern": "^[a-z0-9_]+:[a-z0-9_]+(/[a-z0-9_]+)*$"
+    },
+    "wearPerUse": {
+      "type": "integer"
+    },
+    "mounts": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  },
+  "required": [
+    "id",
+    "item",
+    "category",
+    "damage",
+    "damageType",
+    "rateOfFire",
+    "reach",
+    "noise"
+  ],
+  "$schema": "https://json-schema.org/draft/2020-12/schema"
+}

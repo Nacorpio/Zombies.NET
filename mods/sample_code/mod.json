@@ -1,0 +1,10 @@
+{
+  "id": "sample_code",
+  "name": "Sample Code Mod",
+  "version": "1.0.0",
+  "side": "both",
+  "dependencies": [
+    { "id": "base", "minVersion": "0.1.0" }
+  ],
+  "assemblies": ["SampleCodeMod.dll"]
+}

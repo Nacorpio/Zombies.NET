@@ -6,3 +6,6 @@ obj/
 TestResults/
 artifacts/
 *.log
+
+# A Code mod's assemblies are build output, copied in by its project.
+mods/*/assemblies/

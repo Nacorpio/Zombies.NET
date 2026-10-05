@@ -20,14 +20,24 @@ internal sealed class WorldSession : IDisposable
 
     public WorldSession(ClientOptions options, IWorldRenderer renderer)
     {
-        var mods = ModLoader.Load(DirectoryModSource.Read(options.ModsDirectory ?? DirectoryModSource.Find(AppContext.BaseDirectory)));
+        var packages = DirectoryModSource.Read(options.ModsDirectory ?? DirectoryModSource.Find(AppContext.BaseDirectory));
+        var mods = ModLoader.Load(packages);
         if (!mods.IsSuccess)
         {
             throw new InvalidOperationException("The mods could not be loaded:" + Environment.NewLine + string.Join(Environment.NewLine, mods.Errors));
         }
 
+        // Solo play runs the client and the Server in one process, so every Code mod's code runs here.
+        var codeMods = CodeModLoader.Load(packages, mods, ProcessRole.Solo);
+        if (!codeMods.IsSuccess)
+        {
+            throw new InvalidOperationException("The code mods could not be loaded:" + Environment.NewLine + string.Join(Environment.NewLine, codeMods.Problems));
+        }
+
         // Solo play: join an embedded Server and take the world seed from it, as a client of a dedicated server would.
         Solo = new EmbeddedServer(new ServerOptions(GameIdentity.From(mods, WorldGenerator.GeneratorVersion), options.Seed), string.IsNullOrEmpty(Environment.UserName) ? "player" : Environment.UserName);
+        CodeModMessages.Register(Solo.Server.Commands, codeMods);
+        ModMessages = codeMods.Messages;
 
         var biomes = new BiomeCatalog(mods.Registry.OfKind("biome").Select(d => BiomeJson.Parse(d.Json)));
         _pipeline = new ChunkPipeline(new WorldGenerator(Solo.Client.WorldSeed, biomes, SettlementContentLoader.Load(mods.Registry)));
@@ -41,6 +51,9 @@ internal sealed class WorldSession : IDisposable
     }
 
     public EmbeddedServer Solo { get; }
+
+    /// <summary>The numbers of the Code mods' messages, for sending one with <see cref="GameClient.Send{TMessage}(ModMessageTable, in TMessage)"/>.</summary>
+    public ModMessageTable ModMessages { get; }
 
     public ChunkRenderManager Manager { get; }
 

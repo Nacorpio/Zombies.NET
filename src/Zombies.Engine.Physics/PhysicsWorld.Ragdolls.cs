@@ -20,10 +20,13 @@ public sealed partial class PhysicsWorld
 
     private readonly Queue<RagdollGroupHandle> _ragdolls = new();
 
-    private sealed record RagdollGroupHandle(List<BodyID> Bodies, List<Constraint> Constraints);
+    private sealed record RagdollGroupHandle(List<BodyID> Bodies, List<Constraint> Constraints, List<Shape> Shapes);
 
     /// <summary>Ragdoll bodies in the physics world right now.</summary>
     public int RagdollBodyCount { get; private set; }
+
+    /// <summary>Box shapes held by live ragdolls. Each is freed with its group, so this stays bounded by <see cref="MaxRagdollBodies"/>.</summary>
+    public int RagdollShapeCount { get; private set; }
 
     /// <summary>Makes a body per entry of the plan, jointed to its parent, and returns how many it made. Not covered by tests: it needs Jolt's native library to run.</summary>
     public int AddRagdoll(IReadOnlyList<RagdollBodySpec> bodies, Skeleton skeleton, RigPlacement placement)
@@ -42,13 +45,15 @@ public sealed partial class PhysicsWorld
         }
 
         var interfaces = _system.BodyInterface;
-        var handle = new RagdollGroupHandle([], []);
+        var handle = new RagdollGroupHandle([], [], []);
         var made = new List<Body>(bodies.Count);
         foreach (var spec in bodies)
         {
             var half = HalfExtents(skeleton.Bones[spec.Bone], placement.Scale);
             var shape = new BoxShape(half);
             _shapes.Add(shape);
+            handle.Shapes.Add(shape);
+            RagdollShapeCount++;
             var settings = new BodyCreationSettings(shape, spec.Position, spec.Rotation, MotionType.Dynamic, new ObjectLayer(DebrisLayer));
             var body = interfaces.CreateBody(settings);
             interfaces.AddBody(body, Activation.Activate);
@@ -113,6 +118,14 @@ public sealed partial class PhysicsWorld
             _system.BodyInterface.RemoveAndDestroyBody(id);
         }
 
+        // The bodies are gone, so nothing uses the shapes any more. Same order as Dispose: bodies first, then shapes.
+        foreach (var shape in handle.Shapes)
+        {
+            _shapes.Remove(shape);
+            shape.Dispose();
+        }
+
+        RagdollShapeCount -= handle.Shapes.Count;
         RagdollBodyCount -= handle.Bodies.Count;
     }
 

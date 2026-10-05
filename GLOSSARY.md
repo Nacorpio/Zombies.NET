@@ -32,6 +32,10 @@ _Avoid_: Patch, replace
 A named 32 by 32 picture used by the UI, supplied as a PNG named after the icon in a mod's icons folder and normalized to hard edges when loaded. A mod can add Icons and replace those of mods it depends on.
 _Avoid_: Sprite, glyph
 
+**World option**:
+A tunable rule of one world, declared by a mod with a Content ID, type, range, default, and description. The host chooses values when the world is created, the save keeps them with the mod list, and a client must hold the same values as the Server to join. Visual and accessibility settings such as gore intensity are not World options.
+_Avoid_: Setting, config, game rule, difficulty setting
+
 ## Items and Inventory
 
 **Item**:

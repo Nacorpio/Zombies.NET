@@ -33,7 +33,7 @@ public sealed class ModLoadingTests
 
         Assert.True(result.IsSuccess, string.Join(Environment.NewLine, result.Errors));
         Assert.Equal(["base", "sample_data"], result.Mods.Select(m => m.Manifest.Id));
-        Assert.Equal(63, result.Registry.Count);
+        Assert.Equal(65, result.Registry.Count);
     }
 
     [Fact]
@@ -130,6 +130,27 @@ public sealed class ModLoadingTests
             var committed = File.ReadAllText(path).Replace("\r\n", "\n", StringComparison.Ordinal);
             Assert.Equal(generated, committed);
         }
+    }
+
+    [Fact]
+    public void BaseMod_DeclaresTheZombieDensityAndLootRarityOptions_DefaultingToOne()
+    {
+        var catalog = WorldOptionCatalog.From(LoadRepositoryMods().Registry);
+        var options = new WorldOptions(catalog);
+
+        Assert.Equal([BaseWorldOptions.LootRarity, BaseWorldOptions.ZombieDensity], catalog.All.Select(o => o.Id.Value));
+        Assert.Equal(100, BaseWorldOptions.ZombieDensityPercent(options));
+        Assert.Equal(100, BaseWorldOptions.LootRarityPercent(options));
+    }
+
+    [Fact]
+    public void BaseWorldOptions_TurnTheChosenMultipliersIntoPercentages()
+    {
+        var catalog = WorldOptionCatalog.From(LoadRepositoryMods().Registry);
+        var options = new WorldOptions(catalog, [KeyValuePair.Create(BaseWorldOptions.ZombieDensity, 1.5), KeyValuePair.Create(BaseWorldOptions.LootRarity, 0.25)]);
+
+        Assert.Equal(150, BaseWorldOptions.ZombieDensityPercent(options));
+        Assert.Equal(25, BaseWorldOptions.LootRarityPercent(options));
     }
 
     [Fact]

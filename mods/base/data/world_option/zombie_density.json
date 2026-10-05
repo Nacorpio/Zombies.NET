@@ -1,0 +1,8 @@
+{
+  "id": "base:world_option/zombie_density",
+  "type": "number",
+  "min": 0,
+  "max": 4,
+  "default": 1,
+  "description": "Multiplies how many zombies each settlement spawns with. 0 leaves settlements empty."
+}

@@ -10,6 +10,7 @@
     <Project Path="src/Zombies.Domain.Mods/Zombies.Domain.Mods.csproj" />
     <Project Path="src/Zombies.Domain.Power/Zombies.Domain.Power.csproj" />
     <Project Path="src/Zombies.Domain.Skills/Zombies.Domain.Skills.csproj" />
+    <Project Path="src/Zombies.Domain.StatusEffects/Zombies.Domain.StatusEffects.csproj" />
     <Project Path="src/Zombies.Domain.Survival/Zombies.Domain.Survival.csproj" />
     <Project Path="src/Zombies.Domain.World/Zombies.Domain.World.csproj" />
     <Project Path="src/Zombies.Engine.Audio/Zombies.Engine.Audio.csproj" />

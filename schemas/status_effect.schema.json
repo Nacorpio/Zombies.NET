@@ -1,0 +1,136 @@
+{
+  "type": "object",
+  "properties": {
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z0-9_]+:[a-z0-9_]+(/[a-z0-9_]+)*$"
+    },
+    "category": {
+      "enum": [
+        "ailment",
+        "buff",
+        "environmental"
+      ],
+      "pattern": "^[a-z0-9_]+:[a-z0-9_]+(/[a-z0-9_]+)*$"
+    },
+    "duration": {
+      "type": [
+        "number",
+        "null"
+      ]
+    },
+    "stacking": {
+      "enum": [
+        "refresh",
+        "extend",
+        "stack",
+        "ignore"
+      ]
+    },
+    "maxStacks": {
+      "type": "integer"
+    },
+    "stages": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_]*$"
+          },
+          "after": {
+            "type": "number"
+          },
+          "modifiers": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "stat": {
+                  "type": "string",
+                  "pattern": "^[a-z][a-z0-9_]*$"
+                },
+                "operation": {
+                  "enum": [
+                    "add",
+                    "multiply"
+                  ]
+                },
+                "value": {
+                  "type": "number"
+                }
+              },
+              "required": [
+                "stat",
+                "operation",
+                "value"
+              ]
+            }
+          },
+          "periodic": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "change": {
+                  "type": "string",
+                  "pattern": "^[a-z][a-z0-9_]*$"
+                },
+                "every": {
+                  "type": "number"
+                },
+                "amount": {
+                  "type": "number"
+                }
+              },
+              "required": [
+                "change",
+                "every",
+                "amount"
+              ]
+            }
+          }
+        },
+        "required": [
+          "name",
+          "after"
+        ]
+      }
+    },
+    "modifiers": {
+      "type": "array",
+      "items": {
+        "$ref": "#/properties/stages/items/properties/modifiers/items"
+      }
+    },
+    "periodic": {
+      "type": "array",
+      "items": {
+        "$ref": "#/properties/stages/items/properties/periodic/items"
+      }
+    },
+    "curedBy": {
+      "type": "object",
+      "properties": {
+        "items": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "effects": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  },
+  "required": [
+    "id",
+    "category"
+  ],
+  "$schema": "https://json-schema.org/draft/2020-12/schema"
+}

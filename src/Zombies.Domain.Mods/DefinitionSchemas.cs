@@ -42,7 +42,7 @@ public static class DefinitionSchemas
                     obj["enum"] = new JsonArray([.. Enum.GetNames<DamageType>().Select(n => (JsonNode)n.ToLowerInvariant())]);
                 }
 
-                if (context.PropertyInfo?.Name is "stat" or "mount")
+                if (context.PropertyInfo?.Name is "stat" or "mount" or "change" or "name")
                 {
                     obj["pattern"] = StatNamePattern;
                 }

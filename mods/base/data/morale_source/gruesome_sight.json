@@ -1,0 +1,1 @@
+{ "id": "base:morale_source/gruesome_sight", "trigger": { "event": "gruesome_sight" }, "size": -8, "duration": 7200, "maxStacks": 4 }

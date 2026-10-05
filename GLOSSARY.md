@@ -214,6 +214,10 @@ _Avoid_: Biome (a habitat is a tag, not the whole biome), ecosystem
 A survival meter the player must manage: hunger, thirst, body temperature.
 _Avoid_: Stat, vital
 
+**Morale**:
+How a character feels, from low to high: the sum of the Morale sources that are active, clamped to a range. A Morale source is a definition of what triggers it, a game event or the use of an Item, how much it moves Morale and how long it takes to fade. The band Morale is in grants Modifiers, recorded with the source `morale:` and the band's Content ID. Morale is not a Need.
+_Avoid_: Mood, sanity, happiness
+
 **Skill**:
 A trained capability that levels up through use.
 _Avoid_: Ability, attribute

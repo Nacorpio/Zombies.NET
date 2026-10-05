@@ -4,6 +4,7 @@ using Zombies.Domain.Crafting;
 using Zombies.Domain.Items;
 using Zombies.Domain.Mods;
 using Zombies.Domain.StatusEffects;
+using Zombies.Domain.Survival;
 using Zombies.Domain.World;
 using Zombies.Domain.Zombies;
 
@@ -23,6 +24,8 @@ public static class BaseDefinitionKinds
         ["limb_score"] = typeof(LimbScoreDto),
         ["loot"] = typeof(LootTableDto),
         ["modifier"] = typeof(ModifierDefinitionDto),
+        ["morale_band"] = typeof(MoraleBandDto),
+        ["morale_source"] = typeof(MoraleSourceDto),
         ["settlement_type"] = typeof(SettlementTypeDto),
         ["structure"] = typeof(StructureDto),
         ["attachment"] = typeof(AttachmentDto),

@@ -57,6 +57,11 @@ public static class DefinitionSchemas
                 {
                     obj["pattern"] = StatNamePattern;
                 }
+
+                if (context.PropertyInfo?.Name is "event")
+                {
+                    obj["pattern"] = StatNamePattern;
+                }
             }
 
             return schema;

@@ -6,6 +6,7 @@ using Zombies.Domain.Inventory;
 using Zombies.Domain.Items;
 using Zombies.Domain.Mods;
 using Zombies.Domain.StatusEffects;
+using Zombies.Domain.Survival;
 using Zombies.Engine.Core.Modding;
 
 namespace Zombies.Engine.Tests;
@@ -33,7 +34,7 @@ public sealed class ModLoadingTests
 
         Assert.True(result.IsSuccess, string.Join(Environment.NewLine, result.Errors));
         Assert.Equal(["base", "sample_data"], result.Mods.Select(m => m.Manifest.Id));
-        Assert.Equal(79, result.Registry.Count);
+        Assert.Equal(89, result.Registry.Count);
     }
 
     [Fact]
@@ -84,6 +85,28 @@ public sealed class ModLoadingTests
         Assert.True(treatments.TryGet("base:treatment/bandage", out var bandage));
         Assert.True(bandage.StopsBleeding);
         Assert.Equal(new ItemId("base:item/bandage"), bandage.Consumes);
+    }
+
+    [Fact]
+    public void BaseMoraleSourcesAndBands_ParseIntoACatalog_WithATeammateDeathAndAComfortItem()
+    {
+        var registry = LoadRepositoryMods().Registry;
+        var items = new ItemCatalog(registry.OfKind("item").Select(d => ItemDefinitionJson.Parse(d.Json)));
+
+        var catalog = new MoraleCatalog(
+            registry.OfKind("morale_source").Select(d => MoraleSourceJson.Parse(d.Json)),
+            registry.OfKind("morale_band").Select(d => MoraleBandJson.Parse(d.Json)));
+
+        Assert.True(catalog.Sources.Count >= 5);
+        Assert.Contains(catalog.Sources, s => s.Trigger.Event == new StatName("teammate_died"));
+        var comfort = Assert.Single(catalog.Sources, s => s.Trigger.Item is not null);
+        Assert.True(items.TryGet(comfort.Trigger.Item!.Value, out _), $"{comfort.Id} names unknown item {comfort.Trigger.Item}.");
+        Assert.Equal(["base:morale_band/low", "base:morale_band/steady", "base:morale_band/high"], catalog.Bands.Select(b => b.Id));
+
+        var morale = new Morale(catalog);
+        morale.OnEvent(new StatName("teammate_died"));
+        Assert.Equal("base:morale_band/low", morale.Band?.Id);
+        Assert.True(morale.EffectiveValue(new StatName("aim_spread"), 1) > 1);
     }
 
     private static (ItemCatalog Items, LootTableCatalog Loot) LoadCatalogs()

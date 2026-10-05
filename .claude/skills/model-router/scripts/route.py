@@ -66,7 +66,9 @@ def decide(answers, cfg):
     ov = cfg.get("kind_overrides", {}).get(kind["choice"])
     if ov and not low and tier in ("fast", "standard"):  # never downgrade hard work to a specialist
         model, why = ov, f"kind override ({kind['choice']}); " + why
-    return {"tier": tier, "model": model, "kind": kind["choice"], "reason": why}
+    alts = cfg.get("alternatives", {})
+    alt = [m for m in alts.get("kind", {}).get(kind["choice"], []) + alts.get("tier", {}).get(tier, []) if m != model]
+    return {"tier": tier, "model": model, "kind": kind["choice"], "reason": why, "alternatives": list(dict.fromkeys(alt))}
 
 
 def http(url, body=None, key=None, retries=3):
@@ -104,7 +106,9 @@ def main(argv):
     cmd, cfg = argv[1], load_cfg()
     if cmd == "validate":
         ids = {m["id"] for m in http(f"{OR_BASE}/models")["data"]}
+        alts = cfg.get("alternatives", {})
         want = list(cfg["tiers"].values()) + list(cfg.get("kind_overrides", {}).values())
+        want += [m for group in alts.values() for ms in group.values() for m in ms]
         bad = [m for m in want if m not in ids]
         print(json.dumps({"checked": len(want), "missing": bad}))
         return 1 if bad else 0

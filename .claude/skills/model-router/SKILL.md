@@ -27,6 +27,7 @@ python .claude/skills/model-router/scripts/route.py classify "<task text>"
 
 ## Maintain
 
+- `tiers.json` has one primary model per tier (Claude, so tiers map onto subagent models) plus an `alternatives` directory: `tier` and `kind` lists of other OpenRouter models, ranked by my judgment from price and context size, **not benchmarked**. `classify` returns the ones that apply as `alternatives`, kind-specific first. To use one, call it yourself on OpenRouter; `run` always uses the primary. Only `anthropic/*` tiers can be a subagent `model`.
 - Edit `tiers.json` to change candidates. Run `route.py validate` after; it checks IDs against OpenRouter's public model list.
 - Tune thresholds in `decide()` against real tasks. Routing is only as good as those cutoffs.
 - `route.py decide < answers.json` runs the rule offline for testing.

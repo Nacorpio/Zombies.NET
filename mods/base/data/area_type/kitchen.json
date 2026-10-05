@@ -1,0 +1,2 @@
+﻿{ "id": "base:area_type/kitchen", "rules": [ { "containerKind": "cabinet", "tables": [ { "table": "base:loot/kitchen", "weight": 10 } ] }, { "containerKind": "fridge", "tables": [ { "table": "base:loot/kitchen", "weight": 8 }, { "table": "base:loot/medical", "weight": 2 } ] } ] }
+

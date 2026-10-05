@@ -1,0 +1,2 @@
+﻿{ "id": "base:loot/bathroom", "rolls": { "min": 1, "max": 2 }, "entries": [ { "item": "base:item/bandage", "weight": 6 }, { "item": "base:item/water_bottle", "weight": 4 } ] }
+

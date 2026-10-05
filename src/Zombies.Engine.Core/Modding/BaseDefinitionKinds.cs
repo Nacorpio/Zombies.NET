@@ -15,6 +15,7 @@ public static class BaseDefinitionKinds
 {
     public static IReadOnlyDictionary<string, Type> All { get; } = new Dictionary<string, Type>
     {
+        ["area_type"] = typeof(AreaTypeDto),
         ["biome"] = typeof(BiomeDto),
         ["item"] = typeof(ItemDefinitionDto),
         ["loot"] = typeof(LootTableDto),

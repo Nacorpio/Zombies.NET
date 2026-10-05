@@ -1,0 +1,2 @@
+﻿{ "id": "base:area_type/bathroom", "rules": [ { "containerKind": "cabinet", "tables": [ { "table": "base:loot/bathroom", "weight": 10 } ] } ] }
+

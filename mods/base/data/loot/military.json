@@ -1,0 +1,2 @@
+﻿{ "id": "base:loot/military", "rolls": { "min": 2, "max": 4 }, "entries": [ { "item": "base:item/pistol_9mm", "weight": 1 }, { "item": "base:item/pistol_rounds_9mm", "weight": 6, "count": { "min": 10, "max": 30 } }, { "item": "base:item/antibiotics", "weight": 3 } ] }
+

@@ -27,6 +27,9 @@ public enum CommandRejection : byte
 
     /// <summary>The command was read but breaks a rule, such as moving farther than a step.</summary>
     Invalid,
+
+    /// <summary>The sender's Body is dead, so they are spectating and cannot act.</summary>
+    Dead,
 }
 
 /// <summary>The outcome of one Domain command on the Server.</summary>

@@ -9,6 +9,9 @@
     <ProjectReference Include="../Zombies.Engine.Animation/Zombies.Engine.Animation.csproj" />
     <ProjectReference Include="../Zombies.Engine.Ecs/Zombies.Engine.Ecs.csproj" />
     <ProjectReference Include="../Zombies.Domain.Combat/Zombies.Domain.Combat.csproj" />
+    <ProjectReference Include="../Zombies.Domain.Death/Zombies.Domain.Death.csproj" />
+    <ProjectReference Include="../Zombies.Domain.Inventory/Zombies.Domain.Inventory.csproj" />
+    <ProjectReference Include="../Zombies.Domain.Survival/Zombies.Domain.Survival.csproj" />
     <ProjectReference Include="../Zombies.Domain.World/Zombies.Domain.World.csproj" />
     <ProjectReference Include="../Zombies.Domain.Zombies/Zombies.Domain.Zombies.csproj" />
   </ItemGroup>

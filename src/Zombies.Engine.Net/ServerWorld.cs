@@ -49,6 +49,17 @@ public sealed class ServerWorld
         _entities[index] = _entities[index] with { Zombie = zombie };
     }
 
+    /// <summary>Changes whether a player is dead, which every client that sees the player is told.</summary>
+    public void UpdatePlayer(uint id, PlayerState player)
+    {
+        if (!_indexById.TryGetValue(id, out var index) || _entities[index].Kind != EntityKind.Player)
+        {
+            throw new KeyNotFoundException($"No player has id {id}.");
+        }
+
+        _entities[index] = _entities[index] with { Player = player };
+    }
+
     public bool Despawn(uint id)
     {
         if (!_indexById.Remove(id, out var index))

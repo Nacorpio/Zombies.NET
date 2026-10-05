@@ -8,6 +8,9 @@ public static class EntityKind
     public const ushort Player = 1;
 
     public const ushort Zombie = 2;
+
+    /// <summary>The Corpse a dead player left, which any player can loot.</summary>
+    public const ushort Corpse = 3;
 }
 
 /// <summary>
@@ -17,8 +20,11 @@ public static class EntityKind
 /// </summary>
 public readonly record struct ZombieState(ulong Seed, ushort Type, byte Level, byte Missing, bool Dead);
 
+/// <summary>What a client needs to know of another player: whether their Body is dead and they are spectating.</summary>
+public readonly record struct PlayerState(bool Dead);
+
 /// <summary>The replicated state of one entity, as the Server sends it and a client sees it.</summary>
-public readonly record struct EntityState(uint Id, ushort Kind, Vector3 Position, float Yaw, ZombieState Zombie = default)
+public readonly record struct EntityState(uint Id, ushort Kind, Vector3 Position, float Yaw, ZombieState Zombie = default, PlayerState Player = default)
 {
     /// <summary>Side length of a chunk in blocks, matching <c>ChunkConstants.Size</c> in Zombies.Engine.Voxel. Interest is measured in chunks.</summary>
     public const int ChunkSize = 16;

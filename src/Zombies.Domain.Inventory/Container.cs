@@ -110,6 +110,58 @@ public sealed class Container
         return container;
     }
 
+    /// <summary>Adds items the Container has room for, as when a worn Item leaves an Outfit. Fails with no change when they do not fit.</summary>
+    public InventoryResult TryAdd(ItemId item, int count, ItemState? state = null)
+    {
+        state = state is { IsEmpty: true } ? null : state;
+        if (count < 1)
+        {
+            return InventoryResult.Failure(InventoryError.InvalidCount);
+        }
+
+        if (CheckFits(item, count, state) is { } error)
+        {
+            return InventoryResult.Failure(error);
+        }
+
+        Add(item, count, state);
+        return InventoryResult.Success(new ItemsAdded(Id, item, count, state));
+    }
+
+    /// <summary>
+    /// Moves as much of every Stack into <paramref name="destination"/> as it has room for, with Item state intact, and leaves
+    /// the rest here. Used to empty a character into a corpse and to loot one.
+    /// </summary>
+    public InventoryResult MoveFittingTo(Container destination)
+    {
+        ArgumentNullException.ThrowIfNull(destination);
+        if (destination.Id == Id)
+        {
+            return InventoryResult.Failure(InventoryError.SameContainer);
+        }
+
+        var events = new List<IDomainEvent>();
+        foreach (var entry in _entries.ToList())
+        {
+            var count = entry.Count;
+            while (count > 0 && destination.CheckFits(entry.Item, count, entry.State) is not null)
+            {
+                count--;
+            }
+
+            if (count == 0)
+            {
+                continue;
+            }
+
+            RemoveFromStack(entry.Id, count);
+            destination.Add(entry.Item, count, entry.State);
+            events.Add(new ItemsMoved(Id, destination.Id, entry.Item, count, entry.State));
+        }
+
+        return InventoryResult.Success([.. events]);
+    }
+
     public int CountOf(ItemId item) => _entries.Where(e => e.Item == item).Sum(e => e.Count);
 
     private static ItemStateSnapshot? SnapshotOf(ItemState? state) => state is null

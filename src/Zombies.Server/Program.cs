@@ -1,5 +1,7 @@
 using System.Diagnostics;
 using System.Globalization;
+using Zombies.Domain.Death;
+using Zombies.Domain.Items;
 using Zombies.Domain.Mods;
 using Zombies.Engine.Core;
 using Zombies.Engine.Core.Modding;
@@ -155,9 +157,15 @@ if (savePath is not null)
     }
 }
 
-var options = new ServerOptions(identity, seed) { MaxPlayers = maxPlayers };
+var items = new ItemCatalog(mods.Registry.OfKind("item").Select(d => ItemDefinitionJson.Parse(d.Json)));
+var options = new ServerOptions(identity, seed) { MaxPlayers = maxPlayers, Items = items };
+
+// With a save, Corpses and their Containers and the Memorials are kept in it; without one they last as long as the process.
+var deathStores = save is null
+    ? null
+    : new DeathStores(new SqliteContainerRepository(save, items), new SqliteCorpseRepository(save), new SqliteMemorialRepository(save));
 using var transport = LiteNetTransport.Listen(port, key, maxPlayers + 2);
-var server = new GameServer(transport, options);
+var server = new GameServer(transport, options, deathStores);
 var simulation = new Simulation(server);
 
 using var stop = new CancellationTokenSource();

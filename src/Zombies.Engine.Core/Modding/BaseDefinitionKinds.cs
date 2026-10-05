@@ -31,6 +31,7 @@ public static class BaseDefinitionKinds
         ["attachment"] = typeof(AttachmentDto),
         ["item_action"] = typeof(ItemActionDto),
         ["status_effect"] = typeof(StatusEffectDto),
+        ["substance"] = typeof(SubstanceDto),
         ["weapon"] = typeof(WeaponDto),
         ["weapon_category"] = typeof(WeaponCategoryDto),
         ["treatment"] = typeof(TreatmentDto),

@@ -200,6 +200,14 @@ _Avoid_: Entity, actor, mob
 A lasting state on a creature, such as infection or a painkiller, that runs for a duration, may progress through stages, and may apply modifiers or periodic changes until it ends or is cured.
 _Avoid_: Buff, debuff, condition, ailment, status
 
+**Substance**:
+A definition of something a creature takes in through Items, such as a stimulant or alcohol: the Status effect each dose applies, the chance a use causes addiction, how fast Tolerance grows, and the withdrawal effect that follows addiction.
+_Avoid_: Drug, consumable
+
+**Tolerance**:
+How used to a Substance a creature has become, from 0 to 1, counted per creature and Substance. Each dose raises it, it cancels part of the doses of the next use, and it makes addiction likelier. It is exposed as a Modifier with the source `tolerance:` and the Substance's Content ID, and it is kept in the Save.
+_Avoid_: Resistance, immunity
+
 **Animal**:
 A non-hostile or predatory wild creature defined by a type, a behavior archetype, and the habitats it lives in.
 _Avoid_: Wildlife, critter, fauna

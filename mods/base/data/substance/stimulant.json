@@ -1,0 +1,10 @@
+{
+  "id": "base:substance/stimulant",
+  "items": [
+    { "item": "base:item/stimulant_pills", "doses": 2 }
+  ],
+  "statusEffect": "base:status_effect/stimulated",
+  "addictionChance": 0.08,
+  "toleranceGrowth": 0.04,
+  "withdrawal": { "statusEffect": "base:status_effect/stimulant_withdrawal", "delay": 28800 }
+}

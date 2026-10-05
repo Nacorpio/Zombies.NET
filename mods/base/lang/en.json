@@ -134,6 +134,7 @@
     "error.unknown": "That cannot be done",
     "item.base.item.bandage": "Bandage",
     "item.base.item.baseball_bat": "Baseball bat",
+    "item.base.item.beer": "Beer",
     "item.base.item.canned_beans": "Canned beans",
     "item.base.item.chocolate_bar": "Chocolate bar",
     "item.base.item.crowbar": "Crowbar",
@@ -144,6 +145,7 @@
     "item.base.item.pistol_9mm": "9mm pistol",
     "item.base.item.pistol_rounds_9mm": "9mm rounds",
     "item.base.item.red_dot_sight": "Red dot sight",
+    "item.base.item.stimulant_pills": "Stimulant pills",
     "item.base.item.suppressor": "Suppressor",
     "item.base.item.water_bottle": "Water bottle"
   }

@@ -13,6 +13,7 @@
     <ProjectReference Include="../Zombies.Domain.Inventory/Zombies.Domain.Inventory.csproj" />
     <ProjectReference Include="../Zombies.Domain.Mods/Zombies.Domain.Mods.csproj" />
     <ProjectReference Include="../Zombies.Domain.Combat/Zombies.Domain.Combat.csproj" />
+    <ProjectReference Include="../Zombies.Domain.StatusEffects/Zombies.Domain.StatusEffects.csproj" />
     <ProjectReference Include="../Zombies.Domain.Survival/Zombies.Domain.Survival.csproj" />
     <ProjectReference Include="../Zombies.Domain.Death/Zombies.Domain.Death.csproj" />
     <ProjectReference Include="../Zombies.Engine.Voxel/Zombies.Engine.Voxel.csproj" />

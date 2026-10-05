@@ -134,6 +134,7 @@
     "error.unknown": "Det går inte",
     "item.base.item.bandage": "Plåster",
     "item.base.item.baseball_bat": "Basebollträ",
+    "item.base.item.beer": "Öl",
     "item.base.item.canned_beans": "Bönor på burk",
     "item.base.item.chocolate_bar": "Chokladkaka",
     "item.base.item.crowbar": "Kofot",
@@ -144,6 +145,7 @@
     "item.base.item.pistol_9mm": "9mm pistol",
     "item.base.item.pistol_rounds_9mm": "9mm patroner",
     "item.base.item.red_dot_sight": "Rödpunktssikte",
+    "item.base.item.stimulant_pills": "Stimulantia",
     "item.base.item.suppressor": "Ljuddämpare",
     "item.base.item.water_bottle": "Vattenflaska"
   }

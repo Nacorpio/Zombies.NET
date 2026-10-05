@@ -62,6 +62,11 @@ public static class DefinitionSchemas
                 {
                     obj["pattern"] = StatNamePattern;
                 }
+
+                if (context.PropertyInfo?.Name is "statusEffect")
+                {
+                    obj["pattern"] = ContentIdPattern;
+                }
             }
 
             return schema;

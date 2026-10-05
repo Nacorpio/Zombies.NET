@@ -1,0 +1,29 @@
+{
+  "id": "base:status_effect/alcohol_withdrawal",
+  "category": "ailment",
+  "stages": [
+    {
+      "name": "shaky",
+      "after": 0,
+      "modifiers": [
+        { "stat": "aim_spread", "operation": "multiply", "value": 1.15 }
+      ]
+    },
+    {
+      "name": "tremors",
+      "after": 14400,
+      "modifiers": [
+        { "stat": "aim_spread", "operation": "multiply", "value": 1.3 },
+        { "stat": "move_speed", "operation": "multiply", "value": 0.9 }
+      ]
+    },
+    {
+      "name": "severe",
+      "after": 43200,
+      "modifiers": [
+        { "stat": "aim_spread", "operation": "multiply", "value": 1.5 },
+        { "stat": "move_speed", "operation": "multiply", "value": 0.75 }
+      ]
+    }
+  ]
+}

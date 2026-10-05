@@ -1,0 +1,1 @@
+{ "id": "base:item/beer", "mass": "0.5 kg", "volume": "0.5 l", "maxStack": 6, "drinkable": true }

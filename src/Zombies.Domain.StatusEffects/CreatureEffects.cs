@@ -107,6 +107,43 @@ public sealed class CreatureEffects(CreatureId id, StatusEffectCatalog catalog)
         return EffectResult.Success([new EffectRemoved(Id, effect)]);
     }
 
+    /// <summary>
+    /// Takes an effect back one stage, as when a withdrawal is eased by taking the substance again. An effect in its first
+    /// stage, or with no stages, ends instead. Stacks and any remaining duration are not changed.
+    /// </summary>
+    public EffectResult Ease(string effect)
+    {
+        var active = _active.Find(a => a.Definition.Id == effect);
+        if (active is null)
+        {
+            return EffectResult.Failure(EffectError.NotActive);
+        }
+
+        var events = new List<IDomainEvent>();
+        if (active.StageIndex <= 0)
+        {
+            _active.Remove(active);
+            events.Add(new EffectEased(Id, effect, null));
+        }
+        else
+        {
+            var stages = active.Definition.Stages;
+            var shift = active.Elapsed - stages[active.StageIndex - 1].After;
+            active.Elapsed -= shift;
+            foreach (var periodic in active.Periodic.Where(p => !p.StageScoped))
+            {
+                periodic.Due -= shift;
+            }
+
+            active.StageIndex -= 2;
+            EnterDueStages(active, events);
+            events.Add(new EffectEased(Id, effect, stages[active.StageIndex].Name));
+        }
+
+        RebuildModifiers();
+        return EffectResult.Success(events);
+    }
+
     /// <summary>Cures every active effect that this item cures.</summary>
     public EffectResult CureWithItem(ItemId item)
     {

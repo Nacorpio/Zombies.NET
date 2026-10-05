@@ -1,0 +1,10 @@
+{
+  "id": "base:status_effect/stimulated",
+  "category": "buff",
+  "duration": 900,
+  "stacking": "stack",
+  "maxStacks": 3,
+  "modifiers": [
+    { "stat": "move_speed", "operation": "multiply", "value": 1.08 }
+  ]
+}

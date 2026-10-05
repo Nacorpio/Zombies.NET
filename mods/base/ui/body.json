@@ -1,0 +1,19 @@
+{
+  "id": "body",
+  "root": {
+    "type": "panel", "id": "body.root", "anchor": "center", "width": 200, "height": 150,
+    "children": [
+      { "type": "label", "id": "body.title", "textKey": "body.title", "anchor": "topLeft", "x": 6, "y": 6, "role": "text" },
+      { "type": "column", "id": "body.parts", "anchor": "topLeft", "x": 6, "y": 20, "gap": 3,
+        "children": [
+          { "type": "label", "id": "body.part.head", "textKey": "hud.part.head", "role": "good" },
+          { "type": "label", "id": "body.part.torso", "textKey": "hud.part.torso", "role": "good" },
+          { "type": "label", "id": "body.part.left_arm", "textKey": "hud.part.left_arm", "role": "good" },
+          { "type": "label", "id": "body.part.right_arm", "textKey": "hud.part.right_arm", "role": "good" },
+          { "type": "label", "id": "body.part.left_leg", "textKey": "hud.part.left_leg", "role": "good" },
+          { "type": "label", "id": "body.part.right_leg", "textKey": "hud.part.right_leg", "role": "good" }
+        ] },
+      { "type": "label", "id": "body.close", "textKey": "body.close", "anchor": "bottomRight", "x": 6, "y": 6, "role": "muted" }
+    ]
+  }
+}

@@ -4,13 +4,15 @@ namespace Zombies.Engine.Core.Modding;
 
 /// <summary>
 /// Reads mods from disk. Each sub-folder of the mods root is one mod: a <c>mod.json</c> manifest and
-/// definition files as <c>*.json</c> anywhere under <c>data/</c>, and icons as <c>*.png</c> in <c>icons/</c>. The same loader handles every mod, the Base mod included.
+/// definition files as <c>*.json</c> anywhere under <c>data/</c>, icons as <c>*.png</c> in <c>icons/</c>, string tables as <c>*.json</c> in <c>lang/</c>, and screen layouts as <c>*.json</c> in <c>ui/</c>. The same loader handles every mod, the Base mod included.
 /// </summary>
 public static class DirectoryModSource
 {
     public const string ManifestFileName = "mod.json";
     public const string DataFolderName = "data";
     public const string IconsFolderName = "icons";
+    public const string LanguageFolderName = "lang";
+    public const string LayoutFolderName = "ui";
 
     public static IReadOnlyList<ModPackage> Read(string modsRoot)
     {
@@ -40,24 +42,32 @@ public static class DirectoryModSource
                 }
             }
 
-            packages.Add(new ModPackage(Path.GetFileName(directory), File.ReadAllText(manifestPath), files) { Assets = ReadIcons(directory) });
+            packages.Add(new ModPackage(Path.GetFileName(directory), File.ReadAllText(manifestPath), files)
+            {
+                Assets =
+                [
+                    .. ReadAssets(directory, IconsFolderName, "*.png"),
+                    .. ReadAssets(directory, LanguageFolderName, "*.json"),
+                    .. ReadAssets(directory, LayoutFolderName, "*.json"),
+                ],
+            });
         }
 
         return packages;
     }
 
-    private static List<ModAsset> ReadIcons(string modDirectory)
+    private static List<ModAsset> ReadAssets(string modDirectory, string folder, string pattern)
     {
         var assets = new List<ModAsset>();
-        var iconsRoot = Path.Combine(modDirectory, IconsFolderName);
-        if (!Directory.Exists(iconsRoot))
+        var root = Path.Combine(modDirectory, folder);
+        if (!Directory.Exists(root))
         {
             return assets;
         }
 
-        foreach (var path in Directory.EnumerateFiles(iconsRoot, "*.png").Order(StringComparer.Ordinal))
+        foreach (var path in Directory.EnumerateFiles(root, pattern).Order(StringComparer.Ordinal))
         {
-            var relative = IconsFolderName + "/" + Path.GetFileName(path);
+            var relative = folder + "/" + Path.GetFileName(path);
             try
             {
                 assets.Add(new ModAsset(relative, File.ReadAllBytes(path)));

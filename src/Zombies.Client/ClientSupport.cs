@@ -60,6 +60,9 @@ internal sealed class ClientOptions
     /// <summary>Diagnostic: draw this many dummy bodies in front of the camera, to check the body render path without a second player.</summary>
     public int DummyBodies { get; private set; }
 
+    /// <summary>Diagnostic: open this screen at startup, so a screenshot can show it.</summary>
+    public string? Screen { get; private set; }
+
     public static ClientOptions Parse(string[] args)
     {
         var options = new ClientOptions();
@@ -144,6 +147,9 @@ internal sealed class ClientOptions
                     break;
                 case "--bodies":
                     options.DummyBodies = int.Parse(next(), CultureInfo.InvariantCulture);
+                    break;
+                case "--screen":
+                    options.Screen = next();
                     break;
                 default:
                     throw new ArgumentException($"Unknown argument '{args[i]}'.");

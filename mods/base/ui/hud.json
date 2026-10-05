@@ -1,0 +1,28 @@
+{
+  "id": "hud",
+  "root": {
+    "type": "panel", "id": "hud.root", "anchor": "fill", "x": 8, "y": 8, "role": "none",
+    "children": [
+      { "type": "column", "id": "hud.left", "anchor": "bottomLeft", "gap": 2,
+        "children": [
+          { "type": "label", "id": "hud.health.label", "textKey": "hud.health", "role": "muted" },
+          { "type": "bar", "id": "hud.health", "width": 90, "height": 6, "role": "good", "tooltipKey": "hud.health" },
+          { "type": "label", "id": "hud.blood.label", "textKey": "hud.blood", "role": "muted" },
+          { "type": "bar", "id": "hud.blood", "width": 90, "height": 6, "role": "good", "tooltipKey": "hud.blood" },
+          { "type": "label", "id": "hud.bleeding", "textKey": "hud.bleeding", "role": "danger" }
+        ] },
+      { "type": "column", "id": "hud.right", "anchor": "bottomRight", "gap": 2,
+        "children": [
+          { "type": "label", "id": "hud.weapon", "textKey": "hud.weapon", "role": "text" },
+          { "type": "label", "id": "hud.ammo", "textKey": "hud.ammo", "role": "text" },
+          { "type": "bar", "id": "hud.condition", "width": 70, "height": 5, "role": "good", "tooltipKey": "hud.condition" }
+        ] },
+      { "type": "row", "id": "hud.needs", "anchor": "topRight", "gap": 4,
+        "children": [
+          { "type": "label", "id": "hud.hunger", "textKey": "hud.hunger", "role": "good", "tooltipKey": "hud.hunger" },
+          { "type": "label", "id": "hud.thirst", "textKey": "hud.thirst", "role": "good", "tooltipKey": "hud.thirst" },
+          { "type": "label", "id": "hud.warmth", "textKey": "hud.warmth", "role": "good", "tooltipKey": "hud.warmth" }
+        ] }
+    ]
+  }
+}

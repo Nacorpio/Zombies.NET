@@ -1,0 +1,19 @@
+{
+  "id": "options",
+  "root": {
+    "type": "panel", "id": "options.root", "anchor": "center", "width": 260, "height": 170,
+    "children": [
+      { "type": "label", "id": "options.title", "textKey": "options.title", "anchor": "topLeft", "x": 6, "y": 6, "role": "text" },
+      { "type": "column", "id": "options.rows", "anchor": "topLeft", "x": 6, "y": 20, "gap": 4,
+        "children": [
+          { "type": "label", "id": "options.language", "textKey": "options.language", "role": "text" },
+          { "type": "label", "id": "options.ui_scale", "textKey": "options.ui_scale", "role": "text" },
+          { "type": "label", "id": "options.field_of_view", "textKey": "options.field_of_view", "role": "text" },
+          { "type": "label", "id": "options.head_bob", "textKey": "options.head_bob", "role": "text" },
+          { "type": "label", "id": "options.palette", "textKey": "options.palette", "role": "text" },
+          { "type": "label", "id": "options.keys", "textKey": "options.keys", "role": "text" }
+        ] },
+      { "type": "label", "id": "options.reset", "textKey": "options.reset", "anchor": "bottomLeft", "x": 6, "y": 6, "role": "muted" }
+    ]
+  }
+}

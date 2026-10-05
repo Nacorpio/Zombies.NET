@@ -10,6 +10,7 @@ using Zombies.Engine.Render;
 //   dotnet run --project tools/SimHarness worldgen [seed] [radius] [--budget-ms N]   generate, light, and mesh a patch of world and time it
 //   dotnet run --project tools/SimHarness net [ticks] [mods]   run a Server with two fake clients and check replication and allocation
 //   dotnet run --project tools/SimHarness physics [seed] [mods]   drop a player onto generated terrain with Jolt and step up a ledge
+//   dotnet run --project tools/SimHarness ui [mods]   load every string table and layout and check they fit the screen
 if (args.Length > 0 && args[0] == "mods")
 {
     return LoadMods(args.Length > 1 ? args[1] : "mods");
@@ -33,6 +34,11 @@ if (args.Length > 0 && args[0] == "physics")
 if (args.Length > 0 && args[0] == "worldgen")
 {
     return WorldGenReport.Run(args[1..]);
+}
+
+if (args.Length > 0 && args[0] == "ui")
+{
+    return UiReport.Run(args[1..]);
 }
 
 var ticks = args.Length > 0 && long.TryParse(args[0], out var parsed) ? parsed : 300;

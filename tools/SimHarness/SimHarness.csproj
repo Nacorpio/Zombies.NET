@@ -11,6 +11,7 @@
     <ProjectReference Include="../../src/Zombies.Engine.Net/Zombies.Engine.Net.csproj" />
     <ProjectReference Include="../../src/Zombies.Engine.Physics/Zombies.Engine.Physics.csproj" />
     <ProjectReference Include="../../src/Zombies.Domain.World/Zombies.Domain.World.csproj" />
+    <ProjectReference Include="../../src/Zombies.Engine.Ui/Zombies.Engine.Ui.csproj" />
   </ItemGroup>
 
 </Project>

@@ -228,12 +228,12 @@ public sealed class SettlementTests
         Assert.Throws<ArgumentException>(() => new SettlementContent([hut], [noPool]));
         _ = new SettlementContent([kitchenHut], [new SettlementType("t:settlement_type/c", false, 1, 1, 10, [new StructureCount("t:structure/kitchen_hut", 1, 1)], [], [])]);
 
-        // A 32 block wide Structure on a grid of 30 is 228 blocks across, more than the 192 a Region leaves between its margins.
+        // A 32 block wide Structure takes a 38 block cell. A grid of 9 columns (65 Structures) is 342 blocks across, more than the 320 a Region leaves between its margins; 8 columns (64) is 304.
         var wall = $"[\"{new string('#', Structure.MaxWidth)}\"]";
         var big = StructureJson.Parse(StructureText("t:structure/big", layers: $"[{wall}, {wall}]", areas: "[]", containers: "[]"));
-        var tooBig = new SettlementType("t:settlement_type/d", false, 1, 1, 10, [new StructureCount("t:structure/big", 1, 30)], [], []);
+        var tooBig = new SettlementType("t:settlement_type/d", false, 1, 1, 10, [new StructureCount("t:structure/big", 1, 65)], [], []);
         Assert.Throws<ArgumentException>(() => new SettlementContent([big], [tooBig]));
-        _ = new SettlementContent([big], [new SettlementType("t:settlement_type/e", false, 1, 1, 10, [new StructureCount("t:structure/big", 1, 16)], [], [])]);
+        _ = new SettlementContent([big], [new SettlementType("t:settlement_type/e", false, 1, 1, 10, [new StructureCount("t:structure/big", 1, 64)], [], [])]);
     }
 
     // Planning --------------------------------------------------------------------------------------------------

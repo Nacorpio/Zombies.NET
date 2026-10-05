@@ -5,6 +5,7 @@
     <Project Path="src/Zombies.Domain.Actions/Zombies.Domain.Actions.csproj" />
     <Project Path="src/Zombies.Domain.Combat/Zombies.Domain.Combat.csproj" />
     <Project Path="src/Zombies.Domain.Crafting/Zombies.Domain.Crafting.csproj" />
+    <Project Path="src/Zombies.Domain.Death/Zombies.Domain.Death.csproj" />
     <Project Path="src/Zombies.Domain.Economy/Zombies.Domain.Economy.csproj" />
     <Project Path="src/Zombies.Domain.Inventory/Zombies.Domain.Inventory.csproj" />
     <Project Path="src/Zombies.Domain.Items/Zombies.Domain.Items.csproj" />

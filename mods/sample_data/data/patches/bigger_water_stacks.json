@@ -1,0 +1,6 @@
+{
+  "patch": "base:item/water_bottle",
+  "proportional": {
+    "maxStack": 2.5
+  }
+}

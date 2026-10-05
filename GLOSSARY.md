@@ -21,7 +21,7 @@ A namespaced identifier of the form `namespace:name` that uniquely names a defin
 _Avoid_: Key, slug, internal name
 
 **Patch**:
-A JSON Merge Patch from one mod that edits a definition owned by another.
+A JSON Merge Patch from one mod that edits a definition owned by another. Besides merging fields it can use the operators `extend`, `delete`, `relative` and `proportional` to change part of an array or number, resolved before the result is validated. A definition can also inherit another with `copy-from`.
 _Avoid_: Override, tweak
 
 **Override**:

@@ -1,0 +1,8 @@
+{
+  "patch": "base:loot/garage",
+  "extend": {
+    "entries": [
+      { "item": "sample_data:item/protein_bar", "weight": 2 }
+    ]
+  }
+}

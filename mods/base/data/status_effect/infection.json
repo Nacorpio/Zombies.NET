@@ -1,0 +1,27 @@
+﻿{
+  "id": "base:status_effect/infection",
+  "category": "ailment",
+  "stages": [
+    {
+      "name": "mild",
+      "after": 0,
+      "modifiers": [
+        { "stat": "move_speed", "operation": "multiply", "value": 0.9 }
+      ]
+    },
+    {
+      "name": "severe",
+      "after": 3600,
+      "modifiers": [
+        { "stat": "move_speed", "operation": "multiply", "value": 0.6 }
+      ],
+      "periodic": [
+        { "change": "infection_damage", "every": 600, "amount": 2 }
+      ]
+    }
+  ],
+  "curedBy": {
+    "items": [ "base:item/antibiotics" ]
+  }
+}
+

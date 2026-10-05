@@ -29,6 +29,7 @@ public static class BaseDefinitionKinds
         ["status_effect"] = typeof(StatusEffectDto),
         ["weapon"] = typeof(WeaponDto),
         ["weapon_category"] = typeof(WeaponCategoryDto),
+        ["weakpoint_set"] = typeof(WeakpointSetDto),
         ["zombie"] = typeof(ZombieTypeDto),
         [ContentIdMigrations.Kind] = typeof(MigrationDto),
     };

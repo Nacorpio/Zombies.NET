@@ -99,6 +99,15 @@ public sealed record MissingPartChanceDto
     public required double Chance { get; init; }
 }
 
+public sealed record UpgradeDto
+{
+    /// <summary>Content ID of the Zombie type this one upgrades into, such as <c>base:zombie/runner</c>.</summary>
+    public required string ZombieType { get; init; }
+
+    /// <summary>World days after which the upgrade happens, at least 1. A chain of upgrades adds its days up.</summary>
+    public required int AfterDays { get; init; }
+}
+
 /// <summary>
 /// JSON shape of a Zombie type definition. This type is the source of the generated JSON Schema,
 /// so keep it in step with <see cref="ZombieTypeJson"/>.
@@ -119,6 +128,12 @@ public sealed record ZombieTypeDto
     public OutfitTableDto Outfit { get; init; } = new();
 
     public IReadOnlyList<MissingPartChanceDto> MissingParts { get; init; } = [];
+
+    /// <summary>Content ID of the Weakpoint set, such as <c>base:weakpoint_set/humanoid</c>. Leave out for a zombie with no weak spots.</summary>
+    public string? WeakpointSet { get; init; }
+
+    /// <summary>What the zombies of this type become as the world ages. Leave out for a type that never changes.</summary>
+    public UpgradeDto? Upgrade { get; init; }
 }
 
 /// <summary>Parses a Zombie type definition from JSON.</summary>
@@ -164,7 +179,9 @@ public static class ZombieTypeJson
                     dto.Outfit.ClothingCount.Max,
                     dto.Outfit.Headwear.Select(ToWearable).ToList(),
                     dto.Outfit.Backpacks.Select(ToWearable).ToList()),
-                dto.MissingParts.Select(m => new MissingPartChance(ParsePart(m.Part), Basis(m.Chance))));
+                dto.MissingParts.Select(m => new MissingPartChance(ParsePart(m.Part), Basis(m.Chance))),
+                dto.WeakpointSet,
+                dto.Upgrade is null ? null : new ZombieUpgrade(dto.Upgrade.ZombieType, dto.Upgrade.AfterDays));
         }
         catch (ArgumentException ex)
         {

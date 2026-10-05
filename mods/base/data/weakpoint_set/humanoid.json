@@ -1,0 +1,27 @@
+{
+  "id": "base:weakpoint_set/humanoid",
+  "weakpoints": [
+    {
+      "name": "eyes",
+      "part": "head",
+      "center": { "x": 0.5, "y": 0.6, "z": 0.2 },
+      "size": 0.3,
+      "criticalMultiplier": 3,
+      "rangedDifficulty": 0.4,
+      "meleeDifficulty": 0.2,
+      "effect": "stagger",
+      "effectThreshold": 20,
+      "effectChance": 0.5
+    },
+    {
+      "name": "knee",
+      "part": "leftLeg",
+      "center": { "x": 0.5, "y": 0.5, "z": 0.5 },
+      "size": 0.3,
+      "criticalMultiplier": 1.5,
+      "effect": "stagger",
+      "effectThreshold": 15,
+      "effectChance": 0.75
+    }
+  ]
+}

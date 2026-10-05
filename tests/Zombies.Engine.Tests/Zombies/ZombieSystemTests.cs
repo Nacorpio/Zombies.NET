@@ -426,4 +426,33 @@ public sealed class ZombieSystemTests
         Assert.Contains("base:zombie/walker", report.Problems[0], StringComparison.Ordinal);
         Assert.Equal(0, world.Count);
     }
+
+    [Fact]
+    public void ASettlementsZombiesAreOfTheirEvolvedType_InAnOlderWorld_OnEveryServer()
+    {
+        var (plan, registry) = PlanWithZombies();
+        var catalog = ZombieContentLoader.Load(registry);
+        var traits = new TraitRegistry();
+        BaseTraits.Register(traits);
+
+        // The types, in plan order, of the zombies a fresh Server spawns when the world is this many days old.
+        List<ZombieState> Spawned(int worldDay)
+        {
+            var world = new ServerWorld();
+            var system = new ZombieSystem(world, catalog, traits, RigTestData.BaseSkeleton("humanoid"), RigTestData.BaseClips("humanoid"));
+            var report = system.SpawnSettlement(plan, (x, z) => 64f, worldDay);
+            Assert.Empty(report.Problems);
+            return [.. report.Spawned.Select(id => world.TryGet(id, out var state) ? state.Zombie : throw new InvalidOperationException())];
+        }
+
+        var young = Spawned(29);
+        var old = Spawned(30);
+
+        Assert.Equal(plan.ZombieSpawns.Select(s => s.ZombieType), young.Select(z => catalog.At(z.Type).Id));
+        Assert.Equal(old, Spawned(30));
+        Assert.Equal(
+            plan.ZombieSpawns.Select(s => s.ZombieType == "base:zombie/walker" ? "base:zombie/runner" : s.ZombieType),
+            old.Select(z => catalog.At(z.Type).Id));
+        Assert.Contains(plan.ZombieSpawns, s => s.ZombieType == "base:zombie/walker");
+    }
 }

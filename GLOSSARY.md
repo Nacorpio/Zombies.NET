@@ -144,6 +144,14 @@ _Avoid_: Rank, tier
 The seed, type, and level from which a zombie's appearance, outfit, and missing parts are derived.
 _Avoid_: Zombie data, blueprint
 
+**Weakpoint**:
+A small region inside a body part of a zombie type where a hit does more damage and may stagger the zombie, such as the eyes in the head. The Server resolves it from where a hit lands; a harder weakpoint is a smaller target.
+_Avoid_: Critical zone, headshot box
+
+**Evolution**:
+A zombie type upgrading into another after a number of world days. The zombie spec derives the type from its seed and the world's age, so nothing is saved per zombie.
+_Avoid_: Mutation, promotion
+
 **Outfit table**:
 A weighted definition of what clothing, headwear, and backpacks a zombie type can spawn wearing.
 _Avoid_: Loadout

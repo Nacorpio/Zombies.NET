@@ -22,6 +22,8 @@ python .claude/skills/model-router/scripts/route.py classify "<task text>"
   `standard`→sonnet, `hard`→opus, `frontier`→fable). Claude Code cannot switch the main session's model from a skill.
 - To run a non-Claude or specialist model (e.g. `kind_overrides`), use `run`. It sends the task as a single user message and returns the answer with the decision.
 - Send only the task text Jev needs. `state` is capped at 32k tokens, and large or irrelevant text lowers accuracy.
+- For an issue or ticket, send the title and the "What to build" paragraph, not the acceptance criteria. Live test on four ready-for-agent issues (2026-10-05): the full text, with its six or so criteria, scored every issue 1.9-2.1 difficulty and sent all four to `hard`; the description alone spread them across `hard`, `standard` and the default fallback. Criteria lists read as many parts, which inflates difficulty.
+- Description-only input lowers Jev's confidence (0.45-0.77 on difficulty), so more tasks fall back to `default_tier`. That is the intended safe outcome, but it means `min_confidence` matters more for ticket-style input.
 
 ## Maintain
 

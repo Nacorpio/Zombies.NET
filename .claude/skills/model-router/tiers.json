@@ -1,0 +1,14 @@
+{
+  "default_tier": "standard",
+  "min_confidence": 0.5,
+  "tiers": {
+    "fast":     "anthropic/claude-haiku-4.5",
+    "standard": "anthropic/claude-sonnet-5.5",
+    "hard":     "anthropic/claude-opus-5.5",
+    "frontier": "anthropic/claude-fable-5.1"
+  },
+  "kind_overrides": {
+    "bulk_extraction": "google/gemini-3.5-flash-lite",
+    "web_research": "perplexity/sonar-pro"
+  }
+}

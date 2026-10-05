@@ -5,9 +5,15 @@ namespace Zombies.Persistence.Sqlite;
 /// <summary>A mod as recorded in a save: its id, version, and content hash.</summary>
 public sealed record SavedMod(string Id, string Version, string ContentHash);
 
-/// <summary>What a save was made with: the world seed, the world generator version, and every mod that ran on the Server.</summary>
+/// <summary>A World option the host set when the world was created: its Content ID and the value chosen.</summary>
+public sealed record SavedOption(string Id, double Value);
+
+/// <summary>What a save was made with: the world seed, the world generator version, every mod that ran on the Server, and the World option values the host chose.</summary>
 public sealed record SaveHeader(ulong WorldSeed, int GeneratorVersion, IReadOnlyList<SavedMod> Mods)
 {
+    /// <summary>The World options the host set, which the world keeps for its whole life. An option not listed reads as its declared default.</summary>
+    public IReadOnlyList<SavedOption> Options { get; init; } = [];
+
     /// <summary>
     /// Says why this save cannot be loaded by a build with <paramref name="generatorVersion"/> and <paramref name="mods"/>,
     /// one problem per entry. An empty list means the save loads. The seed is not compared: the save decides it.
@@ -104,7 +110,15 @@ public sealed class SqliteSaveHeaderRepository(SaveDatabase database) : ISaveHea
             mods.Add(new SavedMod(modReader.GetString(0), modReader.GetString(1), modReader.GetString(2)));
         }
 
-        return new SaveHeader(worldSeed, generatorVersion, mods);
+        var options = new List<SavedOption>();
+        using var optionCommand = database.Command(null, "SELECT id, value FROM world_options ORDER BY id");
+        using var optionReader = optionCommand.ExecuteReader();
+        while (optionReader.Read())
+        {
+            options.Add(new SavedOption(optionReader.GetString(0), optionReader.GetDouble(1)));
+        }
+
+        return new SaveHeader(worldSeed, generatorVersion, mods) { Options = options };
     }
 
     public void Write(SaveHeader header)
@@ -116,6 +130,7 @@ public sealed class SqliteSaveHeaderRepository(SaveDatabase database) : ISaveHea
             database.Command(transaction, Upsert, ("$key", SeedKey), ("$value", header.WorldSeed.ToString(CultureInfo.InvariantCulture))).ExecuteNonQuery();
             database.Command(transaction, Upsert, ("$key", GeneratorKey), ("$value", header.GeneratorVersion.ToString(CultureInfo.InvariantCulture))).ExecuteNonQuery();
             database.Command(transaction, "DELETE FROM mods").ExecuteNonQuery();
+            database.Command(transaction, "DELETE FROM world_options").ExecuteNonQuery();
 
             var position = 0;
             foreach (var mod in header.Mods)
@@ -127,6 +142,15 @@ public sealed class SqliteSaveHeaderRepository(SaveDatabase database) : ISaveHea
                     ("$id", mod.Id),
                     ("$version", mod.Version),
                     ("$hash", mod.ContentHash)).ExecuteNonQuery();
+            }
+
+            foreach (var option in header.Options)
+            {
+                database.Command(
+                    transaction,
+                    "INSERT INTO world_options (id, value) VALUES ($id, $value)",
+                    ("$id", option.Id),
+                    ("$value", option.Value)).ExecuteNonQuery();
             }
         });
     }

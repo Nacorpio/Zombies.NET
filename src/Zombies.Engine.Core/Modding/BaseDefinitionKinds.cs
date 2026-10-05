@@ -19,6 +19,7 @@ public static class BaseDefinitionKinds
     {
         ["area_type"] = typeof(AreaTypeDto),
         ["biome"] = typeof(BiomeDto),
+        ["fault"] = typeof(FaultDto),
         ["item"] = typeof(ItemDefinitionDto),
         ["limb_score"] = typeof(LimbScoreDto),
         ["loot"] = typeof(LootTableDto),

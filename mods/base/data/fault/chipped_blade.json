@@ -1,0 +1,8 @@
+{
+  "id": "base:fault/chipped_blade",
+  "target": "weapon",
+  "weaponCategories": [ "base:weapon_category/bladed_melee" ],
+  "effects": [ { "stat": "damage", "operation": "multiply", "value": 0.75 } ],
+  "gained": { "cause": "weapon_use", "chance": 0.02 },
+  "repair": { "consumes": "base:item/whetstone", "time": 30 }
+}

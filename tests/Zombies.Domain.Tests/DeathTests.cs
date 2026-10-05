@@ -74,6 +74,20 @@ public sealed class DeathTests
     }
 
     [Fact]
+    public void Death_MovesTheFaultsOfWornItemsIntoTheCorpse()
+    {
+        var stores = DeathStores.InMemory();
+        var outfit = new Outfit(Wearables);
+        Assert.True(outfit.Equip(Jacket).IsSuccess);
+        Assert.True(outfit.SetFaults(Jacket, ["base:fault/ripped_seams"]).IsSuccess);
+
+        var report = Service(stores).Die(Pack(), outfit, "alice", DeathCause.Trauma, 0, 0, Vector3.Zero);
+
+        Assert.True(stores.Containers.TryGet(report.Corpse.Container, out var corpse));
+        Assert.Equal(1, corpse.CountOf(Jacket, ItemFaults.With(null, "base:fault/ripped_seams")));
+    }
+
+    [Fact]
     public void Death_OfAWornItemInPristineShape_LeavesAnInterchangeableStack()
     {
         var stores = DeathStores.InMemory();

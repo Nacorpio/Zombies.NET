@@ -50,6 +50,7 @@ public sealed class ItemActionService(
         ActionCondition.Edible => Is(stack.Item, d => d.Edible),
         ActionCondition.Drinkable => Is(stack.Item, d => d.Drinkable),
         ActionCondition.Consumable => Is(stack.Item, d => d.Edible || d.Drinkable),
+        ActionCondition.Faulty => ItemFaults.Of(stack.State).Count > 0,
         _ => false,
     };
 

@@ -33,7 +33,7 @@ public sealed class ModLoadingTests
 
         Assert.True(result.IsSuccess, string.Join(Environment.NewLine, result.Errors));
         Assert.Equal(["base", "sample_data"], result.Mods.Select(m => m.Manifest.Id));
-        Assert.Equal(79, result.Registry.Count);
+        Assert.Equal(86, result.Registry.Count);
     }
 
     [Fact]
@@ -58,6 +58,21 @@ public sealed class ModLoadingTests
         var catalog = new ItemCatalog(registry.OfKind("item").Select(d => ItemDefinitionJson.Parse(d.Json)));
 
         Assert.True(catalog.TryGet(new ItemId("base:item/bandage"), out _));
+    }
+
+    [Fact]
+    public void BaseFaults_DeclareTwoWeaponFaultsAndAnArmorFault_EachRepairedWithABaseItem()
+    {
+        var registry = LoadRepositoryMods().Registry;
+        var items = new ItemCatalog(registry.OfKind("item").Select(d => ItemDefinitionJson.Parse(d.Json)));
+        var categories = registry.OfKind("weapon_category").Select(d => WeaponDefinitionJson.ParseCategory(d.Json).Id).ToHashSet();
+
+        var faults = new FaultCatalog(registry.OfKind("fault").Select(d => FaultJson.Parse(d.Json)));
+
+        Assert.True(faults.All.Count(f => f.Target == FaultTarget.Weapon) >= 2);
+        Assert.Contains(faults.All, f => f.Target == FaultTarget.Armor);
+        Assert.All(faults.All, f => Assert.True(items.TryGet(f.Repair.Consumes, out _), $"{f.Id} is repaired with unknown item {f.Repair.Consumes}."));
+        Assert.All(faults.All.SelectMany(f => f.WeaponCategories), c => Assert.Contains(c, categories));
     }
 
     [Fact]
@@ -356,13 +371,13 @@ public sealed class ModLoadingTests
         new(registry.OfKind("item_action").Select(d => ItemActionJson.Parse(d.Json)));
 
     [Fact]
-    public void BaseMod_DefinesUseEquipDropSplitAndInspect()
+    public void BaseMod_DefinesUseEquipDropSplitInspectAndRepair()
     {
         var registry = LoadRepositoryMods().Registry;
 
         var actions = registry.OfKind("item_action").Where(d => d.DefinedBy == "base").Select(d => d.Id.Value.Split('/')[1]).Order();
 
-        Assert.Equal(["drop", "equip", "inspect", "split", "use"], actions);
+        Assert.Equal(["drop", "equip", "inspect", "repair", "split", "use"], actions);
     }
 
     [Fact]

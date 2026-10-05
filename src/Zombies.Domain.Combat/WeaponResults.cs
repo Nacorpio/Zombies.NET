@@ -11,6 +11,7 @@ public enum WeaponError
     NotFitted,
     Broken,
     OutOfAmmo,
+    Jammed,
 }
 
 public sealed record AttachmentFitted(ItemId Weapon, ItemId Attachment, string Mount) : IDomainEvent;
@@ -21,6 +22,9 @@ public sealed record AttachmentRemoved(ItemId Weapon, ItemId Attachment, string 
 public sealed record WeaponUsed(ItemId Weapon, double Damage, DamageType DamageType, double Noise, int Condition, int Rounds) : IDomainEvent;
 
 public sealed record WeaponBroke(ItemId Weapon) : IDomainEvent;
+
+/// <summary>A weapon gained a Fault from being used.</summary>
+public sealed record WeaponFaulted(ItemId Weapon, string Fault) : IDomainEvent;
 
 /// <summary>Outcome of a weapon command: either an error with the state unchanged, or the new Item state and the events raised.</summary>
 public sealed class WeaponResult

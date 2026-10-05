@@ -66,6 +66,14 @@ _Avoid_: Damage, dirtiness
 How much of its durability an item has left, from broken to pristine.
 _Avoid_: Health, durability (as a current value), integrity
 
+**Fault**:
+A specific kind of wear an item carries in its item state, such as a chipped blade, a jammed action or ripped seams. A Fault definition declares the Stat changes it causes (a weapon Fault changes handling or reliability, an armor Fault changes protection), how an item gains it, and the Repair that removes it. Stacks with different Faults are different Stacks.
+_Avoid_: Damage, defect, malfunction
+
+**Repair**:
+The Item action that removes a Fault: it uses up the item the Fault's definition names, takes the time the definition gives, and leaves the item without that Fault. Not the same as raising Condition.
+_Avoid_: Fix, mend, restore
+
 ## Loot
 
 **Loot table**:

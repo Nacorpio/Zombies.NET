@@ -300,7 +300,7 @@ public sealed class SqliteNeedsRepository(SaveDatabase database, NeedsConfig? co
     public bool TryGet(long owner, out Needs needs)
     {
         needs = null!;
-        using var command = database.Command(null, "SELECT satiety, hydration, body_celsius FROM needs WHERE owner_id = $owner", ("$owner", owner));
+        using var command = database.Command(null, "SELECT satiety, hydration, body_celsius, fatigue FROM needs WHERE owner_id = $owner", ("$owner", owner));
         using var reader = command.ExecuteReader();
         if (!reader.Read())
         {
@@ -309,7 +309,7 @@ public sealed class SqliteNeedsRepository(SaveDatabase database, NeedsConfig? co
 
         try
         {
-            needs = Needs.Restore(new NeedsSnapshot(reader.GetDouble(0), reader.GetDouble(1), reader.GetDouble(2)), config);
+            needs = Needs.Restore(new NeedsSnapshot(reader.GetDouble(0), reader.GetDouble(1), reader.GetDouble(2), reader.GetDouble(3)), config);
             return true;
         }
         catch (ArgumentException ex)
@@ -325,13 +325,14 @@ public sealed class SqliteNeedsRepository(SaveDatabase database, NeedsConfig? co
         database.Transact(transaction => database.Command(
             transaction,
             """
-            INSERT INTO needs (owner_id, satiety, hydration, body_celsius) VALUES ($owner, $satiety, $hydration, $celsius)
-            ON CONFLICT (owner_id) DO UPDATE SET satiety = excluded.satiety, hydration = excluded.hydration, body_celsius = excluded.body_celsius
+            INSERT INTO needs (owner_id, satiety, hydration, body_celsius, fatigue) VALUES ($owner, $satiety, $hydration, $celsius, $fatigue)
+            ON CONFLICT (owner_id) DO UPDATE SET satiety = excluded.satiety, hydration = excluded.hydration, body_celsius = excluded.body_celsius, fatigue = excluded.fatigue
             """,
             ("$owner", owner),
             ("$satiety", snapshot.Satiety),
             ("$hydration", snapshot.Hydration),
-            ("$celsius", snapshot.BodyCelsius)).ExecuteNonQuery());
+            ("$celsius", snapshot.BodyCelsius),
+            ("$fatigue", snapshot.Fatigue)).ExecuteNonQuery());
     }
 
     public IReadOnlyList<long> Owners() => ReadOwners(database, "SELECT owner_id FROM needs ORDER BY owner_id");

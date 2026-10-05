@@ -1,0 +1,9 @@
+{
+  "id": "base:status_effect/exhausted",
+  "category": "ailment",
+  "stacking": "ignore",
+  "modifiers": [
+    { "stat": "handling", "operation": "multiply", "value": 0.7 },
+    { "stat": "move_speed", "operation": "multiply", "value": 0.85 }
+  ]
+}

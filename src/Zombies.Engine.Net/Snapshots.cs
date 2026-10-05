@@ -122,7 +122,7 @@ internal static class SnapshotCodec
                 }
                 else if (e.Kind == EntityKind.Player)
                 {
-                    writer.WriteBool(e.Player.Dead);
+                    WritePlayer(writer, e.Player);
                 }
 
                 n++;
@@ -165,7 +165,7 @@ internal static class SnapshotCodec
 
                     if (e.Kind == EntityKind.Player && (flags & (Created | PlayerChanged)) != 0)
                     {
-                        writer.WriteBool(e.Player.Dead);
+                        WritePlayer(writer, e.Player);
                     }
 
                     count++;
@@ -224,7 +224,7 @@ internal static class SnapshotCodec
                     target.Add(kind switch
                     {
                         EntityKind.Zombie => created with { Zombie = ReadZombie(ref reader, default, whole: true) },
-                        EntityKind.Player => created with { Player = new PlayerState(reader.ReadBool()) },
+                        EntityKind.Player => created with { Player = ReadPlayer(ref reader) },
                         _ => created,
                     });
                     b += known ? 1 : 0;
@@ -234,7 +234,7 @@ internal static class SnapshotCodec
                     var position = (flags & PositionChanged) != 0 ? ReadPosition(ref reader) : old.Position;
                     var yaw = (flags & YawChanged) != 0 ? reader.ReadSingle() : old.Yaw;
                     var zombie = (flags & ZombieChanged) != 0 && old.Kind == EntityKind.Zombie ? ReadZombie(ref reader, old.Zombie, whole: false) : old.Zombie;
-                    var player = (flags & PlayerChanged) != 0 && old.Kind == EntityKind.Player ? new PlayerState(reader.ReadBool()) : old.Player;
+                    var player = (flags & PlayerChanged) != 0 && old.Kind == EntityKind.Player ? ReadPlayer(ref reader) : old.Player;
                     target.Add(old with { Position = position, Yaw = yaw, Zombie = zombie, Player = player });
                     break;
                 default:
@@ -246,6 +246,15 @@ internal static class SnapshotCodec
         {
             target.Add(before[b++]);
         }
+    }
+
+    private static void WritePlayer(NetWriter writer, in PlayerState player) =>
+        writer.WriteByte((byte)((player.Dead ? 1 : 0) | (player.Sleeping ? 2 : 0)));
+
+    private static PlayerState ReadPlayer(ref NetReader reader)
+    {
+        var flags = reader.ReadByte();
+        return new PlayerState((flags & 1) != 0, (flags & 2) != 0);
     }
 
     private static void WriteZombie(NetWriter writer, in ZombieState zombie, bool whole)

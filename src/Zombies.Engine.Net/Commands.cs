@@ -201,6 +201,12 @@ public readonly record struct PlayerInputCommand(PlayerInput Input) : INetComman
             return CommandResult.Invalid("The player has no entity.");
         }
 
+        // A sleeper lies still. The input is accepted so the client is not told it was wrong, and the snapshot holds the player in place.
+        if (context.Player.Needs.IsSleeping)
+        {
+            return CommandResult.Accepted;
+        }
+
         var input = command.Input.Sanitized();
         var state = context.Player.Movement;
         var next = PlayerMovement.Step(state, input, PlayerMovement.StepSeconds, context.Player.Collision);

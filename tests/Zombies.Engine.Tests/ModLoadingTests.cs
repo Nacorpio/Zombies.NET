@@ -6,7 +6,9 @@ using Zombies.Domain.Inventory;
 using Zombies.Domain.Items;
 using Zombies.Domain.Mods;
 using Zombies.Domain.StatusEffects;
+using Zombies.Domain.Survival;
 using Zombies.Engine.Core.Modding;
+using Zombies.Engine.Net;
 
 namespace Zombies.Engine.Tests;
 
@@ -33,7 +35,7 @@ public sealed class ModLoadingTests
 
         Assert.True(result.IsSuccess, string.Join(Environment.NewLine, result.Errors));
         Assert.Equal(["base", "sample_data"], result.Mods.Select(m => m.Manifest.Id));
-        Assert.Equal(79, result.Registry.Count);
+        Assert.Equal(82, result.Registry.Count);
     }
 
     [Fact]
@@ -285,13 +287,38 @@ public sealed class ModLoadingTests
         new(registry.OfKind("status_effect").Select(d => StatusEffectJson.Parse(d.Json)));
 
     [Fact]
-    public void BaseMod_ShipsInfectionPainkillerAndFoodPoisoning()
+    public void BaseMod_ShipsInfectionPainkillerFoodPoisoningAndTheFatigueEffects()
     {
         var registry = LoadRepositoryMods().Registry;
 
         var effects = registry.OfKind("status_effect").Where(d => d.DefinedBy == "base").Select(d => d.Id.Value.Split('/')[1]).Order();
 
-        Assert.Equal(["food_poisoning", "infection", "painkiller"], effects);
+        Assert.Equal(["exhausted", "food_poisoning", "infection", "painkiller", "tired"], effects);
+    }
+
+    [Fact]
+    public void EveryFatigueLevelEffectTheServerAppliesExistsInTheBaseModAndChangesAStat()
+    {
+        var catalog = LoadEffects(LoadRepositoryMods().Registry);
+        var applied = new ServerOptions(new GameIdentity(NetProtocol.Version, 0, []), 1).FatigueEffects;
+
+        Assert.Equal([FatigueLevel.Tired, FatigueLevel.Exhausted], applied.Keys.Order());
+        foreach (var effect in applied.Values)
+        {
+            Assert.True(catalog.TryGet(effect, out var definition), effect);
+            Assert.NotEmpty(definition.Modifiers);
+        }
+    }
+
+    [Fact]
+    public void ABaseConsumable_ReducesFatigueThroughItsDefinition()
+    {
+        var registry = LoadRepositoryMods().Registry;
+
+        var coffee = ItemDefinitionJson.Parse(registry.OfKind("item").Single(d => d.Id.Value == "base:item/coffee").Json);
+
+        Assert.True(coffee.Drinkable);
+        Assert.True(coffee.FatigueRelief > 0);
     }
 
     [Fact]

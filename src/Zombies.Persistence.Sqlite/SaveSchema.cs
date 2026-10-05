@@ -139,5 +139,10 @@ internal static class SaveSchema
             cause         INTEGER NOT NULL
         );
         """,
+
+        // Version 4: how tired each character is.
+        """
+        ALTER TABLE needs ADD COLUMN fatigue REAL NOT NULL DEFAULT 0;
+        """,
     ];
 }

@@ -20,8 +20,8 @@ public static class EntityKind
 /// </summary>
 public readonly record struct ZombieState(ulong Seed, ushort Type, byte Level, byte Missing, bool Dead);
 
-/// <summary>What a client needs to know of another player: whether their Body is dead and they are spectating.</summary>
-public readonly record struct PlayerState(bool Dead);
+/// <summary>What a client needs to know of another player: whether their Body is dead and they are spectating, and whether they are asleep.</summary>
+public readonly record struct PlayerState(bool Dead, bool Sleeping = false);
 
 /// <summary>The replicated state of one entity, as the Server sends it and a client sees it.</summary>
 public readonly record struct EntityState(uint Id, ushort Kind, Vector3 Position, float Yaw, ZombieState Zombie = default, PlayerState Player = default)

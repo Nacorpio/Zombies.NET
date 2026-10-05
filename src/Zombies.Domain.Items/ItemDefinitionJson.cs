@@ -29,6 +29,9 @@ public sealed record ItemDefinitionDto
 
     /// <summary>Whether the item can be drunk. Defaults to false.</summary>
     public bool Drinkable { get; init; }
+
+    /// <summary>The fraction of fatigue one unit takes away when consumed, from 0 to 1. Defaults to 0.</summary>
+    public double FatigueRelief { get; init; }
 }
 
 /// <summary>Parses an Item definition from JSON.</summary>
@@ -63,7 +66,7 @@ public static class ItemDefinitionJson
 
         try
         {
-            return new ItemDefinition(itemId, mass, volume, dto.MaxStack, dto.Edible, dto.Drinkable);
+            return new ItemDefinition(itemId, mass, volume, dto.MaxStack, dto.Edible, dto.Drinkable, dto.FatigueRelief);
         }
         catch (ArgumentOutOfRangeException ex)
         {

@@ -362,8 +362,8 @@ public sealed class GameClient : ITickable
             return;
         }
 
-        // A dead player is not moving: drop the inputs the Server rejected instead of replaying them.
-        if (entity.Player.Dead)
+        // A dead or sleeping player is not moving: drop the inputs the Server rejected or ignored instead of replaying them.
+        if (entity.Player.Dead || entity.Player.Sleeping)
         {
             Local.Reset(PlayerMoveState.At(entity.Position, entity.Yaw));
             return;

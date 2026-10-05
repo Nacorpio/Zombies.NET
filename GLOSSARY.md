@@ -211,8 +211,16 @@ _Avoid_: Biome (a habitat is a tag, not the whole biome), ecosystem
 ## Survival and Skills
 
 **Need**:
-A survival meter the player must manage: hunger, thirst, body temperature.
+A survival meter the player must manage: hunger, thirst, body temperature, fatigue.
 _Avoid_: Stat, vital
+
+**Fatigue**:
+The Need that grows while a player is awake and falls while they sleep, from 0 rested to 1 when they collapse asleep. Its levels, rested, tired, and exhausted, each apply a Status effect whose Modifiers worsen the player's stats. An Item can take some of it away.
+_Avoid_: Stamina, energy, sleepiness
+
+**Rest place**:
+Where a player sleeps, on the ground, in a shelter, or in a bed, which sets how fast sleep recovers Fatigue. A sleeper wakes to a noise within half the distance it carries, to damage, or when fully rested, and other players see that they sleep.
+_Avoid_: Bed (a bed is one kind), camp
 
 **Skill**:
 A trained capability that levels up through use.
@@ -431,7 +439,7 @@ A modal question with a title, a concise message, an optional caption, and butto
 _Avoid_: Modal, alert, prompt
 
 **HUD**:
-The always-on overlay: health, blood, bleeding, hunger, thirst, warmth, and the weapon in hand.
+The always-on overlay: health, blood, bleeding, hunger, thirst, warmth, fatigue, and the weapon in hand.
 _Avoid_: Overlay, status bar, heads-up display
 
 **Body screen**:

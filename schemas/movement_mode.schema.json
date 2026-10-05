@@ -1,0 +1,36 @@
+{
+  "type": "object",
+  "properties": {
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z0-9_]+:[a-z0-9_]+(/[a-z0-9_]+)*$"
+    },
+    "trigger": {
+      "enum": [
+        "walk",
+        "sprint",
+        "crouch"
+      ]
+    },
+    "speed": {
+      "type": "number"
+    },
+    "noise": {
+      "type": "number"
+    },
+    "stamina": {
+      "type": "number"
+    },
+    "priority": {
+      "type": "integer"
+    }
+  },
+  "required": [
+    "id",
+    "trigger",
+    "speed",
+    "noise",
+    "stamina"
+  ],
+  "$schema": "https://json-schema.org/draft/2020-12/schema"
+}

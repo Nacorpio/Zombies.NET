@@ -1,5 +1,6 @@
 using System.Numerics;
 using Zombies.Domain.Items;
+using Zombies.Domain.Survival;
 using Zombies.Engine.Core;
 
 namespace Zombies.Engine.Net;
@@ -33,8 +34,22 @@ public readonly record struct PlayerInput(
         && Math.Abs(Forward) <= 1f && Math.Abs(Strafe) <= 1f;
 }
 
-/// <summary>Where a player is and how they are moving. The Server owns this; a client predicts it and reconciles against the Server's copy.</summary>
-public readonly record struct PlayerMoveState(Vector3 Position, Vector3 Velocity, float Yaw, float Pitch, bool Crouched, bool OnGround)
+/// <summary>
+/// Where a player is and how they are moving. The Server owns this; a client predicts it and reconciles against the Server's copy.
+/// <see cref="Stamina"/> runs from 0 to <see cref="PlayerMovement.FullStamina"/>; <see cref="Exhausted"/> keeps the player from
+/// sprinting until it has recovered. <see cref="Noise"/> is how loud the player is this tick, in multiples of a walking step,
+/// for systems that listen.
+/// </summary>
+public readonly record struct PlayerMoveState(
+    Vector3 Position,
+    Vector3 Velocity,
+    float Yaw,
+    float Pitch,
+    bool Crouched,
+    bool OnGround,
+    float Stamina = PlayerMovement.FullStamina,
+    bool Exhausted = false,
+    float Noise = 0f)
 {
     public static PlayerMoveState At(Vector3 position, float yaw = 0f) => new(position, Vector3.Zero, yaw, 0f, false, false);
 }
@@ -58,11 +73,26 @@ public static class PlayerMovement
     /// <summary>Half the width of the player's collision box.</summary>
     public const float Radius = 0.3f;
 
+    /// <summary>Walking speed in blocks per second. A Movement mode's speed multiplies it.</summary>
     public const float WalkSpeed = 4.3f;
 
-    public const float SprintSpeed = 6.5f;
+    /// <summary>A full pool of Stamina.</summary>
+    public const float FullStamina = 1f;
 
-    public const float CrouchSpeed = 1.8f;
+    /// <summary>How much of the pool a mode with a Stamina multiplier of 1 drains per second while moving.</summary>
+    public const float StaminaDrainPerSecond = 0.05f;
+
+    /// <summary>How much of the pool comes back per second while the player rests, or moves in a mode that costs nothing.</summary>
+    public const float StaminaRecoveryPerSecond = 0.15f;
+
+    /// <summary>After running dry the player cannot sprint again until Stamina is back to this level.</summary>
+    public const float ExhaustedUntil = 0.25f;
+
+    /// <summary>Carried mass up to this many kilograms costs no extra Stamina.</summary>
+    public const float EncumbranceThresholdKilograms = 20f;
+
+    /// <summary>The Stamina multiplier each kilogram above <see cref="EncumbranceThresholdKilograms"/> adds to every mode.</summary>
+    public const float StaminaPerOverweightKilogram = 0.025f;
 
     /// <summary>How fast the player reaches full speed, in blocks per second squared.</summary>
     public const float GroundAcceleration = 40f;
@@ -106,12 +136,31 @@ public static class PlayerMovement
     /// <summary>The Stat that the movement Limb score and other Modifiers change.</summary>
     public static readonly StatName MoveSpeed = new("move_speed");
 
-    /// <summary>Horizontal speed the input asks for, before acceleration, after the <paramref name="modifiers"/> on <see cref="MoveSpeed"/>.</summary>
-    public static float TargetSpeed(in PlayerInput input, ModifierSet? modifiers = null)
+    /// <summary>The Movement modes the game starts with, for a caller that has not loaded any: walk, a faster and louder sprint, and a slow, quiet crouch.</summary>
+    public static MovementModes DefaultModes { get; } = new(
+    [
+        new MovementModeDefinition("base:movement_mode/walk", MovementTrigger.Walk, 1, 1, 0),
+        new MovementModeDefinition("base:movement_mode/sprint", MovementTrigger.Sprint, 1.5, 2.5, 4),
+        new MovementModeDefinition("base:movement_mode/crouch", MovementTrigger.Crouch, 0.4, 0.3, 0),
+    ]);
+
+    /// <summary>The Movement mode the input asks for. Crouching beats sprinting, and an exhausted player who asks to sprint walks.</summary>
+    public static MovementModeDefinition ModeFor(in PlayerMoveState state, in PlayerInput input, MovementModes modes)
     {
-        var speed = input.Crouch ? CrouchSpeed : input.Sprint ? SprintSpeed : WalkSpeed;
+        var sprint = input.Sprint && !state.Exhausted && state.Stamina > 0f;
+        return modes.For(input.Crouch ? MovementTrigger.Crouch : sprint ? MovementTrigger.Sprint : MovementTrigger.Walk);
+    }
+
+    /// <summary>Horizontal speed a mode asks for, before acceleration, after the <paramref name="modifiers"/> on <see cref="MoveSpeed"/>.</summary>
+    public static float TargetSpeed(MovementModeDefinition mode, ModifierSet? modifiers = null)
+    {
+        var speed = WalkSpeed * (float)mode.Speed;
         return modifiers is null ? speed : MathF.Max(0f, (float)modifiers.EffectiveValue(MoveSpeed, speed));
     }
+
+    /// <summary>How much of the pool a moving player drains per second in a mode, carrying the given mass.</summary>
+    public static float StaminaDrain(MovementModeDefinition mode, float carriedKilograms) =>
+        StaminaDrainPerSecond * ((float)mode.Stamina + (MathF.Max(0f, carriedKilograms - EncumbranceThresholdKilograms) * StaminaPerOverweightKilogram));
 
     /// <summary>The horizontal direction the input asks for, in world space, already normalized.</summary>
     public static Vector3 WishDirection(in PlayerInput input)
@@ -126,15 +175,26 @@ public static class PlayerMovement
     /// <summary>
     /// One fixed step. <paramref name="collide"/> resolves the move against the world and reports whether the player ended
     /// on the ground; the Server passes a Jolt character, a test can pass a flat floor. <paramref name="modifiers"/> are the
-    /// Modifiers acting on the player, such as the Limb scores, and leave the speed alone when null.
+    /// Modifiers acting on the player, such as the Limb scores, and leave the speed alone when null. <paramref name="modes"/>
+    /// are the Movement modes, the starting ones when null, and <paramref name="carriedKilograms"/> is the mass the player
+    /// carries, which costs Stamina above <see cref="EncumbranceThresholdKilograms"/>.
     /// </summary>
-    public static PlayerMoveState Step(in PlayerMoveState state, in PlayerInput input, float seconds, IPlayerCollision collide, ModifierSet? modifiers = null)
+    public static PlayerMoveState Step(
+        in PlayerMoveState state,
+        in PlayerInput input,
+        float seconds,
+        IPlayerCollision collide,
+        ModifierSet? modifiers = null,
+        MovementModes? modes = null,
+        float carriedKilograms = 0f)
     {
         ArgumentNullException.ThrowIfNull(collide);
 
         var crouched = input.Crouch;
         var wish = WishDirection(input);
-        var target = wish * TargetSpeed(input, modifiers);
+        var mode = ModeFor(state, input, modes ?? DefaultModes);
+        var moving = wish != Vector3.Zero;
+        var target = wish * TargetSpeed(mode, modifiers);
         var velocity = state.Velocity;
 
         var horizontal = new Vector3(velocity.X, 0, velocity.Z);
@@ -161,7 +221,14 @@ public static class PlayerMovement
             velocity = velocity with { Y = 0 };
         }
 
-        return new PlayerMoveState(moved.Position, velocity, input.Yaw, input.Pitch, crouched, onGround);
+        var drain = moving ? StaminaDrain(mode, carriedKilograms) : 0f;
+        var stamina = drain > 0f
+            ? MathF.Max(0f, state.Stamina - (drain * seconds))
+            : MathF.Min(FullStamina, state.Stamina + (StaminaRecoveryPerSecond * seconds));
+        var exhausted = stamina <= 0f || (state.Exhausted && stamina < ExhaustedUntil);
+        var noise = moving ? (float)mode.Noise : 0f;
+
+        return new PlayerMoveState(moved.Position, velocity, input.Yaw, input.Pitch, crouched, onGround, stamina, exhausted, noise);
     }
 
     /// <summary>Moves <paramref name="current"/> toward <paramref name="target"/> by at most <paramref name="maxDelta"/>.</summary>

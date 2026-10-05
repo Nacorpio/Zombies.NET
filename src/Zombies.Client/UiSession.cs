@@ -32,6 +32,11 @@ internal sealed class PlayerStatus
     public ItemId? Weapon { get; set; }
 
     public ItemState? WeaponState { get; set; }
+
+    /// <summary>The player's Stamina as a fraction of a full pool, which the movement model predicts.</summary>
+    public double Stamina { get; set; } = 1;
+
+    public bool Exhausted { get; set; }
 }
 
 /// <summary>
@@ -352,11 +357,13 @@ internal sealed class UiSession : IDisposable
 
     private void FillHudValues()
     {
-        var hud = new HudModel(_status.Body, _status.Needs, _status.Weapon, _status.WeaponState, _localizer);
+        var hud = new HudModel(_status.Body, _status.Needs, _status.Weapon, _status.WeaponState, _localizer, stamina: _status.Stamina, exhausted: _status.Exhausted);
         _values.SetFraction("hud.health", (float)hud.HealthFraction);
         _values.SetRole("hud.health", hud.HealthRole);
         _values.SetFraction("hud.blood", (float)hud.BloodFraction);
         _values.SetRole("hud.blood", hud.BloodRole);
+        _values.SetFraction("hud.stamina", (float)hud.StaminaFraction);
+        _values.SetRole("hud.stamina", hud.StaminaRole);
         _values.SetVisible("hud.bleeding", hud.IsBleeding);
         _values.SetText("hud.bleeding", _localizer.Get("hud.bleeding"));
         _values.SetText("hud.weapon", hud.WeaponLabel);

@@ -36,6 +36,9 @@ public sealed record ServerOptions(GameIdentity Identity, ulong WorldSeed)
 
     public Volume CarryVolume { get; init; } = Volume.FromLiters(60);
 
+    /// <summary>The Movement modes player movement reads. A client must run the same ones to predict the Server. Defaults to the starting modes.</summary>
+    public MovementModes MovementModes { get; init; } = PlayerMovement.DefaultModes;
+
     /// <summary>How long a day lasts, which a Memorial counts a life in.</summary>
     public TimeSpan DayLength { get; init; } = TimeSpan.FromMinutes(24);
 
@@ -300,6 +303,7 @@ public sealed class GameServer : ITickable
         session.LifeStartTick = _tick;
         session.RespawnAtTick = null;
         Teleport(session, Options.SpawnPoint, 0f);
+        session.Movement = session.Movement with { Stamina = PlayerMovement.FullStamina, Exhausted = false };
         World.UpdatePlayer(session.EntityId, default);
     }
 
@@ -428,7 +432,8 @@ public sealed class GameServer : ITickable
 
         // The baseline is the newest snapshot the client decoded, if it is still in history.
         var baseline = sequence - session.AckedSnapshot < SnapshotHistory.Capacity ? session.History.Find(session.AckedSnapshot) : null;
-        var frame = session.History.Begin(sequence, (ulong)_tick, session.AckedInput);
+        var vitals = new PlayerVitals(session.Movement.Stamina, session.Movement.Exhausted, (float)session.Carried.TotalMass.Kilograms);
+        var frame = session.History.Begin(sequence, (ulong)_tick, session.AckedInput, vitals);
         var radius = Options.InterestRadiusChunks;
         int cx = player.ChunkX, cz = player.ChunkZ;
         foreach (ref readonly var entity in World.Entities)

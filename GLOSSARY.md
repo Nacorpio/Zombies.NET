@@ -258,6 +258,18 @@ _Avoid_: Attribute, property
 A JSON-defined change to a stat, recipe availability, or interaction, granted by a perk, an attachment, or a status effect, and removed when its source is removed.
 _Avoid_: Buff, bonus, boost
 
+**Movement mode**:
+How the player moves, declared by a mod with a Content ID: walking, sprinting and crouching are the base modes. Each has a speed, noise and Stamina multiplier, and is chosen by the input that asks for it. A mod adds one by declaring it with a higher priority for the same input.
+_Avoid_: Gait, stance, movement state
+
+**Stamina**:
+The pool a player drains by moving in a costly Movement mode or while carrying more than they comfortably can, and recovers at rest. An empty pool exhausts the player, who cannot sprint until it has recovered. Not a Need, because it recovers by itself within seconds.
+_Avoid_: Energy, endurance
+
+**Noise**:
+How loud the player is this tick, as a multiple of a walking step, from the Movement mode they move in. It is only a value on the player for systems that listen; nothing reacts to it yet.
+_Avoid_: Sound, volume
+
 ## Death
 
 **Corpse**:

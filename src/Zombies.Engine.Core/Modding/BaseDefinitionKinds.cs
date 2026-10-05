@@ -23,6 +23,7 @@ public static class BaseDefinitionKinds
         ["fault"] = typeof(FaultDto),
         ["item"] = typeof(ItemDefinitionDto),
         ["limb_score"] = typeof(LimbScoreDto),
+        ["movement_mode"] = typeof(MovementModeDto),
         ["loot"] = typeof(LootTableDto),
         ["modifier"] = typeof(ModifierDefinitionDto),
         ["morale_band"] = typeof(MoraleBandDto),

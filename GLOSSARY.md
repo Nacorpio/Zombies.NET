@@ -202,6 +202,24 @@ _Avoid_: Attribute, property
 A JSON-defined change to a stat, recipe availability, or interaction, granted by a perk, an attachment, or a status effect, and removed when its source is removed.
 _Avoid_: Buff, bonus, boost
 
+## Death
+
+**Corpse**:
+The Container a dead player leaves where they died, holding everything they carried and wore with its Item state intact. Any player can loot it, and it persists in the Save until it is emptied.
+_Avoid_: Body (that is the Combat context's), grave, loot bag, death drop
+
+**Spectator**:
+A player whose Body has died. The Server rejects every command from them until they respawn, and clients see them as dead.
+_Avoid_: Ghost, observer, dead player (as a state name)
+
+**Respawn**:
+A Spectator coming back to life after the configured delay at the spawn point, with a fresh Body and fresh Needs and nothing carried. The death policy decides whether they respawn at all.
+_Avoid_: Revive, resurrect
+
+**Memorial**:
+The record of one death: the player's name, the days they survived, the zombies they killed, and the cause of death the Combat context raised. It outlives the Corpse.
+_Avoid_: Obituary, scoreboard entry, death log
+
 ## World
 
 **Chunk**:

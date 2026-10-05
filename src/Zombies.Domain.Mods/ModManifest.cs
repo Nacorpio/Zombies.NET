@@ -4,7 +4,11 @@ using System.Text.RegularExpressions;
 
 namespace Zombies.Domain.Mods;
 
-/// <summary>Where a mod's code runs. Data mods are always <see cref="Both"/> in effect.</summary>
+/// <summary>
+/// Where a mod loads. A dedicated Server never loads a <see cref="Client"/> mod at all, data included, which is why a join leaves
+/// those out. A <see cref="Server"/> mod's data loads everywhere, so every client builds the same world, but its code runs only
+/// where a Server runs. See <see cref="ModSides"/>.
+/// </summary>
 public enum ModSide
 {
     Both,
@@ -29,6 +33,14 @@ public sealed partial record ModManifest
 
     /// <summary>Mods this one loads after when they are present, without requiring them.</summary>
     public IReadOnlyList<string> LoadAfter { get; init; } = [];
+
+    /// <summary>
+    /// File names of the C# assemblies in the mod's <c>assemblies/</c> folder that hold its <c>ICodeMod</c> classes. A mod that
+    /// lists any is a Code mod: trusted code, and the player is warned before installing it.
+    /// </summary>
+    public IReadOnlyList<string> Assemblies { get; init; } = [];
+
+    public bool IsCodeMod => Assemblies.Count > 0;
 
     public static bool TryParse(string json, out ModManifest manifest, out string error)
     {
@@ -115,6 +127,19 @@ public sealed partial record ModManifest
             loadAfter.AddRange(after.Select(a => a!.GetValue<string>()));
         }
 
+        var assemblies = new List<string>();
+        if (root.TryGetPropertyValue("assemblies", out var assembliesNode))
+        {
+            if (assembliesNode is not JsonArray list
+                || list.Any(a => a is not JsonValue av || !av.TryGetValue<string>(out var file) || !AssemblyFilePattern().IsMatch(file)))
+            {
+                error = "'assemblies' must be an array of file names such as 'MyMod.dll', found in the mod's 'assemblies' folder.";
+                return false;
+            }
+
+            assemblies.AddRange(list.Select(a => a!.GetValue<string>()).Distinct(StringComparer.Ordinal));
+        }
+
         manifest = new ModManifest
         {
             Id = id,
@@ -123,6 +148,7 @@ public sealed partial record ModManifest
             Side = side,
             Dependencies = dependencies,
             LoadAfter = loadAfter,
+            Assemblies = assemblies,
         };
         error = string.Empty;
         return true;
@@ -154,6 +180,9 @@ public sealed partial record ModManifest
 
     [GeneratedRegex("^[a-z0-9_]+$")]
     private static partial Regex IdPattern();
+
+    [GeneratedRegex(@"^[A-Za-z0-9_.\-]+\.dll$")]
+    private static partial Regex AssemblyFilePattern();
 
     [GeneratedRegex(@"^\d+\.\d+\.\d+$")]
     private static partial Regex VersionPattern();

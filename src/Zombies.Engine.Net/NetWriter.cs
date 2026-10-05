@@ -30,6 +30,9 @@ public sealed class NetWriter
 
     public void WriteSingle(float value) => BinaryPrimitives.WriteSingleLittleEndian(Take(4), value);
 
+    /// <summary>Writes bytes as they are, with no length, such as a payload another writer produced.</summary>
+    public void WriteBytes(ReadOnlySpan<byte> bytes) => bytes.CopyTo(Take(bytes.Length));
+
     /// <summary>Writes an unsigned integer in 1 to 5 bytes, 7 bits at a time.</summary>
     public void WriteVarUInt(uint value)
     {

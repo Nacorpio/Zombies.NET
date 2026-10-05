@@ -66,9 +66,17 @@ def decide(answers, cfg):
     ov = cfg.get("kind_overrides", {}).get(kind["choice"])
     if ov and not low and tier in ("fast", "standard"):  # never downgrade hard work to a specialist
         model, why = ov, f"kind override ({kind['choice']}); " + why
+    sp = cfg.get("system_prompts", {})
+    # kind prompt only when Jev was confident about the kind; the addendum follows the stakes answer alone
+    kind_ok = kind.get("confidence", 1) >= cfg["min_confidence"]
+    prompt = sp.get("kinds", {}).get(kind["choice"]) if kind_ok else None
+    prompt = prompt or sp.get("default", "")
+    if stakes >= 0.5 and sp.get("high_stakes_addendum"):
+        prompt = f"{prompt}\n\n{sp['high_stakes_addendum']}".strip()
     alts = cfg.get("alternatives", {})
     alt = [m for m in alts.get("kind", {}).get(kind["choice"], []) + alts.get("tier", {}).get(tier, []) if m != model]
-    return {"tier": tier, "model": model, "kind": kind["choice"], "reason": why, "alternatives": list(dict.fromkeys(alt))}
+    return {"tier": tier, "model": model, "kind": kind["choice"], "reason": why,
+            "system_prompt": prompt, "alternatives": list(dict.fromkeys(alt))}
 
 
 def http(url, body=None, key=None, retries=3):
@@ -120,8 +128,8 @@ def main(argv):
     if cmd == "classify":
         print(json.dumps(d))
         return 0
-    out = http(f"{OR_BASE}/chat/completions",
-               {"model": d["model"], "messages": [{"role": "user", "content": task}]}, need("OPENROUTER_API_KEY"))
+    msgs = ([{"role": "system", "content": d["system_prompt"]}] if d["system_prompt"] else []) + [{"role": "user", "content": task}]
+    out = http(f"{OR_BASE}/chat/completions", {"model": d["model"], "messages": msgs}, need("OPENROUTER_API_KEY"))
     print(json.dumps({"decision": d, "answer": out["choices"][0]["message"]["content"]}))
     return 0
 

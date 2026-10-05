@@ -144,6 +144,9 @@ public sealed class Body
 
     public double Health(BodyPart part) => _parts[part].Health;
 
+    /// <summary>Health of a part as a fraction of its full health. A Missing part has none.</summary>
+    public double HealthFraction(BodyPart part) => Math.Clamp(_parts[part].Health / _config.PartHealth, 0, 1);
+
     /// <param name="protection">Fraction (0 to 1) of the damage absorbed by worn items on this part.</param>
     public CombatResult TakeHit(BodyPart part, DamageType type, double damage, double protection = 0)
     {

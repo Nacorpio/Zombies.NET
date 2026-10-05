@@ -42,7 +42,12 @@ public sealed class HudTests
               "hud.part.left_leg": "Left leg",
               "hud.part.right_leg": "Right leg",
               "hud.part.missing": "Missing",
-              "hud.part.bandaged": "Bandaged" } }
+              "hud.part.bandaged": "Bandaged",
+              "hud.score.cause.missing": "Missing",
+              "hud.score.cause.injured": "Injured",
+              "hud.score.cause.wounded": "Wounded",
+              "hud.score.cause.encumbered": "Encumbered",
+              "limb_score.test.limb_score.movement": "Movement" } }
             """, out var table, out var error), error);
         return new Localizer([table]);
     }
@@ -256,6 +261,27 @@ public sealed class HudTests
         Assert.Equal(
             [BodyPart.Head, BodyPart.Torso, BodyPart.LeftArm, BodyPart.RightArm, BodyPart.LeftLeg, BodyPart.RightLeg],
             parts.Select(p => p.Part));
+    }
+
+    [Fact]
+    public void ReducedScores_NameTheScoreAndWhyItIsReduced_AndHideFullOnes()
+    {
+        var movement = LimbScoreJson.Parse("""
+            { "id": "test:limb_score/movement", "stat": "move_speed", "floor": 0.2, "encumbranceReduces": true,
+              "parts": [ { "part": "leftLeg", "required": true }, { "part": "rightLeg", "required": true } ] }
+            """);
+        var boots = new WearableDefinition(new ItemId("test:item/boots"), ClothingLayer.Base, [BodyPart.RightLeg], ThermalResistance.Zero, encumbrance: 0.5);
+        var body = new Body(new BodyId(1), missingAtSpawn: [BodyPart.LeftLeg]);
+
+        var healthy = new HudModel(new Body(new BodyId(1)), new Needs(), null, null, English(), [movement], []);
+        var hurt = new HudModel(body, new Needs(), null, null, English(), [movement], [boots]);
+
+        Assert.Empty(healthy.ReducedScores);
+        var score = Assert.Single(hurt.ReducedScores);
+        Assert.Equal("Movement", score.Label);
+        Assert.Equal(0.2, score.Value, 6);
+        Assert.Equal(PaletteRole.Danger, score.Role);
+        Assert.Equal([new LimbScoreReason("Left leg", "Missing"), new LimbScoreReason("Right leg", "Encumbered")], score.Reasons);
     }
 
     [Fact]

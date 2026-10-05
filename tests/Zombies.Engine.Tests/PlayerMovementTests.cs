@@ -1,4 +1,6 @@
 using System.Numerics;
+using Zombies.Domain.Combat;
+using Zombies.Domain.Items;
 using Zombies.Domain.World;
 using Zombies.Engine.Net;
 using Zombies.Engine.Physics;
@@ -45,6 +47,24 @@ public sealed class PlayerMovementTests
         Assert.True(sprint.Position.Z < walk.Position.Z);
         Assert.True(crouch.Position.Z > walk.Position.Z);
         Assert.True(crouch.Crouched);
+    }
+
+    [Fact]
+    public void MovementScore_SlowsTheTargetSpeed_AndNoModifiersLeavesItAlone()
+    {
+        var movement = LimbScoreJson.Parse("""
+            { "id": "test:limb_score/movement", "stat": "move_speed", "floor": 0.2,
+              "parts": [ { "part": "leftLeg", "required": true }, { "part": "rightLeg", "required": true } ] }
+            """);
+        var limp = LimbScores.ToModifiers(LimbScores.Compute([movement], new Body(new BodyId(1), missingAtSpawn: [BodyPart.LeftLeg]), []), new ModifierSource("limb_scores"));
+        var whole = LimbScores.ToModifiers(LimbScores.Compute([movement], new Body(new BodyId(1)), []), new ModifierSource("limb_scores"));
+
+        var slowed = PlayerMovement.Step(PlayerMoveState.At(Vector3.Zero), Input(forward: 1f), 1f, FlatFloorCollision.Instance, limp);
+        var full = PlayerMovement.Step(PlayerMoveState.At(Vector3.Zero), Input(forward: 1f), 1f, FlatFloorCollision.Instance, whole);
+
+        Assert.Equal(PlayerMovement.WalkSpeed * 0.2f, new Vector2(slowed.Velocity.X, slowed.Velocity.Z).Length(), 3);
+        Assert.Equal(PlayerMovement.WalkSpeed, new Vector2(full.Velocity.X, full.Velocity.Z).Length(), 3);
+        Assert.Equal(PlayerMovement.SprintSpeed, PlayerMovement.TargetSpeed(Input(sprint: true)));
     }
 
     [Fact]

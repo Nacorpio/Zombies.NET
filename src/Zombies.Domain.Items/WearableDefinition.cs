@@ -4,7 +4,7 @@ namespace Zombies.Domain.Items;
 
 /// <summary>
 /// What a worn Item does: the Layer it occupies on each body part in its Coverage, the thermal insulation it adds there,
-/// and the fraction of each damage type it absorbs.
+/// the fraction of each damage type it absorbs, and how much it encumbers the parts it covers.
 /// </summary>
 public sealed class WearableDefinition
 {
@@ -13,7 +13,8 @@ public sealed class WearableDefinition
         ClothingLayer layer,
         IEnumerable<BodyPart> coverage,
         ThermalResistance insulation,
-        IReadOnlyDictionary<DamageType, double>? protection = null)
+        IReadOnlyDictionary<DamageType, double>? protection = null,
+        double encumbrance = 0)
     {
         ArgumentNullException.ThrowIfNull(coverage);
         var covered = new HashSet<BodyPart>(coverage);
@@ -23,6 +24,10 @@ public sealed class WearableDefinition
         }
 
         ArgumentOutOfRangeException.ThrowIfLessThan(insulation.SquareMeterKelvinsPerWatt, 0);
+        if (!double.IsFinite(encumbrance) || encumbrance is < 0 or > 1)
+        {
+            throw new ArgumentOutOfRangeException(nameof(encumbrance), encumbrance, "Encumbrance must be between 0 and 1.");
+        }
 
         var absorbed = new Dictionary<DamageType, double>(protection ?? new Dictionary<DamageType, double>());
         foreach (var (type, fraction) in absorbed)
@@ -38,6 +43,7 @@ public sealed class WearableDefinition
         Coverage = covered;
         Insulation = insulation;
         Protection = absorbed;
+        Encumbrance = encumbrance;
     }
 
     public ItemId Item { get; }
@@ -51,6 +57,9 @@ public sealed class WearableDefinition
 
     /// <summary>Fraction (0 to 1) of each damage type absorbed on every covered body part. Missing types absorb nothing.</summary>
     public IReadOnlyDictionary<DamageType, double> Protection { get; }
+
+    /// <summary>Fraction (0 to 1) of the capability of every covered body part that this item takes away.</summary>
+    public double Encumbrance { get; }
 }
 
 public interface IWearableCatalog

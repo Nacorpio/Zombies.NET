@@ -8,12 +8,25 @@ namespace Zombies.Engine.Ui;
 /// <summary>One body part as the health screen shows it.</summary>
 public sealed record BodyPartStatus(BodyPart Part, string Label, double HealthFraction, bool IsMissing, bool IsBleeding, bool IsBandaged, string? StateLabel, PaletteRole Role);
 
+/// <summary>Why a body part holds a Limb score back, as the health screen words it: the part and the cause.</summary>
+public sealed record LimbScoreReason(string Part, string Cause);
+
+/// <summary>A Limb score that is below full, with the reasons it is.</summary>
+public sealed record LimbScoreStatus(string Label, double Value, IReadOnlyList<LimbScoreReason> Reasons, PaletteRole Role);
+
 /// <summary>
 /// What the HUD shows: health, blood, bleeding, hunger, thirst, warmth, and the weapon in hand. It reads the Body, the
 /// Needs, and the weapon's Item state and turns them into fractions, colors, and localized words, so the drawing code
 /// only has to place them.
 /// </summary>
-public sealed class HudModel(Body body, Needs needs, ItemId? weapon, ItemState? weaponState, Localizer localizer)
+public sealed class HudModel(
+    Body body,
+    Needs needs,
+    ItemId? weapon,
+    ItemState? weaponState,
+    Localizer localizer,
+    IReadOnlyList<LimbScoreDefinition>? limbScores = null,
+    IReadOnlyList<WearableDefinition>? worn = null)
 {
     /// <summary>Health below this fraction is a warning.</summary>
     public const double WarningThreshold = 0.6;
@@ -74,6 +87,16 @@ public sealed class HudModel(Body body, Needs needs, ItemId? weapon, ItemState? 
     /// <summary>Every body part in a fixed order, with its health and what is wrong with it.</summary>
     public IReadOnlyList<BodyPartStatus> Parts =>
         [.. Enum.GetValues<BodyPart>().Select(Part)];
+
+    /// <summary>Every Limb score that is below full, with the body parts and causes behind it.</summary>
+    public IReadOnlyList<LimbScoreStatus> ReducedScores =>
+        [.. LimbScores.Compute(limbScores ?? [], body, worn ?? []).Where(s => s.IsReduced).Select(Score)];
+
+    private LimbScoreStatus Score(LimbScore score) => new(
+        localizer.Get($"limb_score.{score.Definition.Replace(':', '.').Replace('/', '.')}"),
+        score.Value,
+        [.. score.Reductions.Select(r => new LimbScoreReason(localizer.Get($"hud.part.{Snake(r.Part.ToString())}"), localizer.Get($"hud.score.cause.{Snake(r.Cause.ToString())}")))],
+        Role(score.Value));
 
     private BodyPartStatus Part(BodyPart part)
     {

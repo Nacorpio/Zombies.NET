@@ -33,7 +33,7 @@ public sealed class ModLoadingTests
 
         Assert.True(result.IsSuccess, string.Join(Environment.NewLine, result.Errors));
         Assert.Equal(["base", "sample_data"], result.Mods.Select(m => m.Manifest.Id));
-        Assert.Equal(63, result.Registry.Count);
+        Assert.Equal(68, result.Registry.Count);
     }
 
     [Fact]
@@ -58,6 +58,15 @@ public sealed class ModLoadingTests
         var catalog = new ItemCatalog(registry.OfKind("item").Select(d => ItemDefinitionJson.Parse(d.Json)));
 
         Assert.True(catalog.TryGet(new ItemId("base:item/bandage"), out _));
+    }
+
+    [Fact]
+    public void BaseLimbScores_ParseAndScoreAWholeBodyAsFull()
+    {
+        var scores = LoadRepositoryMods().Registry.OfKind("limb_score").Select(d => LimbScoreJson.Parse(d.Json)).ToList();
+
+        Assert.Equal(["blocking", "grip", "manipulation", "movement", "vision"], scores.Select(s => s.Id.Split('/')[1]).Order());
+        Assert.All(LimbScores.Compute(scores, new Body(new BodyId(1)), []), s => Assert.Equal(1, s.Value));
     }
 
     private static (ItemCatalog Items, LootTableCatalog Loot) LoadCatalogs()

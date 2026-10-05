@@ -12,6 +12,7 @@ public static class DefinitionSchemas
 {
     private const string ContentIdPattern = "^[a-z0-9_]+:[a-z0-9_]+(/[a-z0-9_]+)*$";
     private const string StatNamePattern = "^[a-z][a-z0-9_]*$";
+    private const string LabelKeyPattern = "^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*)*$";
 
     private static readonly JsonSerializerOptions Options = new(DefinitionJson.Options)
     {
@@ -42,7 +43,12 @@ public static class DefinitionSchemas
                     obj["enum"] = new JsonArray([.. Enum.GetNames<DamageType>().Select(n => (JsonNode)n.ToLowerInvariant())]);
                 }
 
-                if (context.PropertyInfo?.Name is "stat" or "mount" or "change" or "name")
+                if (context.PropertyInfo?.Name is "label")
+                {
+                    obj["pattern"] = LabelKeyPattern;
+                }
+
+                if (context.PropertyInfo?.Name is "stat" or "mount" or "change" or "name" or "icon" or "group")
                 {
                     obj["pattern"] = StatNamePattern;
                 }

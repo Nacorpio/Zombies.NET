@@ -1,0 +1,2 @@
+﻿{ "id": "base:item_action/split", "label": "action.split", "icon": "split", "group": "move", "order": 1, "appliesWhen": [ "stack_count_above_one" ], "enabledWhen": [ "own_container", "writable_container" ] }
+

@@ -1,0 +1,2 @@
+﻿{ "patch": "base:item_action/drop", "disabledReason": "cannot_drop_here" }
+

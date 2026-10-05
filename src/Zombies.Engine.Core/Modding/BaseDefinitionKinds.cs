@@ -1,3 +1,4 @@
+using Zombies.Domain.Actions;
 using Zombies.Domain.Combat;
 using Zombies.Domain.Crafting;
 using Zombies.Domain.Items;
@@ -19,6 +20,7 @@ public static class BaseDefinitionKinds
         ["loot"] = typeof(LootTableDto),
         ["modifier"] = typeof(ModifierDefinitionDto),
         ["attachment"] = typeof(AttachmentDto),
+        ["item_action"] = typeof(ItemActionDto),
         ["status_effect"] = typeof(StatusEffectDto),
         ["weapon"] = typeof(WeaponDto),
         ["weapon_category"] = typeof(WeaponCategoryDto),

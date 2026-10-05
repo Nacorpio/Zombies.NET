@@ -13,6 +13,12 @@
     },
     "maxStack": {
       "type": "integer"
+    },
+    "edible": {
+      "type": "boolean"
+    },
+    "drinkable": {
+      "type": "boolean"
     }
   },
   "required": [

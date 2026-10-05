@@ -4,7 +4,7 @@ namespace Zombies.Engine.Core.Modding;
 
 /// <summary>
 /// Reads mods from disk. Each sub-folder of the mods root is one mod: a <c>mod.json</c> manifest and
-/// definition files as <c>*.json</c> anywhere under <c>data/</c>, icons as <c>*.png</c> in <c>icons/</c>, string tables as <c>*.json</c> in <c>lang/</c>, and screen layouts as <c>*.json</c> in <c>ui/</c>. The same loader handles every mod, the Base mod included.
+/// definition files as <c>*.json</c> anywhere under <c>data/</c>, icons as <c>*.png</c> in <c>icons/</c>, string tables as <c>*.json</c> in <c>lang/</c>, and screen layouts as <c>*.json</c> in <c>ui/</c>, and rig files (skeletons, clips, and weapon rigs) as <c>*.json</c> in <c>rigs/</c>. The same loader handles every mod, the Base mod included.
 /// </summary>
 public static class DirectoryModSource
 {
@@ -13,6 +13,7 @@ public static class DirectoryModSource
     public const string IconsFolderName = "icons";
     public const string LanguageFolderName = "lang";
     public const string LayoutFolderName = "ui";
+    public const string RigFolderName = "rigs";
 
     public static IReadOnlyList<ModPackage> Read(string modsRoot)
     {
@@ -49,6 +50,7 @@ public static class DirectoryModSource
                     .. ReadAssets(directory, IconsFolderName, "*.png"),
                     .. ReadAssets(directory, LanguageFolderName, "*.json"),
                     .. ReadAssets(directory, LayoutFolderName, "*.json"),
+                    .. ReadAssets(directory, RigFolderName, "*.json"),
                 ],
             });
         }

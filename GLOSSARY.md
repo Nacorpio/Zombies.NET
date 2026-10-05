@@ -144,6 +144,24 @@ _Avoid_: Zombie data, blueprint
 A weighted definition of what clothing, headwear, and backpacks a zombie type can spawn wearing.
 _Avoid_: Loadout
 
+## Rig and Animation
+
+**Skeleton**:
+A generic tree of bones read from JSON, each bone carrying voxel boxes on the character atlas, plus attach points and the setup for the procedural walk and look-at. A player, a zombie, and the first-person arms are all skeletons.
+_Avoid_: Rig (for the data itself), armature, model
+
+**Clip**:
+A named JSON keyframe animation, such as walk or reload, stated as changes from a skeleton's rest pose so one clip fits any skeleton that has the bones it names.
+_Avoid_: Animation (for the data), take, sequence
+
+**Attach point**:
+A named place on a skeleton's bone where something else is drawn: the hand that holds a Held weapon, or a backpack. A weapon's Mounts are placed from the attach point it is held at, so any weapon can be drawn on any skeleton.
+_Avoid_: Socket, hardpoint, anchor
+
+**Crawl variant**:
+The clip named like another with `_crawl` added, played instead of it by a character with a Missing leg.
+_Avoid_: Limp, injured animation
+
 ## Creatures and Status Effects
 
 **Creature**:

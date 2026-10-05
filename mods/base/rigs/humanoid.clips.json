@@ -1,0 +1,38 @@
+{
+  // Keyframes are changes from the rest pose: rotation in degrees, offset in voxels. A clip named like another with
+  // "_crawl" added is what a character missing a leg plays instead.
+  "clips": [
+    {
+      "name": "idle", "duration": 4, "loop": true,
+      "tracks": [
+        { "bone": "torso", "keys": [ { "time": 0 }, { "time": 2, "offset": [0, 0.25, 0] } ] },
+        { "bone": "arm_l", "keys": [ { "time": 0 }, { "time": 2, "rotation": [0, 0, -2] } ] },
+        { "bone": "arm_r", "keys": [ { "time": 0 }, { "time": 2, "rotation": [0, 0, 2] } ] }
+      ]
+    },
+    {
+      "name": "idle_crawl", "duration": 4, "loop": true,
+      "tracks": [
+        { "bone": "torso", "keys": [ { "time": 0, "rotation": [-85, 0, 0], "offset": [0, -4, 0] }, { "time": 2, "rotation": [-85, 0, 0], "offset": [0, -3.75, 0] } ] },
+        { "bone": "head", "keys": [ { "time": 0, "rotation": [70, 0, 0] } ] },
+        { "bone": "arm_l", "keys": [ { "time": 0, "rotation": [170, 0, 0] } ] },
+        { "bone": "arm_r", "keys": [ { "time": 0, "rotation": [170, 0, 0] } ] }
+      ]
+    },
+    {
+      "name": "walk_crawl", "duration": 1, "loop": true,
+      "tracks": [
+        { "bone": "torso", "keys": [ { "time": 0, "rotation": [-85, 0, 0], "offset": [0, -4, 0] }, { "time": 0.5, "rotation": [-85, 0, 0], "offset": [0, -3.5, 0] } ] },
+        { "bone": "head", "keys": [ { "time": 0, "rotation": [70, 0, 0] } ] },
+        { "bone": "arm_l", "keys": [ { "time": 0, "rotation": [150, 0, 0] }, { "time": 0.5, "rotation": [195, 0, 0] } ] },
+        { "bone": "arm_r", "keys": [ { "time": 0, "rotation": [195, 0, 0] }, { "time": 0.5, "rotation": [150, 0, 0] } ] }
+      ]
+    },
+    {
+      "name": "swing", "duration": 0.5, "loop": false,
+      "tracks": [
+        { "bone": "arm_r", "keys": [ { "time": 0 }, { "time": 0.15, "rotation": [-120, 0, 0] }, { "time": 0.5 } ] }
+      ]
+    }
+  ]
+}

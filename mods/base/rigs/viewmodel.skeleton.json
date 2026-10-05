@@ -1,0 +1,26 @@
+{
+  // The first-person arms. It is an ordinary skeleton: the root is placed in front of the camera, and the walk bob is the
+  // same procedural walk the body uses.
+  "id": "base:rig/viewmodel",
+  "bones": [
+    { "name": "root", "offset": [4, -5, -6] },
+    { "name": "arm_r", "parent": "root",
+      "boxes": [ { "min": [-1, -1, -8], "size": [2, 2, 8], "uv": [32, 48] } ] },
+    { "name": "hand_r", "parent": "arm_r", "offset": [0, 0, -8] },
+    { "name": "arm_l", "parent": "root", "offset": [-8, -1, -2],
+      "boxes": [ { "min": [-1, -1, -8], "size": [2, 2, 8], "uv": [40, 16] } ] },
+    { "name": "hand_l", "parent": "arm_l", "offset": [0, 0, -8] }
+  ],
+  "attachPoints": [
+    { "name": "held_right", "bone": "hand_r" },
+    { "name": "held_left", "bone": "hand_l" }
+  ],
+  "walk": {
+    "strideLength": 1.5,
+    "fullSpeed": 4.3,
+    "swings": [
+      { "bone": "root", "offset": [0, -0.5, 0], "frequency": 2 },
+      { "bone": "root", "rotation": [0, 0, 1.5], "frequency": 1 }
+    ]
+  }
+}

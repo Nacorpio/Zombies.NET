@@ -1,0 +1,40 @@
+{
+  // Offsets, boxes and swing offsets are in voxels, eight to the meter. Rotations are degrees. Y is up and -Z is forward.
+  "id": "base:rig/humanoid",
+  "bones": [
+    { "name": "root" },
+    { "name": "torso", "parent": "root", "part": "torso", "offset": [0, 5, 0],
+      "boxes": [ { "min": [-3, 0, -2], "size": [6, 6, 4], "uv": [16, 16] } ] },
+    { "name": "head", "parent": "torso", "part": "head", "offset": [0, 6, 0],
+      "boxes": [ { "min": [-2, 0, -2], "size": [4, 4, 4], "uv": [0, 0] } ] },
+    { "name": "arm_l", "parent": "torso", "part": "leftArm", "offset": [-4, 6, 0],
+      "boxes": [ { "min": [-1, -6, -1], "size": [2, 6, 2], "uv": [40, 16] } ] },
+    { "name": "hand_l", "parent": "arm_l", "offset": [0, -6, 0] },
+    { "name": "arm_r", "parent": "torso", "part": "rightArm", "offset": [4, 6, 0],
+      "boxes": [ { "min": [-1, -6, -1], "size": [2, 6, 2], "uv": [32, 48] } ] },
+    { "name": "hand_r", "parent": "arm_r", "offset": [0, -6, 0] },
+    { "name": "leg_l", "parent": "root", "part": "leftLeg", "offset": [-2, 5, 0],
+      "boxes": [ { "min": [-1, -5, -1], "size": [2, 5, 2], "uv": [0, 16] } ] },
+    { "name": "leg_r", "parent": "root", "part": "rightLeg", "offset": [2, 5, 0],
+      "boxes": [ { "min": [-1, -5, -1], "size": [2, 5, 2], "uv": [16, 48] } ] }
+  ],
+  "attachPoints": [
+    { "name": "held_right", "bone": "hand_r", "offset": [0, -1, 0] },
+    { "name": "held_left", "bone": "hand_l", "offset": [0, -1, 0] }
+  ],
+  "walk": {
+    "strideLength": 1.5,
+    "fullSpeed": 4.3,
+    "swings": [
+      { "bone": "leg_l", "rotation": [35, 0, 0], "phase": 0, "upright": true },
+      { "bone": "leg_r", "rotation": [35, 0, 0], "phase": 0.5, "upright": true },
+      { "bone": "arm_l", "rotation": [-30, 0, 0], "phase": 0 },
+      { "bone": "arm_r", "rotation": [-30, 0, 0], "phase": 0.5 },
+      { "bone": "root", "offset": [0, 0.5, 0], "frequency": 2, "upright": true }
+    ]
+  },
+  "lookAt": [
+    { "bone": "torso", "yawWeight": 0.3, "pitchWeight": 0.2, "maxYaw": 35, "maxPitch": 20 },
+    { "bone": "head", "yawWeight": 0.6, "pitchWeight": 0.7, "maxYaw": 70, "maxPitch": 60 }
+  ]
+}

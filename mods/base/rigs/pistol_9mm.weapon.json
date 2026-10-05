@@ -1,0 +1,12 @@
+{
+  // Where the pistol is gripped and where each of its Mounts is, in the pistol's own space, in voxels. An Attachment is
+  // drawn at the Mount of the same name as the one it is fitted to.
+  "id": "base:item/pistol_9mm",
+  "grip": { "offset": [0, -2, 1] },
+  "mounts": {
+    "muzzle": { "offset": [0, 1, -5] },
+    "optic": { "offset": [0, 3, -1] },
+    "grip": { "offset": [0, -3, -3] },
+    "laser": { "offset": [0, 0, -4] }
+  }
+}

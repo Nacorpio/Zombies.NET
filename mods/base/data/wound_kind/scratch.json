@@ -1,0 +1,8 @@
+{
+  "id": "base:wound_kind/scratch",
+  "damageTypes": [ "cut", "pierce" ],
+  "damageRange": { "max": 10 },
+  "bleedRate": 3,
+  "healingTime": 600,
+  "worsens": { "kind": "base:wound_kind/infected_wound", "chance": 0.1 }
+}

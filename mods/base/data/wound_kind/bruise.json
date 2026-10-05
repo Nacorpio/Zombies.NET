@@ -1,0 +1,5 @@
+{
+  "id": "base:wound_kind/bruise",
+  "damageTypes": [ "blunt" ],
+  "healingTime": 1200
+}

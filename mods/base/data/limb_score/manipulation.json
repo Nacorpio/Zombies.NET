@@ -1,0 +1,11 @@
+{
+  "id": "base:limb_score/manipulation",
+  "stat": "manipulation_speed",
+  "parts": [
+    { "part": "leftArm" },
+    { "part": "rightArm" }
+  ],
+  "floor": 0.1,
+  "woundsReduce": true,
+  "encumbranceReduces": true
+}

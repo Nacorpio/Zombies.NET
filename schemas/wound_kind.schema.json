@@ -1,0 +1,59 @@
+{
+  "type": "object",
+  "properties": {
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z0-9_]+:[a-z0-9_]+(/[a-z0-9_]+)*$"
+    },
+    "damageTypes": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "damageRange": {
+      "type": "object",
+      "properties": {
+        "min": {
+          "type": "number"
+        },
+        "max": {
+          "type": [
+            "number",
+            "null"
+          ]
+        }
+      }
+    },
+    "bleedRate": {
+      "type": "number"
+    },
+    "healingTime": {
+      "type": "number"
+    },
+    "worsens": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "pattern": "^[a-z0-9_]+:[a-z0-9_]+(/[a-z0-9_]+)*$"
+        },
+        "chance": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "kind",
+        "chance"
+      ]
+    }
+  },
+  "required": [
+    "id",
+    "healingTime"
+  ],
+  "$schema": "https://json-schema.org/draft/2020-12/schema"
+}

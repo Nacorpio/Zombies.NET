@@ -42,7 +42,15 @@ public sealed class HudTests
               "hud.part.left_leg": "Left leg",
               "hud.part.right_leg": "Right leg",
               "hud.part.missing": "Missing",
-              "hud.part.bandaged": "Bandaged" } }
+              "hud.part.bandaged": "Bandaged",
+              "hud.score.cause.missing": "Missing",
+              "hud.score.cause.injured": "Injured",
+              "hud.score.cause.wounded": "Wounded",
+              "hud.score.cause.encumbered": "Encumbered",
+              "limb_score.test.limb_score.movement": "Movement",
+              "wound_kind.test.wound_kind.scratch": "Scratch",
+              "treatment.test.treatment.bandage": "Bandage",
+              "treatment.test.treatment.dress": "Dress scratch" } }
             """, out var table, out var error), error);
         return new Localizer([table]);
     }
@@ -256,6 +264,53 @@ public sealed class HudTests
         Assert.Equal(
             [BodyPart.Head, BodyPart.Torso, BodyPart.LeftArm, BodyPart.RightArm, BodyPart.LeftLeg, BodyPart.RightLeg],
             parts.Select(p => p.Part));
+    }
+
+    [Fact]
+    public void ReducedScores_NameTheScoreAndWhyItIsReduced_AndHideFullOnes()
+    {
+        var movement = LimbScoreJson.Parse("""
+            { "id": "test:limb_score/movement", "stat": "move_speed", "floor": 0.2, "encumbranceReduces": true,
+              "parts": [ { "part": "leftLeg", "required": true }, { "part": "rightLeg", "required": true } ] }
+            """);
+        var boots = new WearableDefinition(new ItemId("test:item/boots"), ClothingLayer.Base, [BodyPart.RightLeg], ThermalResistance.Zero, encumbrance: 0.5);
+        var body = new Body(new BodyId(1), missingAtSpawn: [BodyPart.LeftLeg]);
+
+        var healthy = new HudModel(new Body(new BodyId(1)), new Needs(), null, null, English(), [movement], []);
+        var hurt = new HudModel(body, new Needs(), null, null, English(), [movement], [boots]);
+
+        Assert.Empty(healthy.ReducedScores);
+        var score = Assert.Single(hurt.ReducedScores);
+        Assert.Equal("Movement", score.Label);
+        Assert.Equal(0.2, score.Value, 6);
+        Assert.Equal(PaletteRole.Danger, score.Role);
+        Assert.Equal([new LimbScoreReason("Left leg", "Missing"), new LimbScoreReason("Right leg", "Encumbered")], score.Reasons);
+    }
+
+    [Fact]
+    public void BodyParts_ListTheirWoundKinds_AndOfferTheTreatmentsThatApply()
+    {
+        var kinds = new WoundKindCatalog([WoundKindJson.Parse("""{ "id": "test:wound_kind/scratch", "damageTypes": ["cut"], "bleedRate": 3, "healingTime": 600 }""")]);
+        var treatments = new TreatmentCatalog(
+            [
+                TreatmentJson.Parse("""{ "id": "test:treatment/bandage", "stopsBleeding": true, "time": 5, "consumes": "test:item/bandage" }"""),
+                TreatmentJson.Parse("""{ "id": "test:treatment/dress", "removes": ["test:wound_kind/scratch"], "time": 8, "consumes": "test:item/dressing" }"""),
+            ],
+            kinds);
+        var body = new Body(new BodyId(1), new BodyConfig { WoundKinds = kinds });
+        body.TakeHit(BodyPart.LeftArm, DamageType.Cut, 5);
+
+        var model = new HudModel(body, new Needs(), null, null, English(), treatments: treatments, holds: item => item == new ItemId("test:item/bandage"));
+        var parts = model.Parts;
+
+        var arm = parts.Single(p => p.Part == BodyPart.LeftArm);
+        Assert.Equal(["Scratch"], arm.WoundKinds);
+        Assert.Equal(
+            [new TreatmentOffer("test:treatment/bandage", "Bandage", HasItem: true), new TreatmentOffer("test:treatment/dress", "Dress scratch", HasItem: false)],
+            arm.Treatments);
+        var leg = parts.Single(p => p.Part == BodyPart.LeftLeg);
+        Assert.Empty(leg.WoundKinds);
+        Assert.Empty(leg.Treatments);
     }
 
     [Fact]

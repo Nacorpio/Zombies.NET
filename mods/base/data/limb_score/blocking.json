@@ -1,0 +1,11 @@
+{
+  "id": "base:limb_score/blocking",
+  "stat": "block_effectiveness",
+  "parts": [
+    { "part": "leftArm" },
+    { "part": "rightArm" },
+    { "part": "torso", "weight": 0.5 }
+  ],
+  "floor": 0.1,
+  "woundsReduce": true
+}

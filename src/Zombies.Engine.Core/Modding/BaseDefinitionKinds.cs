@@ -20,6 +20,7 @@ public static class BaseDefinitionKinds
         ["area_type"] = typeof(AreaTypeDto),
         ["biome"] = typeof(BiomeDto),
         ["item"] = typeof(ItemDefinitionDto),
+        ["limb_score"] = typeof(LimbScoreDto),
         ["loot"] = typeof(LootTableDto),
         ["modifier"] = typeof(ModifierDefinitionDto),
         ["settlement_type"] = typeof(SettlementTypeDto),
@@ -29,7 +30,9 @@ public static class BaseDefinitionKinds
         ["status_effect"] = typeof(StatusEffectDto),
         ["weapon"] = typeof(WeaponDto),
         ["weapon_category"] = typeof(WeaponCategoryDto),
+        ["treatment"] = typeof(TreatmentDto),
         ["weakpoint_set"] = typeof(WeakpointSetDto),
+        ["wound_kind"] = typeof(WoundKindDto),
         ["zombie"] = typeof(ZombieTypeDto),
         [ContentIdMigrations.Kind] = typeof(MigrationDto),
     };

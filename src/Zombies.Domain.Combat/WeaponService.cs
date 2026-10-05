@@ -27,8 +27,11 @@ public sealed class WeaponService(WeaponCatalog catalog)
     public static int RoundsOf(ItemState? state) =>
         state is not null && state.Values.TryGetValue(RoundsValue, out var rounds) ? Math.Max(rounds, 0) : 0;
 
-    /// <summary>Base stats, Attachment modifiers, and Condition combined through the shared Modifier pipeline.</summary>
-    public bool TryGetEffectiveStats(ItemId weapon, ItemState? state, out WeaponStats stats)
+    /// <summary>
+    /// Base stats, Attachment modifiers, and Condition combined through the shared Modifier pipeline, along with the
+    /// <paramref name="wielder"/>'s own Modifiers, such as the grip Limb score on <see cref="Handling"/>.
+    /// </summary>
+    public bool TryGetEffectiveStats(ItemId weapon, ItemState? state, out WeaponStats stats, ModifierSet? wielder = null)
     {
         stats = null!;
         if (!catalog.TryGetWeapon(weapon, out var definition))
@@ -37,6 +40,11 @@ public sealed class WeaponService(WeaponCatalog catalog)
         }
 
         var modifiers = new ModifierSet();
+        foreach (var modifier in wielder?.All ?? [])
+        {
+            modifiers.Add(modifier);
+        }
+
         foreach (var attached in state?.Attached.Keys ?? [])
         {
             if (catalog.TryGetAttachment(attached, out var attachment))

@@ -33,7 +33,7 @@ public sealed class ModLoadingTests
 
         Assert.True(result.IsSuccess, string.Join(Environment.NewLine, result.Errors));
         Assert.Equal(["base", "sample_data"], result.Mods.Select(m => m.Manifest.Id));
-        Assert.Equal(64, result.Registry.Count);
+        Assert.Equal(77, result.Registry.Count);
     }
 
     [Fact]
@@ -58,6 +58,32 @@ public sealed class ModLoadingTests
         var catalog = new ItemCatalog(registry.OfKind("item").Select(d => ItemDefinitionJson.Parse(d.Json)));
 
         Assert.True(catalog.TryGet(new ItemId("base:item/bandage"), out _));
+    }
+
+    [Fact]
+    public void BaseLimbScores_ParseAndScoreAWholeBodyAsFull()
+    {
+        var scores = LoadRepositoryMods().Registry.OfKind("limb_score").Select(d => LimbScoreJson.Parse(d.Json)).ToList();
+
+        Assert.Equal(["blocking", "grip", "manipulation", "movement", "vision"], scores.Select(s => s.Id.Split('/')[1]).Order());
+        Assert.All(LimbScores.Compute(scores, new Body(new BodyId(1)), []), s => Assert.Equal(1, s.Value));
+    }
+
+    [Fact]
+    public void BaseWoundKindsAndTreatments_ParseIntoCatalogs_ThatTheBandageItemFits()
+    {
+        var registry = LoadRepositoryMods().Registry;
+        var items = new ItemCatalog(registry.OfKind("item").Select(d => ItemDefinitionJson.Parse(d.Json)));
+
+        var kinds = new WoundKindCatalog(registry.OfKind("wound_kind").Select(d => WoundKindJson.Parse(d.Json)));
+        var treatments = new TreatmentCatalog(registry.OfKind("treatment").Select(d => TreatmentJson.Parse(d.Json)), kinds);
+
+        Assert.True(kinds.All.Count >= 3);
+        Assert.True(treatments.All.Count >= 2);
+        Assert.All(treatments.All, t => Assert.True(items.TryGet(t.Consumes, out _), $"{t.Id} consumes unknown item {t.Consumes}."));
+        Assert.True(treatments.TryGet("base:treatment/bandage", out var bandage));
+        Assert.True(bandage.StopsBleeding);
+        Assert.Equal(new ItemId("base:item/bandage"), bandage.Consumes);
     }
 
     private static (ItemCatalog Items, LootTableCatalog Loot) LoadCatalogs()

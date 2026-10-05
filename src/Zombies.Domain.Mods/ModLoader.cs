@@ -63,11 +63,12 @@ public static class ModLoader
         }
 
         var loaded = order.Select((id, i) => new LoadedMod(mods[id].Manifest, i, mods[id].Package.ComputeContentHash())).ToList();
-        var definitions = registry.Select(e => new Definition(e.Key, e.Value.Json.ToJsonString(), e.Value.DefinedBy, e.Value.ModifiedBy));
-        return new ModLoadResult(loaded, new DefinitionRegistry(definitions), []);
+        var definitions = registry.Select(e => new Definition(e.Key, e.Value.Json.ToJsonString(), e.Value.DefinedBy, e.Value.ModifiedBy)).ToList();
+        var migrations = ContentIdMigrations.Build(definitions, errors);
+        return errors.Count > 0 ? Failed(errors) : new ModLoadResult(loaded, new DefinitionRegistry(definitions), migrations, []);
     }
 
-    private static ModLoadResult Failed(List<ModLoadError> errors) => new([], DefinitionRegistry.Empty, errors);
+    private static ModLoadResult Failed(List<ModLoadError> errors) => new([], DefinitionRegistry.Empty, ContentIdMigrations.Empty, errors);
 
     private static void CheckDependencies(Dictionary<string, (ModManifest Manifest, ModPackage Package)> mods, List<ModLoadError> errors)
     {

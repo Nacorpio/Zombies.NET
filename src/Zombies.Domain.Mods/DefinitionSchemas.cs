@@ -33,7 +33,7 @@ public static class DefinitionSchemas
                     obj["$schema"] = "https://json-schema.org/draft/2020-12/schema";
                 }
 
-                if (context.PropertyInfo?.Name is "id" or "item" or "category" or "ammoItem" or "areaType" or "structure" or "zombieType" or "trait")
+                if (context.PropertyInfo?.Name is "id" or "item" or "category" or "ammoItem" or "areaType" or "structure" or "zombieType" or "trait" or "from" or "to")
                 {
                     obj["pattern"] = ContentIdPattern;
                 }

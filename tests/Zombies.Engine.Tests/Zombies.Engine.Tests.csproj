@@ -22,6 +22,7 @@
     <ProjectReference Include="../../src/Zombies.Engine.Platform/Zombies.Engine.Platform.csproj" />
     <ProjectReference Include="../../src/Zombies.Engine.Voxel/Zombies.Engine.Voxel.csproj" />
     <ProjectReference Include="../../src/Zombies.Engine.Net/Zombies.Engine.Net.csproj" />
+    <ProjectReference Include="../../src/Zombies.Engine.Physics/Zombies.Engine.Physics.csproj" />
   </ItemGroup>
 
 </Project>

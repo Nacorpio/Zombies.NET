@@ -12,9 +12,10 @@ public sealed class NetTests
 
     private sealed class Rig
     {
-        public Rig(ServerOptions? options = null, int dropEveryNthUnreliable = 0)
+        public Rig(ServerOptions? options = null, int dropEveryNthUnreliable = 0, int latencyPolls = 0)
         {
             Network.DropEveryNthUnreliable = dropEveryNthUnreliable;
+            Network.LatencyPolls = latencyPolls;
             ServerTransport = Network.CreateServer();
             Server = new GameServer(ServerTransport, options ?? new ServerOptions(Identity, WorldSeed: 777));
         }
@@ -317,8 +318,8 @@ public sealed class NetTests
 
         rig.Run(30);
 
-        // Header only: type, sequence, tick, baseline, and an entry count of zero.
-        Assert.Equal(1 + 4 + 8 + 4 + 2, (rig.Server.SnapshotBytesSent - bytes) / (rig.Server.SnapshotsSent - count));
+        // Header only: type, sequence, tick, acknowledged input, baseline, and an entry count of zero.
+        Assert.Equal(1 + 4 + 8 + 4 + 4 + 2, (rig.Server.SnapshotBytesSent - bytes) / (rig.Server.SnapshotsSent - count));
     }
 
     [Fact]
@@ -387,6 +388,139 @@ public sealed class NetTests
 
     [Fact]
     public void InterestChunkSize_MatchesTheVoxelChunk() => Assert.Equal(ChunkConstants.Size, EntityState.ChunkSize);
+
+    [Fact]
+    public void PredictedInput_At150Milliseconds_MatchesTheServerExactly()
+    {
+        // Five polls of latency each way is about 150 ms at 30 Hz.
+        var rig = new Rig(latencyPolls: 5);
+        var alice = rig.Join("alice");
+        rig.Run(20);
+
+        var input = new PlayerInput(1f, 0f, 0.4f, 0f, false, false, false, false, false);
+        for (var i = 0; i < 60; i++)
+        {
+            alice.SendInput(input);
+            rig.Run(1);
+        }
+
+        rig.Run(20);
+
+        Assert.True(rig.Server.World.TryGet(alice.PlayerEntityId, out var truth));
+        Assert.Equal(truth.Position, alice.Local.State.Position);
+        Assert.Equal(0, alice.Local.PendingCount);
+        Assert.Equal(0, alice.Local.ReconciliationCount);
+        Assert.Equal(0f, alice.Local.LastCorrectionDistance);
+    }
+
+    [Fact]
+    public void LocalMovement_IsInstant_EvenWhileTheServerIsBehind()
+    {
+        var rig = new Rig(latencyPolls: 5);
+        var alice = rig.Join("alice");
+        rig.Run(20);
+
+        var start = alice.Local.State.Position;
+        var input = new PlayerInput(1f, 0f, 0f, 0f, false, false, false, false, false);
+        for (var i = 0; i < 10; i++)
+        {
+            alice.SendInput(input);
+            rig.Run(1);
+        }
+
+        // The Server has not seen these inputs yet, but the local player has already moved.
+        Assert.True(alice.Local.State.Position.Z < start.Z - 0.3f);
+        Assert.True(alice.Local.PendingCount > 0);
+    }
+
+    [Fact]
+    public void AServerCorrection_IsReconciled_AndTheUnconfirmedInputsAreReplayed()
+    {
+        // Latency keeps inputs in flight, so the correction has something to replay.
+        var rig = new Rig(latencyPolls: 5);
+        var alice = rig.Join("alice");
+        rig.Run(20);
+
+        var input = new PlayerInput(1f, 0f, 0f, 0f, false, false, false, false, false);
+        for (var i = 0; i < 10; i++)
+        {
+            alice.SendInput(input);
+            rig.Run(1);
+        }
+
+        Assert.True(alice.Local.PendingCount > 0);
+
+        // Teleport the Server's copy, as a rubber-band or a knock-back would.
+        var shoved = rig.Server.Options.SpawnPoint + new Vector3(0, 0, -3f);
+        Assert.True(rig.Server.TryGetPlayer(new ConnectionId(1), out var session));
+        Assert.True(rig.Server.Teleport(session!, shoved, 0f));
+
+        rig.Run(20);
+
+        Assert.True(alice.Local.ReconciliationCount > 0);
+        Assert.True(alice.Local.MaxCorrectionDistance > 0f);
+        Assert.True(rig.Server.World.TryGet(alice.PlayerEntityId, out var truth));
+        Assert.Equal(truth.Position, alice.Local.State.Position);
+    }
+
+    [Fact]
+    public void ARejectedInput_IsReported_AndDoesNotMoveThePlayer()
+    {
+        var rig = new Rig();
+        var alice = rig.Join("alice");
+        rig.Run(10);
+
+        var before = alice.Local.State.Position;
+        var sequence = alice.Send(new PlayerInputCommand(new PlayerInput(1f, 0f, float.NaN, 0f, false, false, false, false, false)));
+        rig.Run(5);
+
+        Assert.Equal(sequence, alice.LastRejection?.Sequence);
+        Assert.Equal(CommandRejection.Invalid, alice.LastRejection?.Reason);
+        Assert.Equal(before, alice.Local.State.Position);
+    }
+
+    [Fact]
+    public void TwoClients_Walking_SeeEachOtherMoveSmoothly()
+    {
+        var rig = new Rig();
+        var alice = rig.Join("alice");
+        var bob = rig.Join("bob");
+        rig.Run(10);
+
+        var input = new PlayerInput(1f, 0f, 0f, 0f, false, false, false, false, false);
+
+        // Let both players fall to the floor before measuring, so the drop is not mistaken for a jump.
+        for (var i = 0; i < 150; i++)
+        {
+            alice.SendInput(input);
+            bob.SendInput(input);
+            rig.Run(1);
+        }
+
+        Assert.True(rig.Server.World.TryGet(alice.PlayerEntityId, out var landed));
+        Assert.True(landed.Position.Y < 1f, $"the player should have landed, but is at y {landed.Position.Y}.");
+
+        var previous = landed.Position;
+        var maxJump = 0f;
+        for (var i = 0; i < 90; i++)
+        {
+            alice.SendInput(input);
+            bob.SendInput(input);
+            rig.Run(1);
+
+            Assert.True(rig.Server.World.TryGet(alice.PlayerEntityId, out var truth));
+            maxJump = MathF.Max(maxJump, Vector3.Distance(previous, truth.Position));
+            previous = truth.Position;
+        }
+
+        // No tick ever teleports a player: every step is a normal walking step.
+        Assert.True(maxJump < PlayerMovement.MaxStepPerTick, $"a player jumped {maxJump} blocks in one tick.");
+        Assert.True(previous.Z < landed.Position.Z - 5f);
+
+        // And the other client sees the same thing, within the one snapshot it may be behind.
+        Assert.True(bob.World.TryGet(alice.PlayerEntityId, out var seen));
+        Assert.True(Vector3.Distance(previous, seen.Position) < PlayerMovement.MaxStepPerTick * 2f);
+    }
 
     private sealed class Mover(GameClient client, Vector3 start) : ITickable
     {

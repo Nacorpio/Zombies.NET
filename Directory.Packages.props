@@ -15,6 +15,7 @@
     <PackageVersion Include="Silk.NET.Vulkan.Extensions.NV" Version="2.23.0" />
     <PackageVersion Include="Silk.NET.Vulkan.Extensions.EXT" Version="2.23.0" />
     <PackageVersion Include="LiteNetLib" Version="2.1.4" />
+    <PackageVersion Include="JoltPhysicsSharp" Version="2.22.0" />
     <PackageVersion Include="Microsoft.Direct3D.DXC" Version="1.10.2605.37-preview" />
   </ItemGroup>
 

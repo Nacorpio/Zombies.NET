@@ -40,6 +40,14 @@
       <Profile>vs_6_0</Profile>
       <SpirvName>shadow.vert.spv</SpirvName>
     </HlslShader>
+    <HlslShader Include="Shaders/body.vert.hlsl">
+      <Profile>vs_6_0</Profile>
+      <SpirvName>body.vert.spv</SpirvName>
+    </HlslShader>
+    <HlslShader Include="Shaders/body.frag.hlsl">
+      <Profile>ps_6_0</Profile>
+      <SpirvName>body.frag.spv</SpirvName>
+    </HlslShader>
     <EmbeddedResource Include="Shaders/compiled/*.spv" LogicalName="%(Filename)%(Extension)" />
   </ItemGroup>
 

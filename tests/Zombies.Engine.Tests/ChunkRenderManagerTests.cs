@@ -22,6 +22,10 @@ public sealed class ChunkRenderManagerTests
         }
 
         public void ReleaseChunk(GpuChunk chunk) => Released.Add(chunk);
+
+        public void SetBodyMesh(BodyMesh mesh)
+        {
+        }
     }
 
     private static ChunkPipeline NewPipeline() => new(new WorldGenerator(1, new BiomeCatalog([Forest])), workerCount: 2);

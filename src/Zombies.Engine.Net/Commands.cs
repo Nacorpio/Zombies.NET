@@ -203,7 +203,7 @@ public readonly record struct PlayerInputCommand(PlayerInput Input) : INetComman
 
         var input = command.Input.Sanitized();
         var state = context.Player.Movement;
-        var next = PlayerMovement.Step(state, input, PlayerMovement.StepSeconds, context.Player.Collision);
+        var next = PlayerMovement.Step(state, input, PlayerMovement.StepSeconds, context.Player.Collision, null, context.Server.Options.MovementModes, (float)context.Player.Carried.TotalMass.Kilograms);
         if (Vector3.DistanceSquared(state.Position, next.Position) > PlayerMovement.MaxStepPerTick * PlayerMovement.MaxStepPerTick)
         {
             return CommandResult.Invalid($"A step may cover at most {PlayerMovement.MaxStepPerTick} blocks.");

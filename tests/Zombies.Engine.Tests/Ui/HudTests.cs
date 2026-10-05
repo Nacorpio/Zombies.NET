@@ -97,6 +97,21 @@ public sealed class HudTests
     }
 
     [Fact]
+    public void Stamina_ShowsHowMuchIsLeft_AndAnExhaustedPlayerIsInDanger()
+    {
+        var body = new Body(new BodyId(1));
+        var rested = new HudModel(body, new Needs(), null, null, English());
+        var tired = new HudModel(body, new Needs(), null, null, English(), stamina: 0.5);
+        var spent = new HudModel(body, new Needs(), null, null, English(), stamina: 0.3, exhausted: true);
+
+        Assert.Equal(1, rested.StaminaFraction, 3);
+        Assert.Equal(PaletteRole.Good, rested.StaminaRole);
+        Assert.Equal(0.5, tired.StaminaFraction, 3);
+        Assert.Equal(PaletteRole.Warning, tired.StaminaRole);
+        Assert.Equal(PaletteRole.Danger, spent.StaminaRole);
+    }
+
+    [Fact]
     public void Blood_IsAFractionOfWhatTheBodyStartedWith()
     {
         var body = new Body(new BodyId(1));

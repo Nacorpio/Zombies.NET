@@ -53,7 +53,8 @@ var sprites = new SpriteBatch();
 var stats = new FrameStats();
 var smoke = options.Smoke ? new SmokeScript(window) : null;
 var benchmark = options.Benchmark ? new BenchmarkRun() : null;
-using var ui = options.NoWorld ? null : new UiSession(options, new PlayerStatus());
+var status = new PlayerStatus();
+using var ui = options.NoWorld ? null : new UiSession(options, status);
 if (ui is not null && options.Screen is { } startScreen && !ui.Open(startScreen))
 {
     throw new ArgumentException($"Unknown screen '{startScreen}'. Use inventory, body, options, dialog, or none.");
@@ -192,6 +193,8 @@ while (!window.CloseRequested)
         if (benchmark is null)
         {
             PlayerController.ApplyToCamera(camera, world.Solo.Client.Local.State, world.Solo.Client.Local.Lean);
+            status.Stamina = world.Solo.Client.Local.State.Stamina / PlayerMovement.FullStamina;
+            status.Exhausted = world.Solo.Client.Local.State.Exhausted;
         }
 
         scene = new WorldScene(

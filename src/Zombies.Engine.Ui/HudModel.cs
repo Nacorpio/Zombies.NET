@@ -41,7 +41,9 @@ public sealed class HudModel(
     IReadOnlyList<LimbScoreDefinition>? limbScores = null,
     IReadOnlyList<WearableDefinition>? worn = null,
     TreatmentCatalog? treatments = null,
-    Func<ItemId, bool>? holds = null)
+    Func<ItemId, bool>? holds = null,
+    double stamina = 1,
+    bool exhausted = false)
 {
     /// <summary>Health below this fraction is a warning.</summary>
     public const double WarningThreshold = 0.6;
@@ -68,6 +70,12 @@ public sealed class HudModel(
     public double BleedFraction => Fraction(body.TotalBleedRate.MillilitersPerMinute, HeavyBleedMillilitersPerMinute);
 
     public PaletteRole BleedRole => IsBleeding ? PaletteRole.Danger : PaletteRole.Good;
+
+    /// <summary>The Stamina left, as a fraction of a full pool.</summary>
+    public double StaminaFraction => Fraction(stamina, 1);
+
+    /// <summary>An exhausted player cannot sprint, which is dangerous however much Stamina has come back.</summary>
+    public PaletteRole StaminaRole => exhausted ? PaletteRole.Danger : Role(StaminaFraction);
 
     public double SatietyFraction => needs.Satiety;
 

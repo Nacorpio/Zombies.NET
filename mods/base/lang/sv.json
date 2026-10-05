@@ -3,6 +3,7 @@
   "strings": {
     "hud.health": "Hälsa",
     "hud.blood": "Blod",
+    "hud.stamina": "Uthållighet",
     "hud.bleeding": "Blöder",
     "hud.hunger": "Hunger",
     "hud.thirst": "Törst",

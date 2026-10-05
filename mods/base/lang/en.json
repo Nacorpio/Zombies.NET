@@ -3,6 +3,7 @@
   "strings": {
     "hud.health": "Health",
     "hud.blood": "Blood",
+    "hud.stamina": "Stamina",
     "hud.bleeding": "Bleeding",
     "hud.hunger": "Hunger",
     "hud.thirst": "Thirst",

@@ -9,6 +9,8 @@
           { "type": "bar", "id": "hud.health", "width": 90, "height": 6, "role": "good", "tooltipKey": "hud.health" },
           { "type": "label", "id": "hud.blood.label", "textKey": "hud.blood", "role": "muted" },
           { "type": "bar", "id": "hud.blood", "width": 90, "height": 6, "role": "good", "tooltipKey": "hud.blood" },
+          { "type": "label", "id": "hud.stamina.label", "textKey": "hud.stamina", "role": "muted" },
+          { "type": "bar", "id": "hud.stamina", "width": 90, "height": 6, "role": "good", "tooltipKey": "hud.stamina" },
           { "type": "label", "id": "hud.bleeding", "textKey": "hud.bleeding", "role": "danger" }
         ] },
       { "type": "column", "id": "hud.right", "anchor": "bottomRight", "gap": 2,

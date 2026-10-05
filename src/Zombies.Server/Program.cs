@@ -158,7 +158,7 @@ if (savePath is not null)
 }
 
 var items = new ItemCatalog(mods.Registry.OfKind("item").Select(d => ItemDefinitionJson.Parse(d.Json)));
-var options = new ServerOptions(identity, seed) { MaxPlayers = maxPlayers, Items = items };
+var options = new ServerOptions(identity, seed) { MaxPlayers = maxPlayers, Items = items, MovementModes = MovementModeContentLoader.Load(mods.Registry) };
 
 // With a save, Corpses and their Containers and the Memorials are kept in it; without one they last as long as the process.
 var deathStores = save is null

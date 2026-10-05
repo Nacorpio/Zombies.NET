@@ -1,4 +1,5 @@
 using System.Numerics;
+using Zombies.Domain.Survival;
 using Zombies.Engine.Core;
 
 namespace Zombies.Engine.Net;
@@ -28,6 +29,9 @@ public sealed class ReplicatedWorld
     /// <summary>The newest player input the Server had processed when it took the newest snapshot, or 0.</summary>
     public uint AckedInput => _latest?.AckedInput ?? 0;
 
+    /// <summary>The local player's Stamina and carried mass in the newest snapshot.</summary>
+    public PlayerVitals Vitals => _latest?.Vitals ?? PlayerVitals.Fresh;
+
     public ReadOnlySpan<EntityState> Entities => _latest is null ? [] : _latest.Entities;
 
     public bool TryGet(uint id, out EntityState state)
@@ -48,7 +52,7 @@ public sealed class ReplicatedWorld
     /// <summary>Decodes one snapshot message after its type byte. Returns false when it is stale or its baseline is gone.</summary>
     internal bool Apply(ref NetReader reader)
     {
-        var (sequence, tick, ackedInput, baselineSequence) = SnapshotCodec.ReadHeader(ref reader);
+        var (sequence, tick, ackedInput, vitals, baselineSequence) = SnapshotCodec.ReadHeader(ref reader);
         if (sequence <= Sequence)
         {
             return false;
@@ -60,7 +64,7 @@ public sealed class ReplicatedWorld
             return false;
         }
 
-        var frame = _history.Begin(sequence, tick, ackedInput);
+        var frame = _history.Begin(sequence, tick, ackedInput, vitals);
         try
         {
             SnapshotCodec.ReadEntries(ref reader, baseline, frame);
@@ -96,6 +100,12 @@ public sealed class LocalPlayer
 
     /// <summary>Where the client currently draws the player, after prediction and any reconciliation.</summary>
     public PlayerMoveState State { get; private set; }
+
+    /// <summary>The Movement modes the prediction reads. They must be the Server's, which a client's matching mods guarantee.</summary>
+    public MovementModes Modes { get; set; } = PlayerMovement.DefaultModes;
+
+    /// <summary>The mass the player carries as the Server last said, which costs Stamina.</summary>
+    public float CarriedKilograms { get; private set; }
 
     /// <summary>How far the camera leans sideways, in blocks. Cosmetic, so it is never reconciled.</summary>
     public float Lean { get; private set; }
@@ -133,7 +143,7 @@ public sealed class LocalPlayer
     /// </summary>
     public uint Predict(uint sequence, in PlayerInput input, IPlayerCollision collision)
     {
-        State = PlayerMovement.Step(State, input, PlayerMovement.StepSeconds, collision);
+        State = PlayerMovement.Step(State, input, PlayerMovement.StepSeconds, collision, null, Modes, CarriedKilograms);
         Lean = PlayerMovement.StepLean(Lean, input, PlayerMovement.StepSeconds);
         _pending.Add(new PredictedInput(sequence, input));
         _historySequence[sequence % HistoryCapacity] = sequence;
@@ -144,21 +154,23 @@ public sealed class LocalPlayer
     /// <summary>
     /// Takes the Server's authoritative position for the newest input it has processed and replays every input after it.
     /// The replay starts from the state the client itself predicted at that input, so the velocity and ground state are
-    /// the ones the Server also had; only the position is corrected. A prediction that matched is left untouched.
+    /// the ones the Server also had; only the position, and the Stamina the Server holds, are corrected. A prediction that
+    /// matched is left untouched.
     /// </summary>
-    public void Reconcile(Vector3 serverPosition, float serverYaw, uint acknowledgedSequence, IPlayerCollision collision)
+    public void Reconcile(Vector3 serverPosition, float serverYaw, PlayerVitals vitals, uint acknowledgedSequence, IPlayerCollision collision)
     {
+        CarriedKilograms = vitals.CarriedKilograms;
         while (_pending.Count > 0 && _pending[0].Sequence <= acknowledgedSequence)
         {
             _pending.RemoveAt(0);
         }
 
         var predicted = State.Position;
-        var baseState = StateAt(acknowledgedSequence) with { Position = serverPosition, Yaw = serverYaw };
+        var baseState = StateAt(acknowledgedSequence) with { Position = serverPosition, Yaw = serverYaw, Stamina = vitals.Stamina, Exhausted = vitals.Exhausted };
         var state = baseState;
         foreach (var pending in _pending)
         {
-            state = PlayerMovement.Step(state, pending.Input, PlayerMovement.StepSeconds, collision);
+            state = PlayerMovement.Step(state, pending.Input, PlayerMovement.StepSeconds, collision, null, Modes, CarriedKilograms);
         }
 
         State = state;
@@ -369,8 +381,8 @@ public sealed class GameClient : ITickable
             return;
         }
 
-        // The Server's snapshot is the truth for position and yaw; the rest of the state is the client's own.
-        Local.Reconcile(entity.Position, entity.Yaw, World.AckedInput, Collision);
+        // The Server's snapshot is the truth for position, yaw and Stamina; the rest of the state is the client's own.
+        Local.Reconcile(entity.Position, entity.Yaw, World.Vitals, World.AckedInput, Collision);
     }
 
     private sealed class Handler(GameClient client) : ITransportHandler

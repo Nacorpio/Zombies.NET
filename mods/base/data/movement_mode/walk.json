@@ -1,0 +1,7 @@
+{
+  "id": "base:movement_mode/walk",
+  "trigger": "walk",
+  "speed": 1,
+  "noise": 1,
+  "stamina": 0
+}

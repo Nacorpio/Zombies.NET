@@ -4,6 +4,7 @@ using Zombies.Domain.Crafting;
 using Zombies.Domain.Items;
 using Zombies.Domain.Mods;
 using Zombies.Domain.StatusEffects;
+using Zombies.Domain.Survival;
 using Zombies.Domain.World;
 using Zombies.Domain.Zombies;
 
@@ -21,6 +22,7 @@ public static class BaseDefinitionKinds
         ["biome"] = typeof(BiomeDto),
         ["item"] = typeof(ItemDefinitionDto),
         ["limb_score"] = typeof(LimbScoreDto),
+        ["movement_mode"] = typeof(MovementModeDto),
         ["loot"] = typeof(LootTableDto),
         ["modifier"] = typeof(ModifierDefinitionDto),
         ["settlement_type"] = typeof(SettlementTypeDto),

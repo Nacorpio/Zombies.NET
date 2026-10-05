@@ -71,7 +71,80 @@ public sealed class Container
         }
     }
 
+    /// <summary>Captures the Container as plain values, so a save can store it without reaching into its state.</summary>
+    public ContainerSnapshot ToSnapshot() => new(
+        Id.Value,
+        MassLimit.Kilograms,
+        VolumeLimit.CubicMeters,
+        _nextStackId,
+        [.. _entries.Select(e => new StackSnapshot(e.Id.Value, e.Item.Value, e.Count, SnapshotOf(e.State)))]);
+
+    /// <summary>Rebuilds a Container from a snapshot. Throws <see cref="ArgumentException"/> when the snapshot is not a state a Container can be in.</summary>
+    public static Container Restore(ContainerSnapshot snapshot, IItemCatalog catalog)
+    {
+        ArgumentNullException.ThrowIfNull(snapshot);
+        ArgumentNullException.ThrowIfNull(catalog);
+        if (!double.IsFinite(snapshot.MassLimitKg) || !double.IsFinite(snapshot.VolumeLimitM3) || snapshot.MassLimitKg < 0 || snapshot.VolumeLimitM3 < 0)
+        {
+            throw new ArgumentException("A Container's limits must be finite and not negative.", nameof(snapshot));
+        }
+
+        var container = new Container(new ContainerId(snapshot.Id), Mass.FromKilograms(snapshot.MassLimitKg), Volume.FromCubicMeters(snapshot.VolumeLimitM3), catalog);
+        var seen = new HashSet<int>();
+        foreach (var stack in snapshot.Stacks)
+        {
+            if (!ItemId.TryParse(stack.Item, out var item))
+            {
+                throw new ArgumentException($"'{stack.Item}' is not a valid Content ID.", nameof(snapshot));
+            }
+
+            if (stack.Count < 1 || stack.Id < 1 || !seen.Add(stack.Id))
+            {
+                throw new ArgumentException($"Stack {stack.Id} of {item} is not valid: it needs a unique positive id and a positive count.", nameof(snapshot));
+            }
+
+            container._entries.Add(new Entry(new StackId(stack.Id), item, stack.Count, StateOf(stack.State, item)));
+        }
+
+        container._nextStackId = Math.Max(snapshot.NextStackId, seen.Count == 0 ? 1 : seen.Max() + 1);
+        return container;
+    }
+
     public int CountOf(ItemId item) => _entries.Where(e => e.Item == item).Sum(e => e.Count);
+
+    private static ItemStateSnapshot? SnapshotOf(ItemState? state) => state is null
+        ? null
+        : new ItemStateSnapshot([.. state.Values], [.. state.Attached.Select(a => new KeyValuePair<string, int>(a.Key.Value, a.Value))]);
+
+    private static ItemState? StateOf(ItemStateSnapshot? snapshot, ItemId item)
+    {
+        if (snapshot is null)
+        {
+            return null;
+        }
+
+        var attached = new List<KeyValuePair<ItemId, int>>();
+        foreach (var (attachedItem, count) in snapshot.Attached)
+        {
+            if (!ItemId.TryParse(attachedItem, out var id))
+            {
+                throw new ArgumentException($"'{attachedItem}' attached to {item} is not a valid Content ID.");
+            }
+
+            attached.Add(new(id, count));
+        }
+
+        try
+        {
+            // Like the Inventory commands, treat a state that holds nothing as no state, so equal Stacks can still merge.
+            var state = ItemState.Create(snapshot.Values, attached);
+            return state.IsEmpty ? null : state;
+        }
+        catch (ArgumentException ex)
+        {
+            throw new ArgumentException($"The state of {item} is not valid: {ex.Message}", ex);
+        }
+    }
 
     public int CountOf(ItemId item, ItemState? state) => _entries.Where(e => e.Item == item && Equals(e.State, state)).Sum(e => e.Count);
 

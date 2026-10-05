@@ -12,7 +12,7 @@ Every dependency chosen for the project. Status `planned` means decided in an AD
 | OpenAL Soft | 3D positional audio | LGPL-2.0 | Dynamic only | planned |
 | LiteNetLib | UDP transport | MIT | Static | in use |
 | UnitsNet | Units of measure in the domain | MIT | Static | in use |
-| Microsoft.Data.Sqlite | Persistence | MIT | Static | planned |
+| Microsoft.Data.Sqlite | Persistence | MIT | Static managed code; SQLite native library shipped by the package for win-x64 and linux-x64 | in use |
 | Microsoft.Extensions.DependencyInjection | Composition root | MIT | Static | planned |
 | Serilog | Local file logging | Apache-2.0 | Static | planned |
 | ImGui.NET (Dear ImGui) | Developer debug overlay only | MIT | Dynamic (native) | planned |

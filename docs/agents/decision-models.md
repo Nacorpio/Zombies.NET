@@ -1,6 +1,6 @@
 # Decision models through OpenRouter
 
-How to use Jev, a decision model, from this workspace. For choosing a model per task, use the `model-router` skill (`.claude/skills/model-router/`); this page is the background and the rules for calling Jev directly.
+How to use Jev, a decision model, from this workspace. For choosing a model per task there is a `model-router` skill, installed as a user skill (`~/.claude/skills/model-router/`) and not kept in this repo, so it may be missing in a cloud session; this page is the background and the rules for calling Jev directly.
 
 ## What a decision model is
 
@@ -38,12 +38,12 @@ Set `OPENROUTER_API_KEY` in the cloud environment (environment menu in the sessi
 
 ## Routing a task to a model
 
-Use the skill, not hand-written calls:
+If the user skill is installed, use it instead of hand-written calls (`<skill-dir>` is `~/.claude/skills/model-router`):
 
 ```bash
-python .claude/skills/model-router/scripts/route.py classify "<title>\n\n<what to build>"
-python .claude/skills/model-router/scripts/route.py run "<task>"      # classify, then call the chosen model
-python .claude/skills/model-router/scripts/route.py validate         # check tiers.json IDs exist on OpenRouter
+python <skill-dir>/scripts/route.py classify "<title>\n\n<what to build>"
+python <skill-dir>/scripts/route.py run "<task>"      # classify, then call the chosen model
+python <skill-dir>/scripts/route.py validate         # check tiers.json IDs exist on OpenRouter
 ```
 
 `classify` returns `tier`, `model`, `kind`, `reason`, `system_prompt` and `alternatives`. To delegate to a Claude subagent, map the tier to the Agent tool's `model`: `fast` to haiku, `standard` to sonnet, `hard` to opus, `frontier` to fable, and start the agent's prompt with `system_prompt`. A skill cannot switch the main session's model. Candidates and thresholds live in `tiers.json` and `decide()` in `route.py`.

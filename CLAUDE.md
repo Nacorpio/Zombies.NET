@@ -14,4 +14,4 @@ Single-context: one `GLOSSARY.md` and `docs/adr/` at the repo root. See `docs/ag
 
 ### Decision models
 
-Jev and other decision models are called through OpenRouter, and the `model-router` skill picks a model per task. See `docs/agents/decision-models.md`.
+Jev and other decision models are called through OpenRouter. A `model-router` user skill (installed in `~/.claude/skills`, not in this repo) picks a model per task when present. See `docs/agents/decision-models.md`.

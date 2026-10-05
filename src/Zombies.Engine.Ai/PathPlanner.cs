@@ -53,6 +53,8 @@ public sealed class PathPlanner
     private readonly Dictionary<long, Node> _clusterNodes = [];
 
     private NavJob? _current;
+    private int _terrainVersion;
+    private int _searchTerrainVersion;
     private bool _coarse;
     private (int X, int Z) _goalCluster;
     private bool _hasGoalRegion;
@@ -126,6 +128,7 @@ public sealed class PathPlanner
     public void Request(FlowField field, NavCell target, int reach = int.MaxValue)
     {
         ArgumentNullException.ThrowIfNull(field);
+        var wasCancelled = field.IsCancelled;
         field.IsCancelled = false;
         field.RequestedTarget = target;
         field.RequestedReach = Math.Clamp(reach, Navigation.StraightCost, _options.MaxFlowFieldCost);
@@ -133,6 +136,15 @@ public sealed class PathPlanner
         {
             field.Building = target;
             Enqueue(field);
+        }
+        else if (wasCancelled)
+        {
+            // The build waiting or under way was dropped, so it must never be published: build for the new target instead.
+            field.Building = target;
+            if (ReferenceEquals(field, _current))
+            {
+                BeginField(field);
+            }
         }
     }
 
@@ -147,9 +159,14 @@ public sealed class PathPlanner
     }
 
     /// <summary>
-    /// Forgets which clusters link to which, for when chunks are loaded or unloaded. A route or field already found is not changed.
+    /// Forgets which clusters link to which, for when chunks are loaded or unloaded. A route or field already found is not changed;
+    /// a route being searched starts again, since the regions it was walking are gone.
     /// </summary>
-    public void TerrainChanged() => _clusters.Clear();
+    public void TerrainChanged()
+    {
+        _clusters.Clear();
+        _terrainVersion++;
+    }
 
     /// <summary>
     /// Analyses the clusters that cover the blocks from <paramref name="min"/> to <paramref name="max"/> now, as a Server does when it
@@ -239,6 +256,7 @@ public sealed class PathPlanner
 
     private void BeginPath(NavPath path)
     {
+        _searchTerrainVersion = _terrainVersion;
         _open.Clear();
         _nodes.Clear();
         _corridor.Clear();
@@ -271,6 +289,11 @@ public sealed class PathPlanner
             path.IsCancelled = false;
             Finish(path);
             return 0;
+        }
+
+        if (_searchTerrainVersion != _terrainVersion)
+        {
+            BeginPath(path);
         }
 
         var used = 0;

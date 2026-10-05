@@ -545,6 +545,82 @@ public sealed class ZombieAiTests
     }
 
     [Fact]
+    public void ARouteSearchPausedInItsCoarsePhase_StartsAgain_WhenTheTerrainChanges()
+    {
+        var planner = new PathPlanner(new Navigation(new FlatTerrain()));
+        var path = planner.CreatePath();
+        var goal = new NavCell(200, Floor, 5);
+        planner.Request(path, new NavCell(0, Floor, 0), goal);
+
+        planner.Run(TimeSpan.FromSeconds(1), maxExpansions: 1);
+        Assert.Equal(PathStatus.Pending, path.Status);
+
+        // Chunks load or unload while the search is paused, so the regions it was walking are gone.
+        planner.TerrainChanged();
+        for (var runs = 0; runs < 1000 && path.Status == PathStatus.Pending; runs++)
+        {
+            planner.Run(TimeSpan.FromSeconds(1), maxExpansions: 64);
+        }
+
+        Assert.Equal(PathStatus.Ready, path.Status);
+        Assert.False(path.IsPartial);
+        Assert.Equal(goal, path.End);
+    }
+
+    [Fact]
+    public void AFlowFieldCancelledAndRequestedForANewTarget_NeverLeadsTowardTheOldOne()
+    {
+        var planner = new PathPlanner(new Navigation(new FlatTerrain()));
+        var field = planner.CreateFlowField();
+        var oldTarget = new NavCell(0, Floor, 0);
+        var newTarget = new NavCell(20, Floor, 0);
+
+        // A horde's field goes stale and back to the pool, and a new horde takes it before the planner has dropped the old build.
+        planner.Request(field, oldTarget, 100);
+        planner.Cancel(field);
+        planner.Request(field, newTarget, 100);
+        for (var runs = 0; runs < 1000 && field.Version == 0; runs++)
+        {
+            planner.Run(TimeSpan.FromSeconds(1), maxExpansions: 64);
+        }
+
+        Assert.True(field.IsReady);
+        Assert.Equal(newTarget, field.Target);
+        Assert.True(field.TryGetNext(new NavCell(15, Floor, 0), out var next));
+        Assert.Equal(16, next.X);
+    }
+
+    [Fact]
+    public void AFlowFieldCancelledWhileBuilding_AndRequestedForANewTarget_NeverLeadsTowardTheOldOne()
+    {
+        var planner = new PathPlanner(new Navigation(new FlatTerrain()));
+        var field = planner.CreateFlowField();
+        var oldTarget = new NavCell(0, Floor, 0);
+        var newTarget = new NavCell(20, Floor, 0);
+
+        planner.Request(field, oldTarget, 100);
+        planner.Run(TimeSpan.FromSeconds(1), maxExpansions: 1);
+        Assert.Equal(0, field.Version);
+        planner.Cancel(field);
+        planner.Request(field, newTarget, 100);
+        for (var runs = 0; runs < 1000 && field.Version == 0; runs++)
+        {
+            planner.Run(TimeSpan.FromSeconds(1), maxExpansions: 64);
+        }
+
+        Assert.True(field.IsReady);
+        Assert.Equal(newTarget, field.Target);
+        Assert.True(field.TryGetNext(new NavCell(15, Floor, 0), out var next));
+        Assert.Equal(16, next.X);
+    }
+
+    /// <summary>Flat ground everywhere, with no chunks to load, for planner tests that reach far.</summary>
+    private sealed class FlatTerrain : INavigationTerrain
+    {
+        public bool IsSolid(int x, int y, int z) => y < Floor;
+    }
+
+    [Fact]
     public void NavCellKeys_RoundTrip_ForNegativeCoordinates()
     {
         NavCell[] cells = [new(0, 0, 0), new(-1, 5, -1), new(8_000_000, 127, -8_000_000), new(-123, -4, 456)];

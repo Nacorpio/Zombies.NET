@@ -424,12 +424,23 @@ public sealed class NetTests
         var mover = new Mover(alice, rig.Server.Options.SpawnPoint);
         var simulation = new Simulation(mover, rig.Server, alice, bob);
 
-        var allocated = AllocationProbe.MeasureSteadyState(simulation, warmupTicks: 60, ticks: 300);
+        simulation.Run(60);
+        var allocating = new List<string>();
+        for (var i = 0; i < 300; i++)
+        {
+            var before = GC.GetAllocatedBytesForCurrentThread();
+            simulation.Run(1);
+            var bytes = GC.GetAllocatedBytesForCurrentThread() - before;
+            if (bytes != 0)
+            {
+                allocating.Add($"steady-state tick {i} allocated {bytes} bytes");
+            }
+        }
 
         Assert.Equal(ClientState.Joined, alice.State);
         Assert.True(bob.World.TryGet(alice.PlayerEntityId, out var seen));
         Assert.NotEqual(rig.Server.Options.SpawnPoint, seen.Position);
-        Assert.Equal(0, allocated);
+        Assert.True(allocating.Count == 0, string.Join("; ", allocating));
     }
 
     [Fact]

@@ -182,9 +182,10 @@ public sealed class ZombieSystem : ITickable
 
     /// <summary>
     /// Spawns the zombies a Settlement's plan calls for, each with a spec the world seed and the plan decide. The Level is the
-    /// Region's Danger, held to the type's top Level. A spawn that cannot happen is reported, never skipped silently.
+    /// Region's Danger, held to the type's top Level, and the type is the one its upgrades have made it by <paramref name="worldDay"/>.
+    /// A spawn that cannot happen is reported, never skipped silently.
     /// </summary>
-    public ZombieSpawnReport SpawnSettlement(SettlementPlan plan, Func<int, int, float> groundHeight)
+    public ZombieSpawnReport SpawnSettlement(SettlementPlan plan, Func<int, int, float> groundHeight, int worldDay = 0)
     {
         ArgumentNullException.ThrowIfNull(plan);
         ArgumentNullException.ThrowIfNull(groundHeight);
@@ -193,11 +194,18 @@ public sealed class ZombieSystem : ITickable
         for (var i = 0; i < plan.ZombieSpawns.Count; i++)
         {
             var spawn = plan.ZombieSpawns[i];
-            var level = Catalog.TryGet(spawn.ZombieType, out var type) ? Math.Clamp(plan.Danger, 1, type.TopLevel) : 1;
+            var known = Catalog.TryGet(spawn.ZombieType, out var type);
+            var level = known ? Math.Clamp(plan.Danger, 1, type.TopLevel) : 1;
             var seed = WorldHash.Mix(plan.Site.Seed, i, spawn.X ^ spawn.Z, SaltYaw);
             var yaw = (seed % 360UL) * (MathF.PI / 180f);
             var position = new Vector3(spawn.X + 0.5f, groundHeight(spawn.X, spawn.Z), spawn.Z + 0.5f);
-            if (TrySpawn(new ZombieSpec(seed, spawn.ZombieType, level), position, yaw, out var id, out var problem))
+            var spec = new ZombieSpec(seed, spawn.ZombieType, level);
+            if (known)
+            {
+                spec = spec.At(Catalog, worldDay);
+            }
+
+            if (TrySpawn(spec, position, yaw, out var id, out var problem))
             {
                 spawned.Add(id);
             }

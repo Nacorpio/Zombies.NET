@@ -34,5 +34,6 @@
     { "part": "leftLeg", "chance": 0.08 },
     { "part": "rightLeg", "chance": 0.08 }
   ],
-  "weakpointSet": "base:weakpoint_set/humanoid"
+  "weakpointSet": "base:weakpoint_set/humanoid",
+  "upgrade": { "zombieType": "base:zombie/runner", "afterDays": 30 }
 }

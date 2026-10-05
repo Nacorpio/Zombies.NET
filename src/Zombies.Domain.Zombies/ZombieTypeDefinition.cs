@@ -23,6 +23,12 @@ public sealed record OutfitTable(
 public sealed record MissingPartChance(BodyPart Part, int Basis);
 
 /// <summary>
+/// The Zombie type a zombie of some type becomes, and how many world days after the world began it does. A chain adds its delays up,
+/// so with a walker that upgrades after 10 days and a runner after 20, a walker is a runner from day 10 and the next type from day 30.
+/// </summary>
+public sealed record ZombieUpgrade(string ZombieType, int AfterDays);
+
+/// <summary>
 /// A kind of zombie: base stats, Traits, senses, how its appearance may vary, and what it can wear. Everything about an
 /// individual zombie is derived from this and its <see cref="ZombieSpec"/>.
 /// </summary>
@@ -48,7 +54,8 @@ public sealed class ZombieTypeDefinition
         IEnumerable<uint> skinTones,
         OutfitTable outfit,
         IEnumerable<MissingPartChance> missingParts,
-        string? weakpointSet = null)
+        string? weakpointSet = null,
+        ZombieUpgrade? upgrade = null)
     {
         ArgumentNullException.ThrowIfNull(traits);
         ArgumentNullException.ThrowIfNull(skinTones);
@@ -128,6 +135,16 @@ public sealed class ZombieTypeDefinition
             throw new ArgumentException($"'{weakpointSet}' is not a valid Content ID.", nameof(weakpointSet));
         }
 
+        if (upgrade is not null)
+        {
+            if (!ItemId.TryParse(upgrade.ZombieType, out _))
+            {
+                throw new ArgumentException($"'{upgrade.ZombieType}' is not a valid Content ID.", nameof(upgrade));
+            }
+
+            ArgumentOutOfRangeException.ThrowIfLessThan(upgrade.AfterDays, 1);
+        }
+
         Id = id;
         PartHealth = partHealth;
         Damage = damage;
@@ -143,6 +160,7 @@ public sealed class ZombieTypeDefinition
         Outfit = outfit;
         MissingParts = missingList;
         WeakpointSet = weakpointSet;
+        Upgrade = upgrade;
     }
 
     public string Id { get; }
@@ -184,6 +202,9 @@ public sealed class ZombieTypeDefinition
 
     /// <summary>Content ID of the Weakpoint set of this type, or null when no part of it is weaker than another.</summary>
     public string? WeakpointSet { get; }
+
+    /// <summary>What this type upgrades into as the world ages, or null when it stays what it is.</summary>
+    public ZombieUpgrade? Upgrade { get; }
 
     public double PartHealthAt(int level) => PartHealth * LevelFactor(level);
 

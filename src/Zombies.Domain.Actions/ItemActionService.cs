@@ -1,4 +1,4 @@
-﻿using Zombies.Domain.Combat;
+using Zombies.Domain.Combat;
 using Zombies.Domain.Inventory;
 using Zombies.Domain.Items;
 
@@ -33,10 +33,10 @@ public sealed class ItemActionService(
                 continue;
             }
 
-            var failing = definition.EnabledWhen.FirstOrDefault(c => !Enabled(c, context));
-            offered.Add(failing == default && definition.EnabledWhen.Count == 0 || definition.EnabledWhen.All(c => Enabled(c, context))
+            var failing = definition.EnabledWhen.Where(c => !Enabled(c, context)).ToList();
+            offered.Add(failing.Count == 0
                 ? new AvailableAction(definition.Id, definition.Label, definition.Icon, definition.Group, definition.Order, true, null)
-                : new AvailableAction(definition.Id, definition.Label, definition.Icon, definition.Group, definition.Order, false, definition.DisabledReason ?? ItemActionDefinition.ReasonFor(failing)));
+                : new AvailableAction(definition.Id, definition.Label, definition.Icon, definition.Group, definition.Order, false, definition.DisabledReason ?? ItemActionDefinition.ReasonFor(failing[0])));
         }
 
         return [.. offered.OrderBy(a => a.Group, StringComparer.Ordinal).ThenBy(a => a.Order).ThenBy(a => a.Id, StringComparer.Ordinal)];

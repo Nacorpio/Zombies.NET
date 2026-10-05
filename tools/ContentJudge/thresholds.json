@@ -1,0 +1,11 @@
+{
+  // Per-question thresholds, keyed by question id. A model answer past a threshold yields Review, never Fail.
+  // reviewAbove / reviewBelow compare the noul probability or the score; reviewChoices lists choice options that need
+  // review; minConfidence flags choice and score answers the model is unsure of. A question with no entry is reviewed.
+  // These values are starting points until calibration replaces them.
+  "questions": {
+    "definition.plausible": {
+      "reviewBelow": 0.5
+    }
+  }
+}

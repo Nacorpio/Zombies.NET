@@ -1,0 +1,19 @@
+{
+  // Where each decision model lives. No keys here: the Bearer token is read from the variable named by apiKeyVariable.
+  // {VARIABLE} in an endpoint is filled from the environment. Override any field without editing this file with
+  // CONTENTJUDGE_<NAME>_MODEL, CONTENTJUDGE_<NAME>_ENDPOINT, or CONTENTJUDGE_<NAME>_API_KEY_VARIABLE, for example
+  // Jev through OpenRouter: CONTENTJUDGE_JEV_ENDPOINT=https://openrouter.ai/api/v1/systemone
+  // CONTENTJUDGE_JEV_MODEL=typesafe/jev-1.13 CONTENTJUDGE_JEV_API_KEY_VARIABLE=OPENROUTER_API_KEY.
+  "jev": {
+    "model": "jev-latest",
+    "endpoint": "https://api.typesafe.ai/v1/systemone",
+    "apiKeyVariable": "TYPESAFE_API_KEY",
+    "images": false
+  },
+  "clef-flash": {
+    "model": "clef-flash",
+    "endpoint": "https://api.cloudflare.com/client/v4/accounts/{CLOUDFLARE_ACCOUNT_ID}/ai/run/@cf/cloudflare/clef-flash",
+    "apiKeyVariable": "CLOUDFLARE_API_TOKEN",
+    "images": true
+  }
+}

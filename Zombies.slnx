@@ -32,11 +32,13 @@
     <Project Path="src/Zombies.Server/Zombies.Server.csproj" />
   </Folder>
   <Folder Name="/tests/">
+    <Project Path="tests/ContentJudge.Tests/ContentJudge.Tests.csproj" />
     <Project Path="tests/Zombies.Domain.Tests/Zombies.Domain.Tests.csproj" />
     <Project Path="tests/Zombies.Engine.Tests/Zombies.Engine.Tests.csproj" />
     <Project Path="tests/Zombies.Persistence.Tests/Zombies.Persistence.Tests.csproj" />
   </Folder>
   <Folder Name="/tools/">
+    <Project Path="tools/ContentJudge/ContentJudge.csproj" />
     <Project Path="tools/SimHarness/SimHarness.csproj" />
   </Folder>
 </Solution>

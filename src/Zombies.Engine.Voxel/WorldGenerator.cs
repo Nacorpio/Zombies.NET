@@ -29,15 +29,18 @@ public sealed class WorldGenerator
     private readonly ulong _seed;
     private readonly BiomeCatalog _biomes;
     private readonly SettlementContent? _settlements;
+    private readonly int _zombieDensityPercent;
     private readonly RegionGrid _regions;
     private readonly Dictionary<string, ushort[]> _blueprints = new(StringComparer.Ordinal);
     private readonly ConcurrentDictionary<RegionCoord, SettlementPlan?> _plans = new();
 
     /// <param name="settlements">The Structures and Settlement types to stamp at region sites. Null builds a world with none.</param>
-    public WorldGenerator(ulong seed, BiomeCatalog biomes, SettlementContent? settlements = null)
+    /// <param name="zombieDensityPercent">Scales the zombies each Settlement spawns with: 100 as declared, 0 for none.</param>
+    public WorldGenerator(ulong seed, BiomeCatalog biomes, SettlementContent? settlements = null, int zombieDensityPercent = 100)
     {
         ArgumentNullException.ThrowIfNull(biomes);
         _seed = seed;
+        _zombieDensityPercent = zombieDensityPercent;
         _biomes = biomes;
         _settlements = settlements;
         _regions = new RegionGrid(seed);
@@ -60,7 +63,7 @@ public sealed class WorldGenerator
             return null;
         }
 
-        return _plans.GetOrAdd(region, r => SettlementPlanner.Plan(content, _regions, r));
+        return _plans.GetOrAdd(region, r => SettlementPlanner.Plan(content, _regions, r, _zombieDensityPercent));
     }
 
     /// <summary>Height of the floor of a placed Structure: the ground level at the middle of its footprint.</summary>

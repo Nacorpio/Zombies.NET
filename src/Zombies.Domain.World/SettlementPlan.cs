@@ -113,10 +113,16 @@ public static class SettlementPlanner
     private const int SaltZombieCount = 116;
     private const int SaltZombieCell = 117;
     private const int SaltZombieOffset = 118;
+    private const int SaltZombieScale = 119;
 
-    /// <summary>The Settlement in a Region, or null when the Region has no site or no Settlement type fits its Danger level.</summary>
-    public static SettlementPlan? Plan(SettlementContent content, RegionGrid grid, RegionCoord region)
+    /// <summary>
+    /// The Settlement in a Region, or null when the Region has no site or no Settlement type fits its Danger level.
+    /// <paramref name="zombieDensityPercent"/> scales how many zombies each spawn rule produces: 100 is as the Settlement type
+    /// declares, 200 doubles it, and 0 leaves the Settlement without zombies. Structures and containers do not change.
+    /// </summary>
+    public static SettlementPlan? Plan(SettlementContent content, RegionGrid grid, RegionCoord region, int zombieDensityPercent = 100)
     {
+        ArgumentOutOfRangeException.ThrowIfNegative(zombieDensityPercent);
         ArgumentNullException.ThrowIfNull(content);
         ArgumentNullException.ThrowIfNull(grid);
         if (grid.SiteIn(region) is not { } site)
@@ -125,7 +131,7 @@ public static class SettlementPlanner
         }
 
         var danger = grid.DangerOf(region);
-        return Choose(content, danger, site.Seed) is { } type ? Build(content, type, site, danger) : null;
+        return Choose(content, danger, site.Seed) is { } type ? Build(content, type, site, danger, zombieDensityPercent) : null;
     }
 
     /// <summary>Picks among the types whose danger range holds <paramref name="danger"/>, each in proportion to its rarity weight.</summary>
@@ -153,7 +159,7 @@ public static class SettlementPlanner
         return eligible[^1];
     }
 
-    private static SettlementPlan Build(SettlementContent content, SettlementType type, SettlementSite site, int danger)
+    private static SettlementPlan Build(SettlementContent content, SettlementType type, SettlementSite site, int danger, int zombieDensityPercent)
     {
         var instances = new List<Structure>();
         for (var i = 0; i < type.Structures.Count; i++)
@@ -211,7 +217,7 @@ public static class SettlementPlanner
         for (var r = 0; r < type.ZombieSpawns.Count; r++)
         {
             var rule = type.ZombieSpawns[r];
-            var count = Roll(site.Seed, r, 0, SaltZombieCount, rule.MinCount, rule.MaxCount);
+            var count = ScaleByPercent(Roll(site.Seed, r, 0, SaltZombieCount, rule.MinCount, rule.MaxCount), zombieDensityPercent, WorldHash.Mix(site.Seed, r, 0, SaltZombieScale));
             for (var k = 0; k < count; k++)
             {
                 var n = (r * SettlementType.MaxZombies) + k;
@@ -241,6 +247,19 @@ public static class SettlementPlanner
         }
 
         return type.AreaTypes[^1].AreaType;
+    }
+
+    /// <summary>Scales a count by a percentage, rounding the remainder up or down by the hash so the average is exact. Never above <see cref="SettlementType.MaxZombies"/>.</summary>
+    private static int ScaleByPercent(int count, int percent, ulong hash)
+    {
+        var scaled = (long)count * percent;
+        var whole = scaled / 100;
+        if ((long)(hash % 100) < scaled % 100)
+        {
+            whole++;
+        }
+
+        return (int)Math.Min(whole, SettlementType.MaxZombies);
     }
 
     private static int Roll(ulong seed, int a, int b, int salt, int min, int max) =>

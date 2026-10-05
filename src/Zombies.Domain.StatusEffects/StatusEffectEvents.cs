@@ -14,6 +14,7 @@ public enum EffectError
     NotActive,
     NothingToCure,
     InvalidDuration,
+    NotConsumable,
 }
 
 public sealed record EffectApplied(CreatureId Creature, string Effect, int Stacks) : IDomainEvent;

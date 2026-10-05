@@ -108,6 +108,15 @@ public sealed record UpgradeDto
     public required int AfterDays { get; init; }
 }
 
+public sealed record BiteDto
+{
+    /// <summary>Content ID of the Status effect a bite may cause, such as <c>base:status_effect/infection</c>.</summary>
+    public required string Effect { get; init; }
+
+    /// <summary>Chance from 0 to 1 that a bite that lands causes the effect.</summary>
+    public required double Chance { get; init; }
+}
+
 /// <summary>
 /// JSON shape of a Zombie type definition. This type is the source of the generated JSON Schema,
 /// so keep it in step with <see cref="ZombieTypeJson"/>.
@@ -134,6 +143,9 @@ public sealed record ZombieTypeDto
 
     /// <summary>What the zombies of this type become as the world ages. Leave out for a type that never changes.</summary>
     public UpgradeDto? Upgrade { get; init; }
+
+    /// <summary>The Status effect a bite of this zombie may cause. Leave out for a zombie whose bites only wound.</summary>
+    public BiteDto? Bite { get; init; }
 }
 
 /// <summary>Parses a Zombie type definition from JSON.</summary>
@@ -181,7 +193,8 @@ public static class ZombieTypeJson
                     dto.Outfit.Backpacks.Select(ToWearable).ToList()),
                 dto.MissingParts.Select(m => new MissingPartChance(ParsePart(m.Part), Basis(m.Chance))),
                 dto.WeakpointSet,
-                dto.Upgrade is null ? null : new ZombieUpgrade(dto.Upgrade.ZombieType, dto.Upgrade.AfterDays));
+                dto.Upgrade is null ? null : new ZombieUpgrade(dto.Upgrade.ZombieType, dto.Upgrade.AfterDays),
+                dto.Bite is null ? null : new ZombieBite(dto.Bite.Effect, Basis(dto.Bite.Chance)));
         }
         catch (ArgumentException ex)
         {

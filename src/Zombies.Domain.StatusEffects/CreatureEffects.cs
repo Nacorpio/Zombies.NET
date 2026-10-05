@@ -54,6 +54,9 @@ public sealed class CreatureEffects(CreatureId id, StatusEffectCatalog catalog)
     /// <summary>The Modifiers granted by active effects, one set per stack. They disappear when the effect ends.</summary>
     public IReadOnlyList<Modifier> Modifiers => _modifiers.All;
 
+    /// <summary>How many effects are active.</summary>
+    public int Count => _active.Count;
+
     public bool Has(string effect) => _active.Exists(a => a.Definition.Id == effect);
 
     public double EffectiveValue(StatName stat, double baseValue) => _modifiers.EffectiveValue(stat, baseValue);
@@ -119,6 +122,46 @@ public sealed class CreatureEffects(CreatureId id, StatusEffectCatalog catalog)
         _active.RemoveAll(cured.Contains);
         RebuildModifiers();
         return EffectResult.Success([.. cured.Select(a => new EffectCured(Id, a.Definition.Id, CureCause.Item, item.Value))]);
+    }
+
+    /// <summary>
+    /// Consumes an Item: first it cures every active effect it cures, then each effect it may apply is rolled and applied.
+    /// <paramref name="roll"/> takes a chance in basis points and says whether it came up, so the caller owns the randomness.
+    /// A medicine that has nothing to cure and applies nothing is refused with <see cref="EffectError.NothingToCure"/>, so it is not wasted.
+    /// </summary>
+    public EffectResult Consume(ItemDefinition item, Func<int, bool> roll)
+    {
+        ArgumentNullException.ThrowIfNull(item);
+        ArgumentNullException.ThrowIfNull(roll);
+        if (!item.Consumable)
+        {
+            return EffectResult.Failure(EffectError.NotConsumable);
+        }
+
+        foreach (var consumed in item.OnConsume)
+        {
+            if (!catalog.TryGet(consumed.Effect, out _))
+            {
+                return EffectResult.Failure(EffectError.UnknownEffect);
+            }
+        }
+
+        var cured = CureWithItem(item.Id);
+        if (!cured.IsSuccess && item.OnConsume.Count == 0 && catalog.All.Any(d => d.CuredByItems.Contains(item.Id)))
+        {
+            return cured;
+        }
+
+        var events = new List<IDomainEvent>(cured.Events);
+        foreach (var consumed in item.OnConsume)
+        {
+            if (roll(consumed.ChanceBasis))
+            {
+                events.AddRange(Apply(consumed.Effect).Events);
+            }
+        }
+
+        return EffectResult.Success(events);
     }
 
     /// <summary>Moves every effect forward in time, raising stage changes, periodic changes, and expiries as they come due.</summary>

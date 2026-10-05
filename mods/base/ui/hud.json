@@ -17,6 +17,15 @@
           { "type": "label", "id": "hud.ammo", "textKey": "hud.ammo", "role": "text" },
           { "type": "bar", "id": "hud.condition", "width": 70, "height": 5, "role": "good", "tooltipKey": "hud.condition" }
         ] },
+      { "type": "column", "id": "hud.effects", "anchor": "topLeft", "gap": 2,
+        "children": [
+          { "type": "label", "id": "hud.effect.0", "role": "warning" },
+          { "type": "label", "id": "hud.effect.1", "role": "warning" },
+          { "type": "label", "id": "hud.effect.2", "role": "warning" },
+          { "type": "label", "id": "hud.effect.3", "role": "warning" },
+          { "type": "label", "id": "hud.effect.4", "role": "warning" },
+          { "type": "label", "id": "hud.effect.5", "role": "warning" }
+        ] },
       { "type": "row", "id": "hud.needs", "anchor": "topRight", "gap": 4,
         "children": [
           { "type": "label", "id": "hud.hunger", "textKey": "hud.hunger", "role": "good", "tooltipKey": "hud.hunger" },

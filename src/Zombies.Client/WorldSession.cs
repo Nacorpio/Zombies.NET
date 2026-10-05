@@ -1,4 +1,5 @@
 using System.Numerics;
+using Zombies.Domain.Items;
 using Zombies.Domain.Mods;
 using Zombies.Domain.World;
 using Zombies.Engine.Core;
@@ -27,7 +28,12 @@ internal sealed class WorldSession : IDisposable
         }
 
         // Solo play: join an embedded Server and take the world seed from it, as a client of a dedicated server would.
-        Solo = new EmbeddedServer(new ServerOptions(GameIdentity.From(mods, WorldGenerator.GeneratorVersion), options.Seed), string.IsNullOrEmpty(Environment.UserName) ? "player" : Environment.UserName);
+        var solo = new ServerOptions(GameIdentity.From(mods, WorldGenerator.GeneratorVersion), options.Seed)
+        {
+            Items = new ItemCatalog(mods.Registry.OfKind("item").Select(d => ItemDefinitionJson.Parse(d.Json))),
+            Effects = StatusEffectContentLoader.Load(mods.Registry),
+        };
+        Solo = new EmbeddedServer(solo, string.IsNullOrEmpty(Environment.UserName) ? "player" : Environment.UserName);
 
         var biomes = new BiomeCatalog(mods.Registry.OfKind("biome").Select(d => BiomeJson.Parse(d.Json)));
         _pipeline = new ChunkPipeline(new WorldGenerator(Solo.Client.WorldSeed, biomes, SettlementContentLoader.Load(mods.Registry)));

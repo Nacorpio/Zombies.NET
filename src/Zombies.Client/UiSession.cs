@@ -2,6 +2,7 @@ using Zombies.Domain.Combat;
 using Zombies.Domain.Inventory;
 using Zombies.Domain.Items;
 using Zombies.Domain.Mods;
+using Zombies.Domain.StatusEffects;
 using Zombies.Domain.Survival;
 using Zombies.Engine.Core.Modding;
 using Zombies.Engine.Platform;
@@ -32,6 +33,9 @@ internal sealed class PlayerStatus
     public ItemId? Weapon { get; set; }
 
     public ItemState? WeaponState { get; set; }
+
+    /// <summary>The Status effects the Server last told this client about. Only the affected player is ever told.</summary>
+    public IReadOnlyList<ActiveEffect> Effects { get; set; } = [];
 }
 
 /// <summary>
@@ -52,15 +56,20 @@ internal sealed class UiSession : IDisposable
     private readonly InventoryService _inventoryService;
     private readonly InMemoryContainerRepository _containers;
     private readonly ItemCatalog _catalog;
+    private readonly StatusEffectCatalog _effects;
     private readonly KeyBindings _keys;
     private readonly SettingsEditor _editor;
     private readonly List<Dialog> _dialogs = [];
+
+    private const int HudEffectSlots = 6;
 
     private UiScreen _screen;
     private UiRect _screenRect;
     private UiContext _context = new(new Localizer([]), 1f, 1);
     private int _textScale = 1;
     private bool _mouseWasDown;
+    private float _mouseX;
+    private float _mouseY;
 
     public UiSession(ClientOptions options, PlayerStatus status)
     {
@@ -100,6 +109,7 @@ internal sealed class UiSession : IDisposable
         _status = status;
 
         _catalog = new ItemCatalog(mods.Registry.OfKind("item").Select(d => ItemDefinitionJson.Parse(d.Json)));
+        _effects = StatusEffectContentLoader.Load(mods.Registry);
         _containers = new InMemoryContainerRepository();
         _inventoryService = new InventoryService(_catalog, _containers);
         _inventoryView = new InventoryView(_inventoryService, _containers, _catalog, _localizer);
@@ -153,6 +163,8 @@ internal sealed class UiSession : IDisposable
     /// <summary>Handles the keys and clicks the screens use. Returns true when the screens took the input, so the world should not also act on it.</summary>
     public bool Update(InputState input, float seconds)
     {
+        _mouseX = input.MouseX;
+        _mouseY = input.MouseY;
         if (_dialogs.Count > 0)
         {
             var dialog = _dialogs[^1];
@@ -256,6 +268,28 @@ internal sealed class UiSession : IDisposable
         {
             UiRenderer.DrawDialog(sprites, dialog, palette, _textScale);
         }
+
+        if (_screen == UiScreen.None && _dialogs.Count == 0 && EffectTooltipAt(_mouseX, _mouseY) is { } tooltip)
+        {
+            UiRenderer.DrawTooltip(sprites, tooltip, palette, _mouseX, _mouseY, _screenRect, _textScale);
+        }
+    }
+
+    /// <summary>Tells the HUD which Status effects the Server last replicated to this client.</summary>
+    public void SetEffects(IReadOnlyList<ActiveEffect> effects) => _status.Effects = effects;
+
+    private HudModel Hud() => new(_status.Body, _status.Needs, _status.Weapon, _status.WeaponState, _localizer, effects: _status.Effects, effectCatalog: _effects);
+
+    private Tooltip? EffectTooltipAt(float x, float y)
+    {
+        var slot = _hud.HitTest(x, y)?.Id;
+        if (slot is null || !slot.StartsWith("hud.effect.", StringComparison.Ordinal) || !int.TryParse(slot.AsSpan("hud.effect.".Length), out var index))
+        {
+            return null;
+        }
+
+        var effects = Hud().StatusEffects;
+        return index >= 0 && index < effects.Count ? effects[index].Tooltip : null;
     }
 
     /// <summary>Asks a question and waits for the answer. The dialog takes every click until it closes.</summary>
@@ -352,7 +386,16 @@ internal sealed class UiSession : IDisposable
 
     private void FillHudValues()
     {
-        var hud = new HudModel(_status.Body, _status.Needs, _status.Weapon, _status.WeaponState, _localizer);
+        var hud = Hud();
+        var effects = hud.StatusEffects;
+        for (var i = 0; i < HudEffectSlots; i++)
+        {
+            var id = $"hud.effect.{i}";
+            _values.SetVisible(id, i < effects.Count);
+            _values.SetText(id, i < effects.Count ? effects[i].Label : string.Empty);
+            _values.SetRole(id, i < effects.Count ? effects[i].Role : PaletteRole.Muted);
+        }
+
         _values.SetFraction("hud.health", (float)hud.HealthFraction);
         _values.SetRole("hud.health", hud.HealthRole);
         _values.SetFraction("hud.blood", (float)hud.BloodFraction);

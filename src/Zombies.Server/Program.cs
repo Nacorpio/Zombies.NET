@@ -3,6 +3,7 @@ using System.Globalization;
 using Zombies.Domain.Death;
 using Zombies.Domain.Items;
 using Zombies.Domain.Mods;
+using Zombies.Domain.StatusEffects;
 using Zombies.Engine.Core;
 using Zombies.Engine.Core.Modding;
 using Zombies.Engine.Net;
@@ -158,7 +159,18 @@ if (savePath is not null)
 }
 
 var items = new ItemCatalog(mods.Registry.OfKind("item").Select(d => ItemDefinitionJson.Parse(d.Json)));
-var options = new ServerOptions(identity, seed) { MaxPlayers = maxPlayers, Items = items };
+StatusEffectCatalog effects;
+try
+{
+    effects = StatusEffectContentLoader.Load(mods.Registry);
+}
+catch (Exception ex) when (ex is StatusEffectDefinitionException or ArgumentException)
+{
+    Console.Error.WriteLine($"Zombies.Server: {ex.Message}");
+    return 1;
+}
+
+var options = new ServerOptions(identity, seed) { MaxPlayers = maxPlayers, Items = items, Effects = effects };
 
 // With a save, Corpses and their Containers and the Memorials are kept in it; without one they last as long as the process.
 var deathStores = save is null

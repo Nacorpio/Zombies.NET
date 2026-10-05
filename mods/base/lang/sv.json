@@ -134,6 +134,22 @@
     "item.base.item.pistol_rounds_9mm": "9mm patroner",
     "item.base.item.red_dot_sight": "Rödpunktssikte",
     "item.base.item.suppressor": "Ljuddämpare",
-    "item.base.item.water_bottle": "Vattenflaska"
+    "item.base.item.water_bottle": "Vattenflaska",
+    "hud.effect.stage": "Stadium: {0}.",
+    "hud.effect.cure_item": "Botas med: {0}",
+    "hud.effect.cure_effect": "Botas av: {0}",
+    "hud.effect.cure_time": "Går över med tiden",
+    "hud.effect.cure_none": "Ingen känd bot",
+    "status_effect.base.status_effect.infection": "Infektion",
+    "status_effect.base.status_effect.infection.tooltip": "Ett bett har varit sig. Det blir värre tills det behandlas.",
+    "status_effect.base.status_effect.infection.stage.mild": "Lindrigt",
+    "status_effect.base.status_effect.infection.stage.severe": "Svårt",
+    "status_effect.base.status_effect.food_poisoning": "Matförgiftning",
+    "status_effect.base.status_effect.food_poisoning.tooltip": "Skämd mat. Du är långsammare och illamående.",
+    "status_effect.base.status_effect.painkiller": "Smärtstillande",
+    "status_effect.base.status_effect.painkiller.tooltip": "Du tål mer smärta en stund.",
+    "item.base.item.antibiotics": "Antibiotika",
+    "item.base.item.painkillers": "Smärtstillande tabletter",
+    "item.base.item.spoiled_food": "Skämd mat"
   }
 }

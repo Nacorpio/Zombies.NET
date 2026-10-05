@@ -25,5 +25,6 @@
       { "weight": 1 }
     ]
   },
-  "missingParts": []
+  "missingParts": [],
+  "bite": { "effect": "base:status_effect/infection", "chance": 0.15 }
 }

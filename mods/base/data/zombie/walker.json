@@ -35,5 +35,6 @@
     { "part": "rightLeg", "chance": 0.08 }
   ],
   "weakpointSet": "base:weakpoint_set/humanoid",
-  "upgrade": { "zombieType": "base:zombie/runner", "afterDays": 30 }
+  "upgrade": { "zombieType": "base:zombie/runner", "afterDays": 30 },
+  "bite": { "effect": "base:status_effect/infection", "chance": 0.3 }
 }

@@ -22,6 +22,9 @@ public sealed record OutfitTable(
 /// <summary>The chance that a zombie of some type spawns without a Body part.</summary>
 public sealed record MissingPartChance(BodyPart Part, int Basis);
 
+/// <summary>The Status effect a bite of a zombie may cause, such as infection, and the chance in basis points that it does.</summary>
+public sealed record ZombieBite(string Effect, int ChanceBasis);
+
 /// <summary>
 /// The Zombie type a zombie of some type becomes, and how many world days after the world began it does. A chain adds its delays up,
 /// so with a walker that upgrades after 10 days and a runner after 20, a walker is a runner from day 10 and the next type from day 30.
@@ -55,7 +58,8 @@ public sealed class ZombieTypeDefinition
         OutfitTable outfit,
         IEnumerable<MissingPartChance> missingParts,
         string? weakpointSet = null,
-        ZombieUpgrade? upgrade = null)
+        ZombieUpgrade? upgrade = null,
+        ZombieBite? bite = null)
     {
         ArgumentNullException.ThrowIfNull(traits);
         ArgumentNullException.ThrowIfNull(skinTones);
@@ -145,6 +149,17 @@ public sealed class ZombieTypeDefinition
             ArgumentOutOfRangeException.ThrowIfLessThan(upgrade.AfterDays, 1);
         }
 
+        if (bite is not null)
+        {
+            if (!ItemId.TryParse(bite.Effect, out _))
+            {
+                throw new ArgumentException($"'{bite.Effect}' is not a valid Content ID.", nameof(bite));
+            }
+
+            ArgumentOutOfRangeException.ThrowIfNegative(bite.ChanceBasis);
+            ArgumentOutOfRangeException.ThrowIfGreaterThan(bite.ChanceBasis, BasisPoints);
+        }
+
         Id = id;
         PartHealth = partHealth;
         Damage = damage;
@@ -161,6 +176,7 @@ public sealed class ZombieTypeDefinition
         MissingParts = missingList;
         WeakpointSet = weakpointSet;
         Upgrade = upgrade;
+        Bite = bite;
     }
 
     public string Id { get; }
@@ -205,6 +221,9 @@ public sealed class ZombieTypeDefinition
 
     /// <summary>What this type upgrades into as the world ages, or null when it stays what it is.</summary>
     public ZombieUpgrade? Upgrade { get; }
+
+    /// <summary>The Status effect a bite of this type may cause, or null when its bites only wound.</summary>
+    public ZombieBite? Bite { get; }
 
     public double PartHealthAt(int level) => PartHealth * LevelFactor(level);
 

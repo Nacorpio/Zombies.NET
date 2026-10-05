@@ -211,6 +211,24 @@
         "zombieType",
         "afterDays"
       ]
+    },
+    "bite": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "properties": {
+        "effect": {
+          "type": "string"
+        },
+        "chance": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "effect",
+        "chance"
+      ]
     }
   },
   "required": [

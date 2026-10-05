@@ -18,6 +18,8 @@ public enum ModLoadErrorKind
     CopyFromMissing,
     CopyFromCycle,
     InvalidOperator,
+    DuplicateMigration,
+    MigrationCycle,
 }
 
 /// <summary>A reason the mod set cannot load. <see cref="ModId"/> is the mod's id, or its source when no id could be read.</summary>
@@ -35,10 +37,11 @@ public sealed record LoadedMod(ModManifest Manifest, int Order, string ContentHa
 /// </summary>
 public sealed class ModLoadResult
 {
-    internal ModLoadResult(IReadOnlyList<LoadedMod> mods, DefinitionRegistry registry, IReadOnlyList<ModLoadError> errors)
+    internal ModLoadResult(IReadOnlyList<LoadedMod> mods, DefinitionRegistry registry, ContentIdMigrations migrations, IReadOnlyList<ModLoadError> errors)
     {
         Mods = mods;
         Registry = registry;
+        Migrations = migrations;
         Errors = errors;
     }
 
@@ -48,6 +51,9 @@ public sealed class ModLoadResult
     public IReadOnlyList<LoadedMod> Mods { get; }
 
     public DefinitionRegistry Registry { get; }
+
+    /// <summary>Where the Content IDs that mods renamed or removed went, for loading saves made before.</summary>
+    public ContentIdMigrations Migrations { get; }
 
     public IReadOnlyList<ModLoadError> Errors { get; }
 }

@@ -28,6 +28,10 @@ _Avoid_: Override, tweak
 An explicit declaration that a mod replaces a whole definition with the same Content ID.
 _Avoid_: Patch, replace
 
+**Migration**:
+A definition that maps an old Content ID to a new one, or marks it removed, so a Save made before a mod renamed or removed something still loads. Chains such as A to B to C resolve to the last id, and a cycle is rejected when the mods load. Not the same as a Schema version step, which changes the layout of a Save.
+_Avoid_: Obsoletion, alias, redirect
+
 **Icon**:
 A named 32 by 32 picture used by the UI, supplied as a PNG named after the icon in a mod's icons folder and normalized to hard edges when loaded. A mod can add Icons and replace those of mods it depends on.
 _Avoid_: Sprite, glyph

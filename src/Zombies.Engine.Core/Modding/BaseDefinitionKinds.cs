@@ -2,6 +2,7 @@ using Zombies.Domain.Actions;
 using Zombies.Domain.Combat;
 using Zombies.Domain.Crafting;
 using Zombies.Domain.Items;
+using Zombies.Domain.Mods;
 using Zombies.Domain.StatusEffects;
 using Zombies.Domain.World;
 using Zombies.Domain.Zombies;
@@ -29,5 +30,6 @@ public static class BaseDefinitionKinds
         ["weapon"] = typeof(WeaponDto),
         ["weapon_category"] = typeof(WeaponCategoryDto),
         ["zombie"] = typeof(ZombieTypeDto),
+        [ContentIdMigrations.Kind] = typeof(MigrationDto),
     };
 }

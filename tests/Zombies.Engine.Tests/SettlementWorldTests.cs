@@ -354,6 +354,21 @@ public sealed class SettlementWorldTests
         Assert.All(generator.ContainersIn(region), c => Assert.Equal("base:area_type/bathroom", c.AreaType));
     }
 
+    [Fact]
+    public void ZombieDensityOption_ScalesTheZombiesOfTheBaseSettlements()
+    {
+        var normal = new WorldGenerator(12345, Content.Biomes, Content.Settlements);
+        var none = new WorldGenerator(12345, Content.Biomes, Content.Settlements, zombieDensityPercent: 0);
+        var triple = new WorldGenerator(12345, Content.Biomes, Content.Settlements, zombieDensityPercent: 300);
+
+        var (region, plan) = FirstSettlement(normal);
+
+        Assert.NotEmpty(plan.ZombieSpawns);
+        Assert.Empty(none.SettlementIn(region)!.ZombieSpawns);
+        Assert.True(triple.SettlementIn(region)!.ZombieSpawns.Count > plan.ZombieSpawns.Count);
+        Assert.Equal(plan.Structures.Count, none.SettlementIn(region)!.Structures.Count);
+    }
+
     // Content ---------------------------------------------------------------------------------------------------
 
     [Fact]

@@ -32,6 +32,7 @@ public static class BaseDefinitionKinds
         ["weapon_category"] = typeof(WeaponCategoryDto),
         ["treatment"] = typeof(TreatmentDto),
         ["weakpoint_set"] = typeof(WeakpointSetDto),
+        ["world_option"] = typeof(WorldOptionDto),
         ["wound_kind"] = typeof(WoundKindDto),
         ["zombie"] = typeof(ZombieTypeDto),
         [ContentIdMigrations.Kind] = typeof(MigrationDto),

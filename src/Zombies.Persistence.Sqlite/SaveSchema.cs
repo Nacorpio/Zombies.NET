@@ -112,5 +112,13 @@ internal static class SaveSchema
             PRIMARY KEY (owner_id, position)
         ) WITHOUT ROWID;
         """,
+
+        // Version 2: the World options the host chose when the world was created.
+        """
+        CREATE TABLE world_options (
+            id    TEXT NOT NULL PRIMARY KEY,
+            value REAL NOT NULL
+        ) WITHOUT ROWID;
+        """,
     ];
 }

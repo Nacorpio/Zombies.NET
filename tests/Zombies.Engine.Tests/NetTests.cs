@@ -1,5 +1,7 @@
 using System.Numerics;
+using Zombies.Domain.Mods;
 using Zombies.Engine.Core;
+using Zombies.Engine.Core.Modding;
 using Zombies.Engine.Net;
 using Zombies.Engine.Voxel;
 
@@ -49,6 +51,17 @@ public sealed class NetTests
         }
 
         public long Tick { get; private set; }
+    }
+
+    private static string RepoRoot()
+    {
+        var directory = new DirectoryInfo(AppContext.BaseDirectory);
+        while (directory is not null && !File.Exists(Path.Combine(directory.FullName, "Zombies.slnx")))
+        {
+            directory = directory.Parent;
+        }
+
+        return directory?.FullName ?? throw new InvalidOperationException("Could not find the repository root.");
     }
 
     [Fact]
@@ -208,6 +221,59 @@ public sealed class NetTests
         rig.Run(3);
 
         Assert.Equal(JoinRefusal.VersionMismatch, client.Refusal);
+    }
+
+    private static readonly WorldOptionSetting[] ServerOptions = [new("base:world_option/loot_rarity", 1), new("base:world_option/zombie_density", 2)];
+
+    [Fact]
+    public void Join_IsAccepted_WhenTheWorldOptionsMatch()
+    {
+        var identity = Identity with { WorldOptions = ServerOptions };
+        var rig = new Rig(new ServerOptions(identity, WorldSeed: 777));
+        var client = rig.Join("alice", identity with { WorldOptions = [.. ServerOptions] });
+
+        rig.Run(3);
+
+        Assert.Equal(ClientState.Joined, client.State);
+    }
+
+    [Fact]
+    public void Join_IsRefusedWithTheDifferingOption_WhenAWorldOptionValueDiffers()
+    {
+        var rig = new Rig(new ServerOptions(Identity with { WorldOptions = ServerOptions }, WorldSeed: 777));
+        var client = rig.Join("eve", Identity with { WorldOptions = [ServerOptions[0], new("base:world_option/zombie_density", 1)] });
+
+        rig.Run(3);
+
+        Assert.Equal(ClientState.Refused, client.State);
+        Assert.Equal(JoinRefusal.WorldOptionMismatch, client.Refusal);
+        Assert.Equal("World option 'base:world_option/zombie_density' is 2 on the Server but 1 on this client.", client.RefusalDetail);
+        Assert.Equal(0, rig.Server.PlayerCount);
+    }
+
+    [Theory]
+    [InlineData("missing")]
+    [InlineData("extra")]
+    public void Join_IsRefused_WhenAClientLacksOrAddsAWorldOption(string difference)
+    {
+        var rig = new Rig(new ServerOptions(Identity with { WorldOptions = ServerOptions }, WorldSeed: 777));
+        var options = difference == "missing" ? ServerOptions[..1] : [.. ServerOptions, new WorldOptionSetting("mymod:world_option/extra", 1)];
+        var client = rig.Join("eve", Identity with { WorldOptions = options });
+
+        rig.Run(3);
+
+        Assert.Equal(JoinRefusal.WorldOptionMismatch, client.Refusal);
+    }
+
+    [Fact]
+    public void Identity_FromLoadedModsAndOptions_CarriesOnlySimulationOptionsWithDefaultsFilledIn()
+    {
+        var loaded = ModLoader.Load(DirectoryModSource.Read(Path.Combine(RepoRoot(), "mods")));
+        var catalog = WorldOptionCatalog.From(loaded.Registry);
+
+        var identity = GameIdentity.From(loaded, WorldGenerator.GeneratorVersion, new WorldOptions(catalog, [KeyValuePair.Create(BaseWorldOptions.ZombieDensity, 2.0)]));
+
+        Assert.Equal(ServerOptions, identity.WorldOptions);
     }
 
     [Fact]

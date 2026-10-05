@@ -134,6 +134,12 @@
     "item.base.item.pistol_rounds_9mm": "9mm rounds",
     "item.base.item.red_dot_sight": "Red dot sight",
     "item.base.item.suppressor": "Suppressor",
-    "item.base.item.water_bottle": "Water bottle"
+    "item.base.item.water_bottle": "Water bottle",
+    "item.base.item.whetstone": "Whetstone",
+    "item.base.item.gun_cleaning_kit": "Gun cleaning kit",
+    "item.base.item.sewing_kit": "Sewing kit",
+    "fault.base.fault.chipped_blade": "Chipped blade",
+    "fault.base.fault.jammed_action": "Jammed action",
+    "fault.base.fault.ripped_seams": "Ripped seams"
   }
 }

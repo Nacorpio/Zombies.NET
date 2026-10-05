@@ -1,0 +1,7 @@
+{
+  "id": "base:fault/ripped_seams",
+  "target": "armor",
+  "effects": [ { "stat": "protection", "operation": "multiply", "value": 0.7 } ],
+  "gained": { "cause": "armor_hit", "chance": 0.05 },
+  "repair": { "consumes": "base:item/sewing_kit", "time": 45 }
+}

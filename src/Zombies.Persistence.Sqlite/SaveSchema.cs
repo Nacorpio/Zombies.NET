@@ -139,5 +139,10 @@ internal static class SaveSchema
             cause         INTEGER NOT NULL
         );
         """,
+
+        // Version 4: the Faults of each worn item, as a comma separated list of Content IDs.
+        """
+        ALTER TABLE outfit_items ADD COLUMN faults TEXT NOT NULL DEFAULT '';
+        """,
     ];
 }

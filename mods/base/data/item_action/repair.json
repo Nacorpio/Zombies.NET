@@ -1,0 +1,1 @@
+{ "id": "base:item_action/repair", "label": "action.repair", "icon": "use", "group": "use", "order": 2, "appliesWhen": [ "faulty" ], "enabledWhen": [ "own_container", "writable_container" ] }

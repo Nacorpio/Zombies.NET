@@ -1,0 +1,11 @@
+{
+  "id": "base:fault/jammed_action",
+  "target": "weapon",
+  "weaponCategories": [ "base:weapon_category/pistol" ],
+  "effects": [
+    { "stat": "jam_chance", "operation": "add", "value": 0.35 },
+    { "stat": "handling", "operation": "multiply", "value": 0.8 }
+  ],
+  "gained": { "cause": "weapon_use", "chance": 0.01 },
+  "repair": { "consumes": "base:item/gun_cleaning_kit", "time": 20 }
+}

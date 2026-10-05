@@ -134,6 +134,12 @@
     "item.base.item.pistol_rounds_9mm": "9mm patroner",
     "item.base.item.red_dot_sight": "Rödpunktssikte",
     "item.base.item.suppressor": "Ljuddämpare",
-    "item.base.item.water_bottle": "Vattenflaska"
+    "item.base.item.water_bottle": "Vattenflaska",
+    "item.base.item.whetstone": "Bryne",
+    "item.base.item.gun_cleaning_kit": "Vapenrengöringssats",
+    "item.base.item.sewing_kit": "Sykit",
+    "fault.base.fault.chipped_blade": "Skadat eggparti",
+    "fault.base.fault.jammed_action": "Kärvande mekanism",
+    "fault.base.fault.ripped_seams": "Sprängda sömmar"
   }
 }

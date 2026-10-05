@@ -34,6 +34,10 @@ public enum ActionCondition
     [JsonStringEnumMemberName("consumable")]
     Consumable,
 
+    /// <summary>The item carries at least one Fault.</summary>
+    [JsonStringEnumMemberName("faulty")]
+    Faulty,
+
     /// <summary>The Container belongs to the player.</summary>
     [JsonStringEnumMemberName("own_container")]
     OwnContainer,
@@ -56,6 +60,7 @@ public sealed record ItemActionDefinition
         ActionCondition.Edible,
         ActionCondition.Drinkable,
         ActionCondition.Consumable,
+        ActionCondition.Faulty,
     ];
 
     private static readonly ActionCondition[] Availability =

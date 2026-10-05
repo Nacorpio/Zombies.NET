@@ -30,6 +30,7 @@
           "edible",
           "drinkable",
           "consumable",
+          "faulty",
           "own_container",
           "writable_container"
         ]
@@ -45,6 +46,7 @@
           "edible",
           "drinkable",
           "consumable",
+          "faulty",
           "own_container",
           "writable_container"
         ]

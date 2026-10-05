@@ -1,0 +1,9 @@
+{
+  "id": "base:statistic/days_survived",
+  "scope": "life",
+  "counts": [
+    {
+      "event": "DaySurvived"
+    }
+  ]
+}

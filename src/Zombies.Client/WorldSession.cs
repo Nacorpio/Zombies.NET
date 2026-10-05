@@ -44,6 +44,7 @@ internal sealed class WorldSession : IDisposable
             Professions = StartingContentLoader.LoadProfessions(mods.Registry),
             Scenario = scenario,
             MovementModes = MovementModeContentLoader.Load(mods.Registry),
+            Statistics = StatisticsContentLoader.Load(mods.Registry),
         };
         Solo = new EmbeddedServer(serverOptions, string.IsNullOrEmpty(Environment.UserName) ? "player" : Environment.UserName, options.Profession);
 

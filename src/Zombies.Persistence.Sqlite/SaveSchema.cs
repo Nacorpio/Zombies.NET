@@ -161,5 +161,21 @@ internal static class SaveSchema
         """
         ALTER TABLE needs ADD COLUMN fatigue REAL NOT NULL DEFAULT 0;
         """,
+
+        // Version 7: the value of each Statistic per player, and the Achievements each player has completed.
+        """
+        CREATE TABLE player_statistics (
+            player    TEXT NOT NULL,
+            statistic TEXT NOT NULL,
+            value     REAL NOT NULL,
+            PRIMARY KEY (player, statistic)
+        ) WITHOUT ROWID;
+
+        CREATE TABLE player_achievements (
+            player      TEXT NOT NULL,
+            achievement TEXT NOT NULL,
+            PRIMARY KEY (player, achievement)
+        ) WITHOUT ROWID;
+        """,
     ];
 }

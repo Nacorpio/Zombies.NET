@@ -1,4 +1,5 @@
 using System.Numerics;
+using Zombies.Domain.Statistics;
 using Zombies.Domain.Survival;
 using Zombies.Engine.Core;
 
@@ -200,12 +201,15 @@ public sealed class LocalPlayer
 /// </summary>
 public sealed class GameClient : ITickable
 {
+    private const int MaxRunEntries = 512;
+
     private readonly ITransport _transport;
     private readonly GameIdentity _identity;
     private readonly string _playerName;
     private readonly string _profession;
     private readonly NetWriter _writer = new(1024);
     private readonly Handler _handler;
+    private readonly Queue<string> _completedAchievements = new();
     private uint _nextCommand = 1;
 
     /// <param name="profession">Content ID of the Profession this player picks, or null to start with none. The Server refuses a join that names one it does not have.</param>
@@ -250,6 +254,12 @@ public sealed class GameClient : ITickable
     /// Server rejects every command from a dead player.
     /// </summary>
     public bool IsSpectating => World.TryGet(PlayerEntityId, out var entity) && entity.Player.Dead;
+
+    /// <summary>How the player's latest life ended, as the Server reported it: scores and the Conducts they kept. Null until a life ends.</summary>
+    public RunSummary? LastRun { get; private set; }
+
+    /// <summary>Takes the Content ID of the oldest Achievement the Server said this player completed and nobody has shown yet.</summary>
+    public bool TryTakeCompletedAchievement(out string achievement) => _completedAchievements.TryDequeue(out achievement!);
 
     public CommandRejected? LastRejection { get; private set; }
 
@@ -343,6 +353,14 @@ public sealed class GameClient : ITickable
                     LastRejection = new CommandRejected(reader.ReadUInt32(), (CommandRejection)reader.ReadByte(), reader.ReadString());
                     RejectionCount++;
                     break;
+                case MessageType.AchievementCompleted when State == ClientState.Joined:
+                    var achievement = reader.ReadString();
+                    reader.EnsureEnd();
+                    _completedAchievements.Enqueue(achievement);
+                    break;
+                case MessageType.RunEnded when State == ClientState.Joined:
+                    LastRun = ReadRun(ref reader);
+                    break;
                 case MessageType.Snapshot when State == ClientState.Joined:
                     if (World.Apply(ref reader))
                     {
@@ -361,6 +379,36 @@ public sealed class GameClient : ITickable
         {
             // A broken Server message is dropped; a snapshot that fails is replaced by the next one.
         }
+    }
+
+    private static RunSummary ReadRun(ref NetReader reader)
+    {
+        var scoreCount = reader.ReadVarUInt();
+        if (scoreCount > MaxRunEntries)
+        {
+            throw new MalformedMessageException($"A run lists {scoreCount} scores; at most {MaxRunEntries} are allowed.");
+        }
+
+        var scores = new List<StatisticValue>((int)scoreCount);
+        for (var i = 0; i < scoreCount; i++)
+        {
+            scores.Add(new StatisticValue(reader.ReadString(), BitConverter.UInt64BitsToDouble(reader.ReadUInt64())));
+        }
+
+        var conductCount = reader.ReadVarUInt();
+        if (conductCount > MaxRunEntries)
+        {
+            throw new MalformedMessageException($"A run lists {conductCount} conducts; at most {MaxRunEntries} are allowed.");
+        }
+
+        var conducts = new List<string>((int)conductCount);
+        for (var i = 0; i < conductCount; i++)
+        {
+            conducts.Add(reader.ReadString());
+        }
+
+        reader.EnsureEnd();
+        return new RunSummary(scores, conducts);
     }
 
     private void OnDisconnected()

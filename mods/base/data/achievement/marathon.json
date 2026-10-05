@@ -1,0 +1,6 @@
+{
+  "id": "base:achievement/marathon",
+  "statistic": "base:statistic/distance_walked",
+  "comparison": "atLeast",
+  "target": 10000
+}

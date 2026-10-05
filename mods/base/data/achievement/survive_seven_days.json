@@ -1,0 +1,6 @@
+{
+  "id": "base:achievement/survive_seven_days",
+  "statistic": "base:statistic/days_survived",
+  "comparison": "atLeast",
+  "target": 7
+}

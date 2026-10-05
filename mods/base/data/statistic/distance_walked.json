@@ -1,0 +1,9 @@
+{
+  "id": "base:statistic/distance_walked",
+  "counts": [
+    {
+      "event": "DistanceWalked",
+      "sum": "Meters"
+    }
+  ]
+}

@@ -1,0 +1,6 @@
+{
+  "id": "base:conduct/untouched",
+  "statistic": "base:statistic/hits_taken_this_life",
+  "comparison": "atMost",
+  "target": 0
+}

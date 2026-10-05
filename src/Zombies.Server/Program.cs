@@ -3,6 +3,7 @@ using System.Globalization;
 using Zombies.Domain.Death;
 using Zombies.Domain.Items;
 using Zombies.Domain.Mods;
+using Zombies.Domain.Statistics;
 using Zombies.Domain.Survival;
 using Zombies.Engine.Core;
 using Zombies.Engine.Core.Modding;
@@ -163,6 +164,17 @@ if (savePath is not null)
 }
 
 var items = new ItemCatalog(mods.Registry.OfKind("item").Select(d => ItemDefinitionJson.Parse(d.Json)));
+StatisticsCatalog statistics;
+try
+{
+    statistics = StatisticsContentLoader.Load(mods.Registry);
+}
+catch (StatisticsException ex)
+{
+    Console.Error.WriteLine($"Zombies.Server: {ex.Message}");
+    return 1;
+}
+
 var scenarios = StartingContentLoader.LoadScenarios(mods.Registry);
 Scenario? scenario = null;
 if (scenarioId is not null && !scenarios.TryGet(scenarioId, out scenario))
@@ -180,14 +192,18 @@ var options = new ServerOptions(identity, seed)
     Loot = StartingContentLoader.LoadLoot(mods.Registry),
     Professions = StartingContentLoader.LoadProfessions(mods.Registry),
     Scenario = scenario,
+    Statistics = statistics,
 };
 
 // With a save, Corpses and their Containers and the Memorials are kept in it; without one they last as long as the process.
 var deathStores = save is null
     ? null
     : new DeathStores(new SqliteContainerRepository(save, items), new SqliteCorpseRepository(save), new SqliteMemorialRepository(save));
+
+// With a save, each player's statistics and completed Achievements are kept in it too.
+IStatisticsRepository? statisticsStore = save is null ? null : new SqliteStatisticsRepository(save);
 using var transport = LiteNetTransport.Listen(port, key, maxPlayers + 2);
-var server = new GameServer(transport, options, deathStores);
+var server = new GameServer(transport, options, deathStores, statisticsStore);
 var simulation = new Simulation(server);
 
 using var stop = new CancellationTokenSource();

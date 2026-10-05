@@ -1,0 +1,58 @@
+{
+  "type": "object",
+  "properties": {
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z0-9_]+:[a-z0-9_]+(/[a-z0-9_]+)*$"
+    },
+    "scope": {
+      "enum": [
+        "lifetime",
+        "life"
+      ]
+    },
+    "counts": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "event": {
+            "type": "string"
+          },
+          "sum": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "match": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "property": {
+                "type": "string"
+              },
+              "value": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "property",
+              "value"
+            ]
+          }
+        },
+        "required": [
+          "event"
+        ]
+      }
+    }
+  },
+  "required": [
+    "id",
+    "counts"
+  ],
+  "$schema": "https://json-schema.org/draft/2020-12/schema"
+}

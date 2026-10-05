@@ -3,6 +3,7 @@ using Zombies.Domain.Combat;
 using Zombies.Domain.Crafting;
 using Zombies.Domain.Items;
 using Zombies.Domain.Mods;
+using Zombies.Domain.Statistics;
 using Zombies.Domain.StatusEffects;
 using Zombies.Domain.Survival;
 using Zombies.Domain.World;
@@ -18,9 +19,11 @@ public static class BaseDefinitionKinds
 {
     public static IReadOnlyDictionary<string, Type> All { get; } = new Dictionary<string, Type>
     {
+        ["achievement"] = typeof(GoalDto),
         ["area_type"] = typeof(AreaTypeDto),
         ["biome"] = typeof(BiomeDto),
         ["fault"] = typeof(FaultDto),
+        ["conduct"] = typeof(GoalDto),
         ["item"] = typeof(ItemDefinitionDto),
         ["limb_score"] = typeof(LimbScoreDto),
         ["movement_mode"] = typeof(MovementModeDto),
@@ -34,6 +37,7 @@ public static class BaseDefinitionKinds
         ["structure"] = typeof(StructureDto),
         ["attachment"] = typeof(AttachmentDto),
         ["item_action"] = typeof(ItemActionDto),
+        ["statistic"] = typeof(StatisticDto),
         ["status_effect"] = typeof(StatusEffectDto),
         ["substance"] = typeof(SubstanceDto),
         ["weapon"] = typeof(WeaponDto),

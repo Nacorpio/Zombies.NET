@@ -296,6 +296,24 @@ _Avoid_: Revive, resurrect
 The record of one death: the player's name, the days they survived, the zombies they killed, and the cause of death the Combat context raised. It outlives the Corpse.
 _Avoid_: Obituary, scoreboard entry, death log
 
+## Statistics and Goals
+
+**Statistic**:
+A JSON-defined number kept per player that domain events add to, such as zombies killed or distance walked. It names the events it counts, what each adds, and whether it lasts a player's lifetime or one Run. Statistics persist in the Save and survive a Respawn.
+_Avoid_: Stat (that is a Modifier's target), counter, metric
+
+**Run**:
+One life of a player, from joining or respawning until their Body dies. A Statistic that counts one Run starts again from zero at the next Respawn, and its final value is a score on the end-of-run screen.
+_Avoid_: Session (that is a connection), game, round
+
+**Achievement**:
+A JSON-defined goal that names a Statistic, a comparison and a target. It is completed the first time the Statistic meets it, once per player, and completing it raises a replicated event and a toast.
+_Avoid_: Trophy, badge, quest
+
+**Conduct**:
+A JSON-defined self-imposed restriction that names a Statistic, a comparison and a target, such as killing no zombie. It is kept when the comparison still holds as the Run ends, and the end-of-run screen lists the Conducts kept.
+_Avoid_: Challenge, rule, penalty
+
 ## World
 
 **Chunk**:

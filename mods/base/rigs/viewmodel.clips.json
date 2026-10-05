@@ -1,0 +1,23 @@
+{
+  "clips": [
+    {
+      "name": "idle", "duration": 4, "loop": true,
+      "tracks": [
+        { "bone": "root", "keys": [ { "time": 0 }, { "time": 2, "offset": [0, 0.25, 0] } ] }
+      ]
+    },
+    {
+      "name": "fire", "duration": 0.2, "loop": false,
+      "tracks": [
+        { "bone": "root", "keys": [ { "time": 0 }, { "time": 0.04, "rotation": [6, 0, 0], "offset": [0, 0, 1.5] }, { "time": 0.2 } ] }
+      ]
+    },
+    {
+      "name": "reload", "duration": 1.8, "loop": false,
+      "tracks": [
+        { "bone": "root", "keys": [ { "time": 0 }, { "time": 0.4, "rotation": [-20, 0, 8], "offset": [0, -2, 1] }, { "time": 1.4, "rotation": [-20, 0, 8], "offset": [0, -2, 1] }, { "time": 1.8 } ] },
+        { "bone": "arm_l", "keys": [ { "time": 0 }, { "time": 0.5, "rotation": [0, 35, 0] }, { "time": 1.2, "rotation": [0, 35, 0] }, { "time": 1.8 } ] }
+      ]
+    }
+  ]
+}

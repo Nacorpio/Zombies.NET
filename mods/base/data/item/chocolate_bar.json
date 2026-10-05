@@ -1,0 +1,1 @@
+{ "id": "base:item/chocolate_bar", "mass": "50 g", "volume": "40 ml", "maxStack": 10, "edible": true }

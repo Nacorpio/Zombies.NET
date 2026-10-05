@@ -144,5 +144,17 @@ internal static class SaveSchema
         """
         ALTER TABLE outfit_items ADD COLUMN faults TEXT NOT NULL DEFAULT '';
         """,
+
+        // Version 5: each creature's tolerance and addiction to substances.
+        """
+        CREATE TABLE substance_use (
+            owner_id               INTEGER NOT NULL,
+            substance              TEXT    NOT NULL,
+            tolerance              REAL    NOT NULL,
+            is_addicted            INTEGER NOT NULL,
+            since_last_use_seconds REAL    NOT NULL,
+            PRIMARY KEY (owner_id, substance)
+        ) WITHOUT ROWID;
+        """,
     ];
 }

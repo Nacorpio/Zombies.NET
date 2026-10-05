@@ -1,0 +1,1 @@
+{ "id": "base:morale_source/safe_rest", "trigger": { "event": "rested_safely" }, "size": 20, "duration": 28800 }

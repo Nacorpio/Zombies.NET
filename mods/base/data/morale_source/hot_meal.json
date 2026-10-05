@@ -1,0 +1,1 @@
+{ "id": "base:morale_source/hot_meal", "trigger": { "event": "ate_hot_meal" }, "size": 12, "duration": 10800 }

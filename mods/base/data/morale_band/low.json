@@ -1,0 +1,8 @@
+{
+  "id": "base:morale_band/low",
+  "min": -100,
+  "modifiers": [
+    { "stat": "aim_spread", "operation": "multiply", "value": 1.2 },
+    { "stat": "move_speed", "operation": "multiply", "value": 0.97 }
+  ]
+}

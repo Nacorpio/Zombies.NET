@@ -1,0 +1,1 @@
+{ "id": "base:morale_source/teammate_death", "trigger": { "event": "teammate_died" }, "size": -30, "duration": 43200 }

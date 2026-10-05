@@ -1,0 +1,1 @@
+{ "id": "base:morale_source/near_death", "trigger": { "event": "near_death" }, "size": -15, "duration": 14400 }

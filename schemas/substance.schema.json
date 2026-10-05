@@ -1,0 +1,62 @@
+{
+  "type": "object",
+  "properties": {
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z0-9_]+:[a-z0-9_]+(/[a-z0-9_]+)*$"
+    },
+    "items": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "item": {
+            "type": "string",
+            "pattern": "^[a-z0-9_]+:[a-z0-9_]+(/[a-z0-9_]+)*$"
+          },
+          "doses": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "item"
+        ]
+      }
+    },
+    "statusEffect": {
+      "type": "string",
+      "pattern": "^[a-z0-9_]+:[a-z0-9_]+(/[a-z0-9_]+)*$"
+    },
+    "addictionChance": {
+      "type": "number"
+    },
+    "toleranceGrowth": {
+      "type": "number"
+    },
+    "withdrawal": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "properties": {
+        "statusEffect": {
+          "type": "string",
+          "pattern": "^[a-z0-9_]+:[a-z0-9_]+(/[a-z0-9_]+)*$"
+        },
+        "delay": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "statusEffect",
+        "delay"
+      ]
+    }
+  },
+  "required": [
+    "id",
+    "items",
+    "statusEffect"
+  ],
+  "$schema": "https://json-schema.org/draft/2020-12/schema"
+}

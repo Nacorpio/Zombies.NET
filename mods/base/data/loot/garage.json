@@ -1,2 +1,2 @@
-﻿{ "id": "base:loot/garage", "rolls": { "min": 1, "max": 3 }, "entries": [ { "item": "base:item/crowbar", "weight": 2 }, { "item": "base:item/pistol_rounds_9mm", "weight": 4, "count": { "min": 5, "max": 15 } } ] }
+﻿{ "id": "base:loot/garage", "rolls": { "min": 1, "max": 3 }, "entries": [ { "item": "base:item/crowbar", "weight": 2 }, { "item": "base:item/pistol_rounds_9mm", "weight": 4, "count": { "min": 5, "max": 15 } }, { "item": "base:item/beer", "weight": 1 } ] }
 

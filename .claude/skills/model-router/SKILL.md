@@ -12,9 +12,11 @@ Low confidence (< `min_confidence`) falls back to `default_tier`.
 
 ## Use
 
+`<skill-dir>` is this skill's folder: `.claude/skills/model-router` in this repo, or `~/.claude/skills/model-router` when installed as a user skill. Needs Python 3 and `OPENROUTER_API_KEY`. `calibration/log.jsonl` lives inside the skill folder, so each copy keeps its own log.
+
 ```bash
 export OPENROUTER_API_KEY=...      # used for both Jev and the routed model
-python .claude/skills/model-router/scripts/route.py classify "<task text>"
+python <skill-dir>/scripts/route.py classify "<task text>"
 # {"tier":"hard","model":"anthropic/claude-opus-5.5","kind":"code","reason":"..."}
 ```
 

@@ -205,27 +205,35 @@ public static class ModLoader
             (isOverride ? overrides : adds).Add((file.Path, id, json));
         }
 
+        var pending = new Dictionary<ContentId, (string File, JsonObject Json)>();
         foreach (var (file, id, json) in adds)
         {
             if (!string.Equals(id.Namespace, manifest.Id, StringComparison.Ordinal))
             {
                 errors.Add(new ModLoadError(ModLoadErrorKind.ForeignNamespace, manifest.Id, file, $"'{id}' is in namespace '{id.Namespace}'. A mod may only add definitions in its own namespace; use 'override' to replace another mod's."));
             }
-            else if (registry.TryGetValue(id, out var existing))
+            else if (registry.TryGetValue(id, out var existing) || pending.ContainsKey(id))
             {
-                errors.Add(new ModLoadError(ModLoadErrorKind.DuplicateContentId, manifest.Id, file, $"'{id}' is already defined by '{existing.DefinedBy}'. Set \"override\": true to replace it."));
+                errors.Add(new ModLoadError(ModLoadErrorKind.DuplicateContentId, manifest.Id, file, $"'{id}' is already defined by '{existing?.DefinedBy ?? manifest.Id}'. Set \"override\": true to replace it."));
             }
             else
             {
-                registry[id] = new Entry(json, manifest.Id);
+                pending[id] = (file, json);
             }
+        }
+
+        var resolver = new InheritanceResolver(manifest.Id, allowed, pending, registry, errors);
+        foreach (var id in pending.Keys)
+        {
+            resolver.ResolveAdd(id);
         }
 
         foreach (var (file, id, json) in overrides)
         {
-            if (CheckTarget(manifest.Id, file, id.Value, id, registry, allowed, ModLoadErrorKind.OverrideTargetMissing, errors) is { } entry)
+            if (CheckTarget(manifest.Id, file, id.Value, id, registry, allowed, ModLoadErrorKind.OverrideTargetMissing, errors) is { } entry
+                && resolver.Build(id, file, json) is { } built)
             {
-                entry.Json = json;
+                entry.Json = built;
                 entry.ModifiedBy.Add(manifest.Id);
             }
         }
@@ -243,7 +251,18 @@ public static class ModLoader
                 continue;
             }
 
-            var merged = (JsonObject)JsonMergePatch.Apply(entry.Json, json)!;
+            if (json.ContainsKey(PatchOperators.CopyFrom))
+            {
+                errors.Add(new ModLoadError(ModLoadErrorKind.InvalidDefinition, manifest.Id, file, $"A patch of '{targetText}' cannot use '{PatchOperators.CopyFrom}'; it edits the definition it names."));
+                continue;
+            }
+
+            if (!PatchOperators.TryApply(entry.Json, json, out var merged, out var operatorError))
+            {
+                errors.Add(new ModLoadError(ModLoadErrorKind.InvalidOperator, manifest.Id, file, $"Patch of '{targetText}': {operatorError}"));
+                continue;
+            }
+
             if (merged["id"] is not JsonValue mv || !mv.TryGetValue<string>(out var mergedId) || !string.Equals(mergedId, targetText, StringComparison.Ordinal))
             {
                 errors.Add(new ModLoadError(ModLoadErrorKind.PatchChangesId, manifest.Id, file, $"A patch may not change the 'id' of '{targetText}'."));
@@ -297,5 +316,114 @@ public static class ModLoader
         }
 
         return allowed;
+    }
+
+    /// <summary>
+    /// Turns a definition that uses <c>copy-from</c> or operators into a plain one. Parents are other definitions of the
+    /// same kind, resolved first, so a mod's own definitions may copy each other in any file order.
+    /// </summary>
+    private sealed class InheritanceResolver(
+        string modId,
+        HashSet<string> allowed,
+        Dictionary<ContentId, (string File, JsonObject Json)> pending,
+        Dictionary<ContentId, Entry> registry,
+        List<ModLoadError> errors)
+    {
+        private readonly List<ContentId> _resolving = [];
+        private readonly HashSet<ContentId> _failed = [];
+
+        public void ResolveAdd(ContentId id)
+        {
+            if (registry.ContainsKey(id) || _failed.Contains(id))
+            {
+                return;
+            }
+
+            _resolving.Add(id);
+            var (file, json) = pending[id];
+            var built = Build(id, file, json);
+            _resolving.RemoveAt(_resolving.Count - 1);
+            if (built is null)
+            {
+                _failed.Add(id);
+            }
+            else
+            {
+                registry[id] = new Entry(built, modId);
+            }
+        }
+
+        /// <returns>The plain definition, or null after adding an error.</returns>
+        public JsonObject? Build(ContentId id, string file, JsonObject json)
+        {
+            if (!PatchOperators.IsResolvable(json))
+            {
+                return json;
+            }
+
+            JsonObject parent = [];
+            if (json.TryGetPropertyValue(PatchOperators.CopyFrom, out var parentNode))
+            {
+                if (parentNode is not JsonValue pv || !pv.TryGetValue<string>(out var parentText) || !ContentId.TryParse(parentText, out var parentId))
+                {
+                    errors.Add(new ModLoadError(ModLoadErrorKind.InvalidDefinition, modId, file, $"'{PatchOperators.CopyFrom}' of '{id}' must be the Content ID of the definition to copy."));
+                    return null;
+                }
+
+                if (FindParent(id, file, parentId) is not { } found)
+                {
+                    return null;
+                }
+
+                parent = found;
+            }
+
+            if (!PatchOperators.TryApply(parent, json, out var built, out var error))
+            {
+                errors.Add(new ModLoadError(ModLoadErrorKind.InvalidOperator, modId, file, $"'{id}': {error}"));
+                return null;
+            }
+
+            return built;
+        }
+
+        private JsonObject? FindParent(ContentId child, string file, ContentId parent)
+        {
+            if (_resolving.Contains(parent))
+            {
+                var chain = string.Join(" -> ", _resolving.SkipWhile(c => c != parent).Append(parent));
+                errors.Add(new ModLoadError(ModLoadErrorKind.CopyFromCycle, modId, file, $"'{child}' copies itself through a '{PatchOperators.CopyFrom}' cycle: {chain}."));
+                return null;
+            }
+
+            if (pending.ContainsKey(parent))
+            {
+                ResolveAdd(parent);
+            }
+
+            if (!registry.TryGetValue(parent, out var entry))
+            {
+                if (!_failed.Contains(parent))
+                {
+                    errors.Add(new ModLoadError(ModLoadErrorKind.CopyFromMissing, modId, file, $"'{child}' copies '{parent}', which is not defined by any mod loaded before this one."));
+                }
+
+                return null;
+            }
+
+            if (!allowed.Contains(entry.DefinedBy))
+            {
+                errors.Add(new ModLoadError(ModLoadErrorKind.UndeclaredDependency, modId, file, $"'{child}' copies '{parent}', which belongs to '{entry.DefinedBy}', which this mod does not depend on."));
+                return null;
+            }
+
+            if (!string.Equals(child.Kind, parent.Kind, StringComparison.Ordinal))
+            {
+                errors.Add(new ModLoadError(ModLoadErrorKind.InvalidDefinition, modId, file, $"'{child}' is a '{child.Kind}' but copies '{parent}', a '{parent.Kind}'."));
+                return null;
+            }
+
+            return entry.Json;
+        }
     }
 }

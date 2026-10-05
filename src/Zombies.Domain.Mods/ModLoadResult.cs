@@ -15,6 +15,9 @@ public enum ModLoadErrorKind
     PatchTargetMissing,
     UndeclaredDependency,
     PatchChangesId,
+    CopyFromMissing,
+    CopyFromCycle,
+    InvalidOperator,
 }
 
 /// <summary>A reason the mod set cannot load. <see cref="ModId"/> is the mod's id, or its source when no id could be read.</summary>

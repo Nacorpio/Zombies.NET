@@ -1,3 +1,4 @@
+using System.Text.Json.Nodes;
 using Zombies.Domain.Mods;
 
 namespace Zombies.Domain.Tests;
@@ -265,6 +266,198 @@ public sealed class ModLoaderTests
         Assert.Equal(3, result.Errors.Count);
         Assert.Equal(0, result.Registry.Count);
         Assert.All(result.Errors, e => Assert.False(string.IsNullOrWhiteSpace(e.ToString())));
+    }
+
+    private static (string Path, string Json) Table(string id, string body) =>
+        ($"data/{id.Replace(':', '_').Replace('/', '_')}.json", $$"""{ "id": "{{id}}", {{body}} }""");
+
+    private const string KitchenBody = """
+        "rolls": { "min": 1, "max": 3 },
+        "stack": 10,
+        "ratio": 1.5,
+        "entries": [ { "item": "base:item/beans", "weight": 10 }, { "item": "base:item/water", "weight": 5 } ]
+        """;
+
+    private static JsonNode Parsed(ModLoadResult result, string id) => JsonNode.Parse(JsonOf(result, id))!;
+
+    private static ModLoadResult LoadWithPatch(string body) =>
+        ModLoader.Load([Mod("base", files: Table("base:loot/kitchen", KitchenBody)), Mod("a", extra: Deps("base"), files: Patch("base:loot/kitchen", body))]);
+
+    [Fact]
+    public void Load_CopyFromInheritsEverythingAndOverridesOnlyTheFieldsGiven()
+    {
+        var result = ModLoader.Load([Mod("base", files: Table("base:loot/kitchen", KitchenBody)), Mod("a", extra: Deps("base"),
+            files: Table("a:loot/pantry", """ "copy-from": "base:loot/kitchen", "rolls": { "max": 5 } """))]);
+
+        Assert.True(result.IsSuccess, string.Join(Environment.NewLine, result.Errors));
+        var pantry = Parsed(result, "a:loot/pantry");
+        Assert.Equal("a:loot/pantry", (string?)pantry["id"]);
+        Assert.Equal(1, (int?)pantry["rolls"]!["min"]);
+        Assert.Equal(5, (int?)pantry["rolls"]!["max"]);
+        Assert.Equal(2, pantry["entries"]!.AsArray().Count);
+        Assert.Null(pantry["copy-from"]);
+        Assert.Equal(3, (int?)Parsed(result, "base:loot/kitchen")["rolls"]!["max"]);
+    }
+
+    [Fact]
+    public void Load_CopyFromWorksBetweenAModsOwnDefinitionsInAnyFileOrder()
+    {
+        var result = ModLoader.Load([Mod("m", files:
+        [
+            ("data/a.json", """{ "id": "m:loot/a", "copy-from": "m:loot/b", "stack": 2 }"""),
+            ("data/b.json", """{ "id": "m:loot/b", "copy-from": "m:loot/c", "ratio": 2.5 }"""),
+            ("data/c.json", """{ "id": "m:loot/c", "stack": 1, "ratio": 1.0 }"""),
+        ])]);
+
+        Assert.True(result.IsSuccess, string.Join(Environment.NewLine, result.Errors));
+        var a = Parsed(result, "m:loot/a");
+        Assert.Equal(2, (int?)a["stack"]);
+        Assert.Equal(2.5, (double?)a["ratio"]);
+    }
+
+    [Fact]
+    public void Load_OverrideMayCopyFromAndEditAnotherDefinition()
+    {
+        var result = ModLoader.Load([Mod("base", files: [Table("base:loot/kitchen", KitchenBody), Table("base:loot/garage", """ "stack": 99 """)]), Mod("a", extra: Deps("base"),
+            files: ("data/o.json", """{ "id": "base:loot/garage", "override": true, "copy-from": "base:loot/kitchen", "relative": { "stack": 1 } }"""))]);
+
+        Assert.True(result.IsSuccess, string.Join(Environment.NewLine, result.Errors));
+        Assert.Equal(11, (int?)Parsed(result, "base:loot/garage")["stack"]);
+        Assert.Equal(["a"], result.Registry.Definitions.Single(d => d.Id.Value == "base:loot/garage").ModifiedBy);
+    }
+
+    [Fact]
+    public void Load_CopyFromCycleFailsNamingTheModAndContentIds()
+    {
+        var result = ModLoader.Load([Mod("m", files:
+        [
+            ("data/a.json", """{ "id": "m:loot/a", "copy-from": "m:loot/b" }"""),
+            ("data/b.json", """{ "id": "m:loot/b", "copy-from": "m:loot/a" }"""),
+        ])]);
+
+        AssertFails(result, ModLoadErrorKind.CopyFromCycle);
+        var error = Assert.Single(result.Errors);
+        Assert.Equal("m", error.ModId);
+        Assert.Contains("m:loot/a", error.Message);
+        Assert.Contains("m:loot/b", error.Message);
+    }
+
+    [Fact]
+    public void Load_CopyFromItselfIsACycle()
+    {
+        AssertFails(ModLoader.Load([Mod("m", files: ("data/a.json", """{ "id": "m:loot/a", "copy-from": "m:loot/a" }"""))]), ModLoadErrorKind.CopyFromCycle);
+    }
+
+    [Fact]
+    public void Load_CopyFromAMissingParentFailsNamingTheModAndContentId()
+    {
+        var result = ModLoader.Load([Mod("m", files: ("data/a.json", """{ "id": "m:loot/a", "copy-from": "m:loot/ghost" }"""))]);
+
+        AssertFails(result, ModLoadErrorKind.CopyFromMissing);
+        var error = Assert.Single(result.Errors);
+        Assert.Equal("m", error.ModId);
+        Assert.Contains("m:loot/a", error.Message);
+        Assert.Contains("m:loot/ghost", error.Message);
+    }
+
+    [Fact]
+    public void Load_CopyFromRejectsAModTheCallerDoesNotDependOnAndAMismatchedKind()
+    {
+        var parent = Mod("base", files: [Table("base:loot/kitchen", KitchenBody), Item("base:item/beans")]);
+
+        AssertFails(ModLoader.Load([parent, Mod("a", files: Table("a:loot/x", """ "copy-from": "base:loot/kitchen" """))]), ModLoadErrorKind.UndeclaredDependency);
+        AssertFails(ModLoader.Load([parent, Mod("a", extra: Deps("base"), files: Table("a:loot/x", """ "copy-from": "base:item/beans" """))]), ModLoadErrorKind.InvalidDefinition);
+        AssertFails(ModLoader.Load([Mod("a", files: Table("a:loot/x", """ "copy-from": 5 """))]), ModLoadErrorKind.InvalidDefinition);
+        AssertFails(LoadWithPatch(""" "copy-from": "base:loot/kitchen" """), ModLoadErrorKind.InvalidDefinition);
+    }
+
+    [Fact]
+    public void Load_ExtendAppendsToAnArrayAndCreatesOneThatIsMissing()
+    {
+        var result = LoadWithPatch(""" "extend": { "entries": [ { "item": "base:item/rope", "weight": 1 } ], "tags": [ "kitchen" ] } """);
+
+        Assert.True(result.IsSuccess, string.Join(Environment.NewLine, result.Errors));
+        var kitchen = Parsed(result, "base:loot/kitchen");
+        Assert.Equal(["base:item/beans", "base:item/water", "base:item/rope"], kitchen["entries"]!.AsArray().Select(e => (string?)e!["item"]));
+        Assert.Equal("kitchen", (string?)kitchen["tags"]![0]);
+        Assert.Equal(["a"], result.Registry.Definitions.Single(d => d.Id.Value == "base:loot/kitchen").ModifiedBy);
+    }
+
+    [Fact]
+    public void Load_DeleteRemovesEntriesMatchingAWholeValueOrASubsetOfMembers()
+    {
+        var result = LoadWithPatch(""" "extend": { "tags": [ "a", "b", "c" ] }, "delete": { "tags": [ "b" ], "entries": [ { "item": "base:item/water" } ] } """);
+
+        Assert.True(result.IsSuccess, string.Join(Environment.NewLine, result.Errors));
+        var kitchen = Parsed(result, "base:loot/kitchen");
+        Assert.Equal(["a", "c"], kitchen["tags"]!.AsArray().Select(t => (string?)t));
+        Assert.Equal("base:item/beans", (string?)Assert.Single(kitchen["entries"]!.AsArray())!["item"]);
+    }
+
+    [Fact]
+    public void Load_RelativeAddsToANumberKeepingWholeNumbersWhole()
+    {
+        var result = LoadWithPatch(""" "relative": { "stack": -4, "ratio": 0.25, "rolls": { "max": 2 } } """);
+
+        Assert.True(result.IsSuccess, string.Join(Environment.NewLine, result.Errors));
+        var kitchen = Parsed(result, "base:loot/kitchen");
+        Assert.Equal("6", kitchen["stack"]!.ToJsonString());
+        Assert.Equal(1.75, (double?)kitchen["ratio"]);
+        Assert.Equal(5, (int?)kitchen["rolls"]!["max"]);
+    }
+
+    [Fact]
+    public void Load_ProportionalScalesANumberRoundingWholeNumbers()
+    {
+        var result = LoadWithPatch(""" "proportional": { "stack": 1.25, "ratio": 2, "rolls": { "max": 0.5 } } """);
+
+        Assert.True(result.IsSuccess, string.Join(Environment.NewLine, result.Errors));
+        var kitchen = Parsed(result, "base:loot/kitchen");
+        Assert.Equal("13", kitchen["stack"]!.ToJsonString());
+        Assert.Equal(3.0, (double?)kitchen["ratio"]);
+        Assert.Equal("2", kitchen["rolls"]!["max"]!.ToJsonString());
+    }
+
+    [Fact]
+    public void Load_OperatorsRunAfterTheMergedFieldsOfTheSamePatch()
+    {
+        var result = LoadWithPatch(""" "stack": 100, "relative": { "stack": 5 } """);
+
+        Assert.Equal(105, (int?)Parsed(result, "base:loot/kitchen")["stack"]);
+    }
+
+    [Fact]
+    public void Load_OperatorsApplyToACopiedDefinition()
+    {
+        var result = ModLoader.Load([Mod("base", files: Table("base:loot/kitchen", KitchenBody)), Mod("a", extra: Deps("base"),
+            files: Table("a:loot/pantry", """ "copy-from": "base:loot/kitchen", "proportional": { "stack": 2 }, "extend": { "entries": [ { "item": "a:item/jam", "weight": 3 } ] } """))]);
+
+        Assert.True(result.IsSuccess, string.Join(Environment.NewLine, result.Errors));
+        var pantry = Parsed(result, "a:loot/pantry");
+        Assert.Equal(20, (int?)pantry["stack"]);
+        Assert.Equal(3, pantry["entries"]!.AsArray().Count);
+        Assert.Equal(2, Parsed(result, "base:loot/kitchen")["entries"]!.AsArray().Count);
+    }
+
+    [Theory]
+    [InlineData(""" "extend": 5 """)]
+    [InlineData(""" "extend": { "stack": [ 1 ] } """)]
+    [InlineData(""" "extend": { "entries": "x" } """)]
+    [InlineData(""" "delete": { "entries": 1 } """)]
+    [InlineData(""" "delete": { "tags": [ "x" ] } """)]
+    [InlineData(""" "relative": { "ghost": 1 } """)]
+    [InlineData(""" "relative": { "stack": "1" } """)]
+    [InlineData(""" "relative": { "entries": 1 } """)]
+    [InlineData(""" "proportional": { "stack": [ 2 ] } """)]
+    [InlineData(""" "proportional": { "stack": { "x": 2 } } """)]
+    public void Load_AnOperatorThatDoesNotFitTheDefinitionFailsNamingTheModAndContentId(string body)
+    {
+        var result = LoadWithPatch(body);
+
+        AssertFails(result, ModLoadErrorKind.InvalidOperator);
+        var error = Assert.Single(result.Errors);
+        Assert.Equal("a", error.ModId);
+        Assert.Contains("base:loot/kitchen", error.Message);
     }
 
     [Fact]

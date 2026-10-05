@@ -21,7 +21,8 @@
         "children": [
           { "type": "label", "id": "hud.hunger", "textKey": "hud.hunger", "role": "good", "tooltipKey": "hud.hunger" },
           { "type": "label", "id": "hud.thirst", "textKey": "hud.thirst", "role": "good", "tooltipKey": "hud.thirst" },
-          { "type": "label", "id": "hud.warmth", "textKey": "hud.warmth", "role": "good", "tooltipKey": "hud.warmth" }
+          { "type": "label", "id": "hud.warmth", "textKey": "hud.warmth", "role": "good", "tooltipKey": "hud.warmth" },
+          { "type": "label", "id": "hud.fatigue", "textKey": "hud.fatigue", "role": "good", "tooltipKey": "hud.fatigue" }
         ] }
     ]
   }

@@ -1,0 +1,1 @@
+{ "id": "base:item/coffee", "mass": "0.3 kg", "volume": "250 ml", "maxStack": 4, "drinkable": true, "fatigueRelief": 0.2 }

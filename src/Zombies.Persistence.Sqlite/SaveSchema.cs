@@ -156,5 +156,10 @@ internal static class SaveSchema
             PRIMARY KEY (owner_id, substance)
         ) WITHOUT ROWID;
         """,
+
+        // Version 6: how tired each character is.
+        """
+        ALTER TABLE needs ADD COLUMN fatigue REAL NOT NULL DEFAULT 0;
+        """,
     ];
 }

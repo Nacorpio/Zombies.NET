@@ -366,6 +366,22 @@ public sealed class AggregateRoundTripTests
     }
 
     [Fact]
+    public void Needs_FromASaveBeforeFatigue_LoadRested()
+    {
+        using var save = new TempSave();
+        using (var old = SaveDatabase.Open(save.Path, SaveSchema.Migrations[..3]))
+        {
+            old.Transact(t => old.Command(t, "INSERT INTO needs (owner_id, satiety, hydration, body_celsius) VALUES (7, 0.5, 0.25, 37)").ExecuteNonQuery());
+        }
+
+        using var migrated = save.Open();
+
+        Assert.True(new SqliteNeedsRepository(migrated).TryGet(7, out var loaded));
+        Assert.Equal(0.5, loaded.Satiety);
+        Assert.Equal(0, loaded.Fatigue);
+    }
+
+    [Fact]
     public void Outfit_WithWearState_SurvivesASaveInTheSameOrder()
     {
         var original = new Outfit(Wearables);

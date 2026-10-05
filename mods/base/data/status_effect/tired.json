@@ -1,0 +1,8 @@
+{
+  "id": "base:status_effect/tired",
+  "category": "ailment",
+  "stacking": "ignore",
+  "modifiers": [
+    { "stat": "handling", "operation": "multiply", "value": 0.9 }
+  ]
+}

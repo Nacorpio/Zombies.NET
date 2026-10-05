@@ -32,7 +32,7 @@ public sealed record LimbScoreStatus(string Label, double Value, IReadOnlyList<L
 public sealed record MoraleSourceStatus(string Label, double Amount);
 
 /// <summary>
-/// What the HUD shows: health, blood, bleeding, hunger, thirst, warmth, and the weapon in hand. It reads the Body, the
+/// What the HUD shows: health, blood, bleeding, hunger, thirst, warmth, fatigue, and the weapon in hand. It reads the Body, the
 /// Needs, and the weapon's Item state and turns them into fractions, colors, and localized words, so the drawing code
 /// only has to place them.
 /// </summary>
@@ -92,6 +92,18 @@ public sealed class HudModel(
     {
         TemperatureLevel.Normal => PaletteRole.Good,
         TemperatureLevel.Cold or TemperatureLevel.Hot => PaletteRole.Warning,
+        _ => PaletteRole.Danger,
+    };
+
+    public double FatigueFraction => needs.Fatigue;
+
+    /// <summary>How tired the player is, or that they are asleep.</summary>
+    public string FatigueLabel => localizer.Get(needs.IsSleeping ? "hud.fatigue.asleep" : $"hud.fatigue.{Snake(needs.Tiredness.ToString())}");
+
+    public PaletteRole FatigueRole => needs.Tiredness switch
+    {
+        FatigueLevel.Rested => PaletteRole.Good,
+        FatigueLevel.Tired => PaletteRole.Warning,
         _ => PaletteRole.Danger,
     };
 

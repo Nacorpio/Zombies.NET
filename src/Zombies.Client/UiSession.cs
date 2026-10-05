@@ -371,6 +371,8 @@ internal sealed class UiSession : IDisposable
         _values.SetRole("hud.thirst", hud.ThirstRole);
         _values.SetText("hud.warmth", hud.WarmthLabel);
         _values.SetRole("hud.warmth", hud.WarmthRole);
+        _values.SetText("hud.fatigue", hud.FatigueLabel);
+        _values.SetRole("hud.fatigue", hud.FatigueRole);
     }
 
     private void DrawInventory(SpriteBatch sprites, UiPalette palette)

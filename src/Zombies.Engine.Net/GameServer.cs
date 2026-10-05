@@ -4,6 +4,7 @@ using Zombies.Domain.Combat;
 using Zombies.Domain.Death;
 using Zombies.Domain.Inventory;
 using Zombies.Domain.Items;
+using Zombies.Domain.StatusEffects;
 using Zombies.Domain.Survival;
 using Zombies.Engine.Core;
 
@@ -37,6 +38,36 @@ public sealed record ServerOptions(GameIdentity Identity, ulong WorldSeed)
 
     /// <summary>How long a day lasts, which a Memorial counts a life in.</summary>
     public TimeSpan DayLength { get; init; } = TimeSpan.FromMinutes(24);
+
+    /// <summary>The rates and thresholds of every player's Needs, such as how fast fatigue grows and how well a bed rests.</summary>
+    public NeedsConfig Needs { get; init; } = new();
+
+    /// <summary>Where a player rests well. Defaults to the open ground everywhere.</summary>
+    public IRestPlaces RestPlaces { get; init; } = OpenGround.Instance;
+
+    /// <summary>The Status effects players can have, among them those that tiredness applies. Defaults to none.</summary>
+    public StatusEffectCatalog StatusEffects { get; init; } = new([]);
+
+    /// <summary>The Status effect that each level of fatigue applies to a player while they are at it, by Content ID. A level with none applies nothing.</summary>
+    public IReadOnlyDictionary<FatigueLevel, string> FatigueEffects { get; init; } = new Dictionary<FatigueLevel, string>
+    {
+        [FatigueLevel.Tired] = "base:status_effect/tired",
+        [FatigueLevel.Exhausted] = "base:status_effect/exhausted",
+    };
+}
+
+/// <summary>Decides how well a player rests at a position: on bare ground, in a shelter, or in a bed.</summary>
+public interface IRestPlaces
+{
+    RestPlace At(Vector3 position);
+}
+
+/// <summary>Every place is the open ground.</summary>
+public sealed class OpenGround : IRestPlaces
+{
+    public static OpenGround Instance { get; } = new();
+
+    public RestPlace At(Vector3 position) => RestPlace.Ground;
 }
 
 /// <summary>One connection to the Server, from connect to disconnect, and its player once it has joined.</summary>
@@ -59,6 +90,9 @@ public sealed class PlayerSession
     public Body Body { get; internal set; } = null!;
 
     public Needs Needs { get; internal set; } = null!;
+
+    /// <summary>The Status effects on this player, among them the one their tiredness applies.</summary>
+    public CreatureEffects Effects { get; internal set; } = null!;
 
     public Outfit Outfit { get; internal set; } = null!;
 
@@ -115,6 +149,7 @@ public sealed class GameServer : ITickable
     private readonly Dictionary<uint, Corpse> _corpses = [];
     private readonly long _dayTicks;
     private readonly long _respawnTicks;
+    private readonly TimeSpan _gameTimePerTick;
     private long _tick;
     private int _snapshotAccumulator;
 
@@ -139,10 +174,12 @@ public sealed class GameServer : ITickable
         stores ??= DeathStores.InMemory();
         _death = new DeathService(options.Items, stores);
         _dayTicks = Math.Max(1, (long)(options.DayLength.TotalSeconds * Simulation.TickRateHz));
+        _gameTimePerTick = TimeSpan.FromDays(1) / _dayTicks;
         _respawnTicks = (long)Math.Ceiling(options.Death.RespawnDelay.TotalSeconds * Simulation.TickRateHz);
         Commands.Register<MovePlayer>(MovePlayer.Handle);
         Commands.Register<PlayerInputCommand>(PlayerInputCommand.Handle);
         Commands.Register<LootCorpse>(LootCorpse.Handle);
+        Commands.Register<SleepCommand>(SleepCommand.Handle);
         foreach (var corpse in stores.Corpses.All())
         {
             _corpses[World.Spawn(EntityKind.Corpse, corpse.Position, 0f)] = corpse;
@@ -192,7 +229,28 @@ public sealed class GameServer : ITickable
     public CombatResult Damage(PlayerSession session, BodyPart part, DamageType type, double damage)
     {
         EnsureJoined(session);
-        return Resolve(session, session.Body.TakeHit(part, type, damage, session.Outfit.Protection(part, type)));
+        var hit = session.Body.TakeHit(part, type, damage, session.Outfit.Protection(part, type));
+        if (hit.IsSuccess)
+        {
+            Apply(session, session.Needs.Wake(WakeCause.Hurt));
+        }
+
+        return Resolve(session, hit);
+    }
+
+    /// <summary>
+    /// A noise is made at a position and carries <paramref name="loudness"/> blocks. A sleeper wakes when it is within what they
+    /// hear, which is less than an awake player would. The Server is the only caller, as a gunshot or a trap would be.
+    /// </summary>
+    public void MakeNoise(Vector3 position, double loudness)
+    {
+        foreach (var session in _sessions.Values)
+        {
+            if (session.IsJoined && !session.IsDead && World.TryGet(session.EntityId, out var player))
+            {
+                Apply(session, session.Needs.HearNoise(loudness, Vector3.Distance(player.Position, position)));
+            }
+        }
     }
 
     /// <summary>Lets time pass on a player's Body, which bleeds and can die of it.</summary>
@@ -236,12 +294,69 @@ public sealed class GameServer : ITickable
     private void Respawn(PlayerSession session)
     {
         session.Body = new Body(new BodyId(session.EntityId));
-        session.Needs = new Needs();
+        session.Needs = new Needs(Options.Needs);
+        session.Effects = new CreatureEffects(new CreatureId(session.EntityId), Options.StatusEffects);
         session.Kills = 0;
         session.LifeStartTick = _tick;
         session.RespawnAtTick = null;
         Teleport(session, Options.SpawnPoint, 0f);
         World.UpdatePlayer(session.EntityId, default);
+    }
+
+    internal CommandResult Sleep(PlayerSession session)
+    {
+        var speed = new Vector2(session.Movement.Velocity.X, session.Movement.Velocity.Z).Length();
+        if (speed > SleepCommand.MaxSpeedToSleep)
+        {
+            return CommandResult.Invalid("A player must stand still to fall asleep.");
+        }
+
+        var place = World.TryGet(session.EntityId, out var player) ? Options.RestPlaces.At(player.Position) : RestPlace.Ground;
+        var result = session.Needs.Sleep(place);
+        Apply(session, result);
+        return result.Error switch
+        {
+            SurvivalError.AlreadyAsleep => CommandResult.Invalid("The player is already asleep."),
+            SurvivalError.NotTired => CommandResult.Invalid("The player is not tired enough to sleep."),
+            _ => CommandResult.Accepted,
+        };
+    }
+
+    internal CommandResult Wake(PlayerSession session)
+    {
+        var result = session.Needs.Wake(WakeCause.Chosen);
+        Apply(session, result);
+        return result.IsSuccess ? CommandResult.Accepted : CommandResult.Invalid("The player is not asleep.");
+    }
+
+    /// <summary>Carries what happened to a player's Needs into the world: their tiredness changes the Status effect they have, and sleeping or waking is shown to everyone who sees them.</summary>
+    private void Apply(PlayerSession session, SurvivalResult result)
+    {
+        foreach (var raised in result.Events)
+        {
+            switch (raised)
+            {
+                case FatigueLevelChanged changed:
+                    ReplaceFatigueEffect(session, changed);
+                    break;
+                case FellAsleep or WokeUp:
+                    World.UpdatePlayer(session.EntityId, new PlayerState(Dead: false, Sleeping: session.Needs.IsSleeping));
+                    break;
+            }
+        }
+    }
+
+    private void ReplaceFatigueEffect(PlayerSession session, FatigueLevelChanged changed)
+    {
+        if (Options.FatigueEffects.TryGetValue(changed.From, out var old))
+        {
+            session.Effects.Remove(old);
+        }
+
+        if (Options.FatigueEffects.TryGetValue(changed.To, out var effect))
+        {
+            session.Effects.Apply(effect);
+        }
     }
 
     internal CommandResult Loot(PlayerSession session, uint corpseEntity)
@@ -280,6 +395,10 @@ public sealed class GameServer : ITickable
             if (session.RespawnAtTick <= _tick)
             {
                 Respawn(session);
+            }
+            else if (session.IsJoined && !session.IsDead)
+            {
+                Apply(session, session.Needs.AdvanceFatigue(_gameTimePerTick));
             }
         }
 
@@ -396,7 +515,8 @@ public sealed class GameServer : ITickable
         session.Movement = PlayerMoveState.At(Options.SpawnPoint);
         session.Collision = Collision.Create(Options.SpawnPoint, PlayerMovement.StandingHeight);
         session.Body = new Body(new BodyId(session.EntityId));
-        session.Needs = new Needs();
+        session.Needs = new Needs(Options.Needs);
+        session.Effects = new CreatureEffects(new CreatureId(session.EntityId), Options.StatusEffects);
         session.Outfit = new Outfit(Options.Wearables);
         session.Carried = new Container(_death.NextContainerId(), Options.CarryMass, Options.CarryVolume, Options.Items);
         session.LifeStartTick = _tick;
@@ -421,7 +541,9 @@ public sealed class GameServer : ITickable
         var commandId = reader.ReadUInt16();
         var result = session.IsDead
             ? new CommandResult(CommandRejection.Dead, "A dead player is spectating and cannot act.")
-            : Commands.Handle(commandId, ref reader, new CommandContext(this, session));
+            : session.Needs.IsSleeping && commandId != SleepCommand.CommandId && commandId != PlayerInputCommand.CommandId
+                ? CommandResult.Invalid("A sleeping player cannot act.")
+                : Commands.Handle(commandId, ref reader, new CommandContext(this, session));
         if (result.IsAccepted)
         {
             if (commandId == PlayerInputCommand.CommandId)

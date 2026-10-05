@@ -2,6 +2,7 @@
   <Folder Name="/src/">
     <Project Path="src/Zombies.Base/Zombies.Base.csproj" />
     <Project Path="src/Zombies.Client/Zombies.Client.csproj" />
+    <Project Path="src/Zombies.Domain.Actions/Zombies.Domain.Actions.csproj" />
     <Project Path="src/Zombies.Domain.Combat/Zombies.Domain.Combat.csproj" />
     <Project Path="src/Zombies.Domain.Crafting/Zombies.Domain.Crafting.csproj" />
     <Project Path="src/Zombies.Domain.Economy/Zombies.Domain.Economy.csproj" />
@@ -10,6 +11,7 @@
     <Project Path="src/Zombies.Domain.Mods/Zombies.Domain.Mods.csproj" />
     <Project Path="src/Zombies.Domain.Power/Zombies.Domain.Power.csproj" />
     <Project Path="src/Zombies.Domain.Skills/Zombies.Domain.Skills.csproj" />
+    <Project Path="src/Zombies.Domain.StatusEffects/Zombies.Domain.StatusEffects.csproj" />
     <Project Path="src/Zombies.Domain.Survival/Zombies.Domain.Survival.csproj" />
     <Project Path="src/Zombies.Domain.World/Zombies.Domain.World.csproj" />
     <Project Path="src/Zombies.Engine.Audio/Zombies.Engine.Audio.csproj" />
@@ -29,6 +31,7 @@
   <Folder Name="/tests/">
     <Project Path="tests/Zombies.Domain.Tests/Zombies.Domain.Tests.csproj" />
     <Project Path="tests/Zombies.Engine.Tests/Zombies.Engine.Tests.csproj" />
+    <Project Path="tests/Zombies.Persistence.Tests/Zombies.Persistence.Tests.csproj" />
   </Folder>
   <Folder Name="/tools/">
     <Project Path="tools/SimHarness/SimHarness.csproj" />

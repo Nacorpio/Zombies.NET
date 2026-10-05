@@ -1,9 +1,11 @@
 using UnitsNet;
+using Zombies.Domain.Actions;
 using Zombies.Domain.Combat;
 using Zombies.Domain.Crafting;
 using Zombies.Domain.Inventory;
 using Zombies.Domain.Items;
 using Zombies.Domain.Mods;
+using Zombies.Domain.StatusEffects;
 using Zombies.Engine.Core.Modding;
 
 namespace Zombies.Engine.Tests;
@@ -31,7 +33,7 @@ public sealed class ModLoadingTests
 
         Assert.True(result.IsSuccess, string.Join(Environment.NewLine, result.Errors));
         Assert.Equal(["base", "sample_data"], result.Mods.Select(m => m.Manifest.Id));
-        Assert.Equal(32, result.Registry.Count);
+        Assert.Equal(41, result.Registry.Count);
     }
 
     [Fact]
@@ -207,5 +209,120 @@ public sealed class ModLoadingTests
 
         Assert.True(quiet.IsSuccess);
         Assert.True(((WeaponUsed)shot.Events[0]).Noise < ((WeaponUsed)loud.Events[0]).Noise);
+    }
+
+    private static StatusEffectCatalog LoadEffects(DefinitionRegistry registry) =>
+        new(registry.OfKind("status_effect").Select(d => StatusEffectJson.Parse(d.Json)));
+
+    [Fact]
+    public void BaseMod_ShipsInfectionPainkillerAndFoodPoisoning()
+    {
+        var registry = LoadRepositoryMods().Registry;
+
+        var effects = registry.OfKind("status_effect").Where(d => d.DefinedBy == "base").Select(d => d.Id.Value.Split('/')[1]).Order();
+
+        Assert.Equal(["food_poisoning", "infection", "painkiller"], effects);
+    }
+
+    [Fact]
+    public void Infection_HasStagesAndACureItemInTheBaseMod()
+    {
+        var registry = LoadRepositoryMods().Registry;
+        var infection = StatusEffectJson.Parse(registry.OfKind("status_effect").Single(d => d.Id.Value == "base:status_effect/infection").Json);
+
+        Assert.Equal(EffectCategory.Ailment, infection.Category);
+        Assert.Equal(["mild", "severe"], infection.Stages.Select(s => s.Name));
+        Assert.Equal(new ItemId("base:item/antibiotics"), Assert.Single(infection.CuredByItems));
+        Assert.Contains(infection.Stages, s => s.Periodic.Count > 0);
+    }
+
+    [Fact]
+    public void SampleDataMod_PatchesAnEffectDuration()
+    {
+        var registry = LoadRepositoryMods().Registry;
+        var entry = registry.OfKind("status_effect").Single(d => d.Id.Value == "base:status_effect/painkiller");
+
+        var painkiller = StatusEffectJson.Parse(entry.Json);
+
+        Assert.Equal(TimeSpan.FromSeconds(600), painkiller.Duration);
+        Assert.Equal(["sample_data"], entry.ModifiedBy);
+    }
+
+    [Fact]
+    public void EveryReferenceInStatusEffectContentResolves()
+    {
+        var registry = LoadRepositoryMods().Registry;
+        var items = new ItemCatalog(registry.OfKind("item").Select(d => ItemDefinitionJson.Parse(d.Json)));
+        var catalog = LoadEffects(registry);
+
+        foreach (var definition in catalog.All)
+        {
+            foreach (var cure in definition.CuredByItems)
+            {
+                Assert.True(items.TryGet(cure, out _), $"{definition.Id} is cured by {cure}, which is not an item");
+            }
+
+            foreach (var cure in definition.CuredByEffects)
+            {
+                Assert.True(catalog.TryGet(cure, out _), $"{definition.Id} is cured by {cure}, which is not an effect");
+            }
+        }
+    }
+
+    [Fact]
+    public void StatusEffectContentWorksThroughTheDomain()
+    {
+        var catalog = LoadEffects(LoadRepositoryMods().Registry);
+        var creature = new CreatureEffects(new CreatureId(1), catalog);
+
+        var applied = creature.Apply("base:status_effect/infection");
+        var cured = creature.CureWithItem(new ItemId("base:item/antibiotics"));
+
+        Assert.Equal(new EffectApplied(new CreatureId(1), "base:status_effect/infection", 1), applied.Events[0]);
+        Assert.Equal(new EffectCured(new CreatureId(1), "base:status_effect/infection", CureCause.Item, "base:item/antibiotics"), Assert.Single(cured.Events));
+    }
+
+    private static ItemActionCatalog LoadActions(DefinitionRegistry registry) =>
+        new(registry.OfKind("item_action").Select(d => ItemActionJson.Parse(d.Json)));
+
+    [Fact]
+    public void BaseMod_DefinesUseEquipDropSplitAndInspect()
+    {
+        var registry = LoadRepositoryMods().Registry;
+
+        var actions = registry.OfKind("item_action").Where(d => d.DefinedBy == "base").Select(d => d.Id.Value.Split('/')[1]).Order();
+
+        Assert.Equal(["drop", "equip", "inspect", "split", "use"], actions);
+    }
+
+    [Fact]
+    public void SampleDataMod_PatchesAnItemAction()
+    {
+        var registry = LoadRepositoryMods().Registry;
+        var entry = registry.OfKind("item_action").Single(d => d.Id.Value == "base:item_action/drop");
+
+        var drop = ItemActionJson.Parse(entry.Json);
+
+        Assert.Equal("cannot_drop_here", drop.DisabledReason);
+        Assert.Equal(["sample_data"], entry.ModifiedBy);
+    }
+
+    [Fact]
+    public void EveryReferenceInItemActionContentResolves()
+    {
+        var registry = LoadRepositoryMods().Registry;
+        var items = new ItemCatalog(registry.OfKind("item").Select(d => ItemDefinitionJson.Parse(d.Json)));
+        var wearables = new WearableCatalog([]);
+        var weapons = new WeaponCatalog(
+            registry.OfKind("weapon_category").Select(d => WeaponDefinitionJson.ParseCategory(d.Json)),
+            registry.OfKind("weapon").Select(d => WeaponDefinitionJson.ParseWeapon(d.Json)),
+            registry.OfKind("attachment").Select(d => WeaponDefinitionJson.ParseAttachment(d.Json)));
+        var service = new ItemActionService(LoadActions(registry), items, wearables, weapons);
+
+        var beans = new ItemStack(new StackId(1), new ItemId("base:item/canned_beans"), 4);
+        var actions = service.Available(beans, new ItemActionContext(IsOwnContainer: true, IsReadOnly: false));
+
+        Assert.Equal(["inspect", "drop", "split", "use"], actions.Select(a => a.Id.Split('/')[1]));
+        Assert.All(actions, a => Assert.True(a.IsEnabled));
     }
 }

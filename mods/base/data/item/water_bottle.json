@@ -1,6 +1,2 @@
-{
-  "id": "base:item/water_bottle",
-  "mass": "1 kg",
-  "volume": "1 l",
-  "maxStack": 2
-}
+﻿{ "id": "base:item/water_bottle", "mass": "1 kg", "volume": "1 l", "maxStack": 2, "drinkable": true }
+

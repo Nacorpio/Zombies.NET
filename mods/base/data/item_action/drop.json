@@ -1,0 +1,2 @@
+﻿{ "id": "base:item_action/drop", "label": "action.drop", "icon": "drop", "group": "move", "order": 0, "enabledWhen": [ "own_container", "writable_container" ] }
+

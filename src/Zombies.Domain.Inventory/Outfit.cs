@@ -76,6 +76,31 @@ public sealed class Outfit(IWearableCatalog catalog)
         return InventoryResult.Success();
     }
 
+    public OutfitSnapshot ToSnapshot() => new([.. _worn.Select(w => new WornSnapshot(w.Definition.Item.Value, w.Wetness, w.Condition))]);
+
+    /// <summary>Puts the snapshot's items back on, through the same rules as <see cref="Equip"/>. Throws <see cref="ArgumentException"/> when they cannot all be worn.</summary>
+    public static Outfit Restore(OutfitSnapshot snapshot, IWearableCatalog catalog)
+    {
+        ArgumentNullException.ThrowIfNull(snapshot);
+        var outfit = new Outfit(catalog);
+        foreach (var worn in snapshot.Worn)
+        {
+            if (!ItemId.TryParse(worn.Item, out var item))
+            {
+                throw new ArgumentException($"'{worn.Item}' is not a valid Content ID.", nameof(snapshot));
+            }
+
+            var equipped = outfit.Equip(item);
+            var stated = equipped.IsSuccess ? outfit.SetWearState(item, worn.Wetness, worn.Condition) : equipped;
+            if (!stated.IsSuccess)
+            {
+                throw new ArgumentException($"{item} cannot be worn as saved: {stated.Error}.", nameof(snapshot));
+            }
+        }
+
+        return outfit;
+    }
+
     /// <summary>Fraction (0 to 1) of a damage type absorbed on a body part, combining every worn Layer covering it.</summary>
     public double Protection(BodyPart part, DamageType type)
     {

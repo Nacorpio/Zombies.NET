@@ -41,3 +41,7 @@ jobs:
         run: dotnet run --project tools/SimHarness --configuration Release --no-build -- ui mods
       - name: Dedicated Server starts and ticks headless
         run: dotnet run --project src/Zombies.Server --configuration Release --no-build -- --port 0 --ticks 30
+      - name: Dedicated Server creates a save, then loads it back
+        run: |
+          dotnet run --project src/Zombies.Server --configuration Release --no-build -- --port 0 --ticks 5 --seed 777 --save "${{ runner.temp }}/world.sqlite" --mods mods
+          dotnet run --project src/Zombies.Server --configuration Release --no-build -- --port 0 --ticks 5 --save "${{ runner.temp }}/world.sqlite" --mods mods

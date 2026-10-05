@@ -1,0 +1,13 @@
+﻿{
+  "id": "base:status_effect/food_poisoning",
+  "category": "ailment",
+  "duration": 120,
+  "stacking": "refresh",
+  "modifiers": [
+    { "stat": "move_speed", "operation": "multiply", "value": 0.85 }
+  ],
+  "periodic": [
+    { "change": "nausea", "every": 30, "amount": 1 }
+  ]
+}
+

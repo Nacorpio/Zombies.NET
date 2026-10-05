@@ -1,0 +1,67 @@
+{
+  "type": "object",
+  "properties": {
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z0-9_]+:[a-z0-9_]+(/[a-z0-9_]+)*$"
+    },
+    "label": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*)*$"
+    },
+    "icon": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_]*$"
+    },
+    "group": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_]*$"
+    },
+    "order": {
+      "type": "integer"
+    },
+    "appliesWhen": {
+      "type": "array",
+      "items": {
+        "enum": [
+          "stack_count_above_one",
+          "wearable",
+          "weapon",
+          "edible",
+          "drinkable",
+          "consumable",
+          "own_container",
+          "writable_container"
+        ]
+      }
+    },
+    "enabledWhen": {
+      "type": "array",
+      "items": {
+        "enum": [
+          "stack_count_above_one",
+          "wearable",
+          "weapon",
+          "edible",
+          "drinkable",
+          "consumable",
+          "own_container",
+          "writable_container"
+        ]
+      }
+    },
+    "disabledReason": {
+      "type": [
+        "string",
+        "null"
+      ]
+    }
+  },
+  "required": [
+    "id",
+    "label",
+    "icon",
+    "group"
+  ],
+  "$schema": "https://json-schema.org/draft/2020-12/schema"
+}

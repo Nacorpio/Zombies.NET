@@ -1,0 +1,8 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="../Zombies.Domain.Items/Zombies.Domain.Items.csproj" />
+  </ItemGroup>
+
+</Project>
+

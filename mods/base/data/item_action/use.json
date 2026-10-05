@@ -1,0 +1,2 @@
+﻿{ "id": "base:item_action/use", "label": "action.use", "icon": "use", "group": "use", "order": 0, "appliesWhen": [ "consumable" ] }
+

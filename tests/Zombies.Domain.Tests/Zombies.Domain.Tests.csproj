@@ -18,7 +18,9 @@
   <ItemGroup>
     <ProjectReference Include="../../src/Zombies.Domain.Items/Zombies.Domain.Items.csproj" />
     <ProjectReference Include="../../src/Zombies.Domain.Inventory/Zombies.Domain.Inventory.csproj" />
+    <ProjectReference Include="../../src/Zombies.Domain.Actions/Zombies.Domain.Actions.csproj" />
     <ProjectReference Include="../../src/Zombies.Domain.Combat/Zombies.Domain.Combat.csproj" />
+    <ProjectReference Include="../../src/Zombies.Domain.StatusEffects/Zombies.Domain.StatusEffects.csproj" />
     <ProjectReference Include="../../src/Zombies.Domain.Survival/Zombies.Domain.Survival.csproj" />
     <ProjectReference Include="../../src/Zombies.Domain.Mods/Zombies.Domain.Mods.csproj" />
     <ProjectReference Include="../../src/Zombies.Domain.Crafting/Zombies.Domain.Crafting.csproj" />

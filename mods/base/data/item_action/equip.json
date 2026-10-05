@@ -1,0 +1,2 @@
+﻿{ "id": "base:item_action/equip", "label": "action.equip", "icon": "equip", "group": "use", "order": 1, "appliesWhen": [ "wearable" ] }
+

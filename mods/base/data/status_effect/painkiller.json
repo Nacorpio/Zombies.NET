@@ -1,0 +1,10 @@
+﻿{
+  "id": "base:status_effect/painkiller",
+  "category": "buff",
+  "duration": 300,
+  "stacking": "refresh",
+  "modifiers": [
+    { "stat": "pain_tolerance", "operation": "add", "value": 20 }
+  ]
+}
+

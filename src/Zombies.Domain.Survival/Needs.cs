@@ -29,6 +29,22 @@ public sealed class Needs
 
     public Temperature BodyTemperature => Temperature.FromDegreesCelsius(_bodyCelsius);
 
+    public NeedsSnapshot ToSnapshot() => new(Satiety, Hydration, _bodyCelsius);
+
+    /// <summary>Rebuilds Needs from a snapshot. Throws <see cref="ArgumentException"/> when a value is outside what Needs can hold.</summary>
+    public static Needs Restore(NeedsSnapshot snapshot, NeedsConfig? config = null)
+    {
+        ArgumentNullException.ThrowIfNull(snapshot);
+        if (!double.IsFinite(snapshot.Satiety) || snapshot.Satiety is < 0 or > 1
+            || !double.IsFinite(snapshot.Hydration) || snapshot.Hydration is < 0 or > 1
+            || !double.IsFinite(snapshot.BodyCelsius) || snapshot.BodyCelsius is < MinBodyCelsius or > MaxBodyCelsius)
+        {
+            throw new ArgumentException("Satiety and hydration must be between 0 and 1, and body temperature between 25 and 43 degrees Celsius.", nameof(snapshot));
+        }
+
+        return new Needs(config) { Satiety = snapshot.Satiety, Hydration = snapshot.Hydration, _bodyCelsius = snapshot.BodyCelsius };
+    }
+
     public HungerLevel Hunger => HungerOf(Satiety);
 
     public ThirstLevel Thirst => ThirstOf(Hydration);

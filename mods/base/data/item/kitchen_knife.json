@@ -1,0 +1,7 @@
+﻿{
+  "id": "base:item/kitchen_knife",
+  "mass": "0.2 kg",
+  "volume": "150 ml",
+  "maxStack": 1
+}
+

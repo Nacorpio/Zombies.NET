@@ -1,0 +1,7 @@
+﻿{
+  "id": "base:item/foregrip",
+  "mass": "0.15 kg",
+  "volume": "120 ml",
+  "maxStack": 1
+}
+

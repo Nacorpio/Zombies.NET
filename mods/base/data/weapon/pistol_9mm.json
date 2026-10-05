@@ -1,0 +1,13 @@
+﻿{
+  "id": "base:weapon/pistol_9mm",
+  "item": "base:item/pistol_9mm",
+  "category": "base:weapon_category/pistol",
+  "damage": 35,
+  "damageType": "pierce",
+  "rateOfFire": 2.5,
+  "reach": 30,
+  "noise": 90,
+  "ammoItem": "base:item/pistol_rounds_9mm",
+  "wearPerUse": 1
+}
+

@@ -1,0 +1,7 @@
+﻿{
+  "id": "base:item/red_dot_sight",
+  "mass": "0.1 kg",
+  "volume": "80 ml",
+  "maxStack": 1
+}
+

@@ -1,0 +1,7 @@
+﻿{
+  "id": "base:item/crowbar",
+  "mass": "1.8 kg",
+  "volume": "1.5 l",
+  "maxStack": 1
+}
+

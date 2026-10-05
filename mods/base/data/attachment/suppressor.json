@@ -1,0 +1,7 @@
+﻿{
+  "id": "base:attachment/suppressor",
+  "item": "base:item/suppressor",
+  "mount": "muzzle",
+  "effects": [ { "stat": "noise", "operation": "multiply", "value": 0.2 }, { "stat": "damage", "operation": "add", "value": -2 } ]
+}
+

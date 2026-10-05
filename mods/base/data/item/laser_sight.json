@@ -1,0 +1,7 @@
+﻿{
+  "id": "base:item/laser_sight",
+  "mass": "0.08 kg",
+  "volume": "60 ml",
+  "maxStack": 1
+}
+

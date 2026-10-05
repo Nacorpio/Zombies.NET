@@ -1,0 +1,13 @@
+﻿{
+  "id": "base:weapon/crowbar",
+  "item": "base:item/crowbar",
+  "category": "base:weapon_category/blunt_melee",
+  "damage": 22,
+  "damageType": "blunt",
+  "rateOfFire": 1.4,
+  "reach": 1,
+  "noise": 35,
+  "handsNeeded": 1,
+  "wearPerUse": 2
+}
+

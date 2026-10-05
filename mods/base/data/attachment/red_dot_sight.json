@@ -1,0 +1,7 @@
+﻿{
+  "id": "base:attachment/red_dot_sight",
+  "item": "base:item/red_dot_sight",
+  "mount": "optic",
+  "effects": [ { "stat": "reach", "operation": "multiply", "value": 1.5 } ]
+}
+

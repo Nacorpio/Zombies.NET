@@ -1,0 +1,13 @@
+﻿{
+  "id": "base:weapon/machete",
+  "item": "base:item/machete",
+  "category": "base:weapon_category/bladed_melee",
+  "damage": 28,
+  "damageType": "cut",
+  "rateOfFire": 1.5,
+  "reach": 0.8,
+  "noise": 25,
+  "handsNeeded": 1,
+  "wearPerUse": 2
+}
+

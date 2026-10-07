@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <RootNamespace>Zombies.ContentJudge</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../../src/Zombies.Engine.Core/Zombies.Engine.Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="ContentJudge.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="thresholds.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="models.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+</Project>

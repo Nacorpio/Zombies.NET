@@ -19,6 +19,9 @@ public sealed record OutfitTable(
     public static OutfitTable Empty { get; } = new([], 0, 0, [], []);
 }
 
+/// <summary>One melee weapon a zombie may spawn holding, and its chance against the others. A null item is a choice to hold nothing.</summary>
+public sealed record WeightedHeldWeapon(ItemId? Item, int Weight);
+
 /// <summary>The chance that a zombie of some type spawns without a Body part.</summary>
 public sealed record MissingPartChance(BodyPart Part, int Basis);
 
@@ -37,6 +40,7 @@ public sealed class ZombieTypeDefinition
     public const int MaxTraits = 16;
     public const int MaxLevel = 100;
     public const int MaxWearables = 32;
+    public const int MaxHeldWeapons = 32;
     public const int BasisPoints = 10_000;
 
     public ZombieTypeDefinition(
@@ -55,7 +59,8 @@ public sealed class ZombieTypeDefinition
         OutfitTable outfit,
         IEnumerable<MissingPartChance> missingParts,
         string? weakpointSet = null,
-        ZombieUpgrade? upgrade = null)
+        ZombieUpgrade? upgrade = null,
+        IEnumerable<WeightedHeldWeapon>? heldWeapons = null)
     {
         ArgumentNullException.ThrowIfNull(traits);
         ArgumentNullException.ThrowIfNull(skinTones);
@@ -145,6 +150,23 @@ public sealed class ZombieTypeDefinition
             ArgumentOutOfRangeException.ThrowIfLessThan(upgrade.AfterDays, 1);
         }
 
+        var heldList = (heldWeapons ?? []).ToList();
+        if (heldList.Count > MaxHeldWeapons)
+        {
+            throw new ArgumentException($"A Zombie type can list at most {MaxHeldWeapons} held weapons.", nameof(heldWeapons));
+        }
+
+        foreach (var entry in heldList)
+        {
+            ArgumentOutOfRangeException.ThrowIfLessThan(entry.Weight, 1);
+        }
+
+        var heldItems = heldList.Where(h => h.Item is not null).Select(h => h.Item).ToList();
+        if (heldItems.Distinct().Count() != heldItems.Count || heldList.Count(h => h.Item is null) > 1)
+        {
+            throw new ArgumentException($"Zombie type '{id}' lists a held weapon twice.", nameof(heldWeapons));
+        }
+
         Id = id;
         PartHealth = partHealth;
         Damage = damage;
@@ -161,6 +183,7 @@ public sealed class ZombieTypeDefinition
         MissingParts = missingList;
         WeakpointSet = weakpointSet;
         Upgrade = upgrade;
+        HeldWeapons = heldList;
     }
 
     public string Id { get; }
@@ -206,11 +229,18 @@ public sealed class ZombieTypeDefinition
     /// <summary>What this type upgrades into as the world ages, or null when it stays what it is.</summary>
     public ZombieUpgrade? Upgrade { get; }
 
+    /// <summary>
+    /// The melee weapons a zombie of this type may spawn holding, by weight. An entry with no item is a chance of holding nothing.
+    /// Empty means the type never holds a weapon.
+    /// </summary>
+    public IReadOnlyList<WeightedHeldWeapon> HeldWeapons { get; }
+
     public double PartHealthAt(int level) => PartHealth * LevelFactor(level);
 
     public double DamageAt(int level) => Damage * LevelFactor(level);
 
-    private double LevelFactor(int level) => 1 + (PerLevelBonus * (Math.Clamp(level, 1, TopLevel) - 1));
+    /// <summary>How much stronger than Level 1 a zombie of this Level is: 1 at Level 1, plus the bonus for each Level above.</summary>
+    public double LevelFactor(int level) => 1 + (PerLevelBonus * (Math.Clamp(level, 1, TopLevel) - 1));
 
     private static void RequirePositive(double value, string name)
     {

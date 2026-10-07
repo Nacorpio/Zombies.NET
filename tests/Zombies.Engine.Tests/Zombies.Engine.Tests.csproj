@@ -29,6 +29,7 @@
     <ProjectReference Include="../../src/Zombies.Engine.Physics/Zombies.Engine.Physics.csproj" />
     <ProjectReference Include="../../src/Zombies.Domain.Zombies/Zombies.Domain.Zombies.csproj" />
     <ProjectReference Include="../../src/Zombies.Engine.Ecs/Zombies.Engine.Ecs.csproj" />
+    <ProjectReference Include="../../src/Zombies.Engine.Ai/Zombies.Engine.Ai.csproj" />
     <ProjectReference Include="../../src/Zombies.Domain.World/Zombies.Domain.World.csproj" />
     <ProjectReference Include="../../src/Zombies.Persistence.Sqlite/Zombies.Persistence.Sqlite.csproj" />
   </ItemGroup>

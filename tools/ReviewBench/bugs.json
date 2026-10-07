@@ -1,0 +1,69 @@
+[
+ {
+  "id": "B1",
+  "file": "src/Zombies.Engine.Ui/ContextMenu.cs",
+  "line": 91,
+  "old": "e.StartsGroup && i > 0))]);",
+  "new": "e.StartsGroup))]);",
+  "what": "A divider is drawn above the first entry although StartsGroup is documented to be ignored for the first entry",
+  "alt_lines": [
+   190
+  ]
+ },
+ {
+  "id": "B2",
+  "file": "src/Zombies.Engine.Ui/ContextMenu.cs",
+  "line": 115,
+  "old": "x = pointerX - width;",
+  "new": "x = pointerX + width;",
+  "what": "When the menu would run off the right edge it should open to the left of the pointer, but the sign is wrong so it moves further right"
+ },
+ {
+  "id": "B3",
+  "file": "src/Zombies.Engine.Ui/ContextMenu.cs",
+  "line": 105,
+  "old": "while (scale > 1 && (width > screen.Width || height > screen.Height))",
+  "new": "while (scale > 1 && (width > screen.Width && height > screen.Height))",
+  "what": "The text scale only drops when the menu is too big in both dimensions instead of either"
+ },
+ {
+  "id": "B4",
+  "file": "src/Zombies.Engine.Ui/ContextMenu.cs",
+  "line": 158,
+  "old": "? (delta > 0 ? 0 : count - 1)",
+  "new": "? (delta > 0 ? count - 1 : 0)",
+  "what": "With nothing highlighted, down should go to the first entry and up to the last; they are swapped"
+ },
+ {
+  "id": "B5",
+  "file": "src/Zombies.Engine.Ui/ContextMenu.cs",
+  "line": 163,
+  "old": "Highlighted is { IsEnabled: true } item ? item.Id : null;",
+  "new": "Highlighted is { } item ? item.Id : null;",
+  "what": "Choose returns the id of a disabled entry; choosing a disabled entry must do nothing"
+ },
+ {
+  "id": "B6",
+  "file": "src/Zombies.Engine.Ui/ContextMenu.cs",
+  "line": 273,
+  "old": "            Close();\n            return true;\n        }\n\n        var index = menu.IndexAt(x, y);",
+  "new": "            Close();\n            return false;\n        }\n\n        var index = menu.IndexAt(x, y);",
+  "what": "A click outside closes the menu but reports it as not consumed, so it also acts on whatever lies underneath"
+ },
+ {
+  "id": "B7",
+  "file": "src/Zombies.Engine.Ui/ContextMenu.cs",
+  "line": 277,
+  "old": "if (index >= 0 && menu.Items[index].IsEnabled)",
+  "new": "if (index > 0 && menu.Items[index].IsEnabled)",
+  "what": "Off by one: the first entry can never be chosen by a click"
+ },
+ {
+  "id": "B8",
+  "file": "src/Zombies.Engine.Ui/ContextMenu.cs",
+  "line": 193,
+  "old": "y += DividerHeight(scale);",
+  "new": "y += scale;",
+  "what": "Rows after a divider are placed using only the line height, not the divider's margins, so they no longer match the height computed by Measure and the menu overflows its bounds"
+ }
+]

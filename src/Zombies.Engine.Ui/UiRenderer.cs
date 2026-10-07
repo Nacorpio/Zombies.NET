@@ -64,6 +64,56 @@ public static class UiRenderer
         }
     }
 
+    /// <summary>
+    /// Draws the open context menu as a flat panel with a thin divider between groups, and the reason tooltip when a disabled entry
+    /// is highlighted. The highlighted entry gets a bar at its left edge, so it reads the same for enabled and disabled entries.
+    /// </summary>
+    public static void DrawContextMenu(SpriteBatch sprites, ContextMenuHost host, UiPalette palette, UiRect screen, int textScale)
+    {
+        ArgumentNullException.ThrowIfNull(sprites);
+        ArgumentNullException.ThrowIfNull(host);
+        ArgumentNullException.ThrowIfNull(palette);
+        if (host.Current is not { } menu)
+        {
+            return;
+        }
+
+        var scale = menu.EffectiveTextScale;
+        var bounds = menu.Bounds;
+        var pad = 4 * scale;
+        sprites.FillRect(bounds.X, bounds.Y, bounds.Width, bounds.Height, palette.Color(PaletteRole.Panel));
+        for (var i = 0; i < menu.Items.Count; i++)
+        {
+            var item = menu.Items[i];
+            if (item.Divider is { } divider)
+            {
+                sprites.FillRect(divider.X, divider.Y, divider.Width, divider.Height, palette.Color(PaletteRole.Muted));
+            }
+
+            var row = item.Bounds;
+            var color = palette.Color(item.IsEnabled ? PaletteRole.Text : PaletteRole.Muted);
+            if (i == menu.HighlightedIndex)
+            {
+                sprites.FillRect(row.X, row.Y, 2 * scale, row.Height, palette.Color(PaletteRole.Info));
+            }
+
+            sprites.DrawIcon(item.Icon, row.X + pad, row.Y + ((row.Height - (Icons.Size * ContextMenu.IconScale)) / 2), ContextMenu.IconScale, color);
+            var textY = row.Y + ((row.Height - (DebugFont.LineHeight * scale)) / 2);
+            var textX = row.X + pad + (Icons.Size * ContextMenu.IconScale) + (4 * scale);
+            sprites.DrawText(item.Label, textX, textY, scale, color);
+            if (item.Shortcut is { } shortcut)
+            {
+                sprites.DrawText(shortcut, row.Right - pad - (shortcut.Length * DebugFont.Advance * scale), textY, scale, palette.Color(PaletteRole.Muted));
+            }
+        }
+
+        if (host.ReasonTooltip is { } tooltip)
+        {
+            var (x, y) = host.TooltipAnchor;
+            DrawTooltip(sprites, tooltip, palette, x, y, screen, textScale);
+        }
+    }
+
     /// <summary>Draws a dialog centered on the screen, with its focused button marked.</summary>
     public static void DrawDialog(SpriteBatch sprites, Dialog dialog, UiPalette palette, int textScale)
     {

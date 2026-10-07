@@ -172,6 +172,22 @@ _Avoid_: Mutation, promotion
 A weighted definition of what clothing, headwear, and backpacks a zombie type can spawn wearing.
 _Avoid_: Loadout
 
+**Noise**:
+A sound that tells zombies where something is, such as a gunshot or a player's footsteps. A zombie hears it within both the noise's reach and its own hearing and goes to look. Crouching makes no noise. The sound of zombies hitting a door draws only zombies with nothing better to do.
+_Avoid_: Aggro, alert, threat
+
+**Horde**:
+Zombies that share one target, a player or a Noise, and walk toward it along one flow field instead of each planning its own route.
+_Avoid_: Swarm, pack, group
+
+**Detail level**:
+How much of each tick a zombie's mind gets: full, reduced, or dormant. Each player owns the zombies nearer to them than to any other player, and only a capped number of those nearest run in full or reduced.
+_Avoid_: LOD, AI tier
+
+**Climb**:
+Rising more than one block in one move. Zombies step up one block, the height a player can jump, and never climb, so a wall two blocks high stops them and a roof is out of their reach.
+_Avoid_: Scale, vault
+
 ## Rig and Animation
 
 **Skeleton**:

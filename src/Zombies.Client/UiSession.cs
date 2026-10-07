@@ -416,6 +416,11 @@ internal sealed class UiSession : IDisposable
             _editor.NextPalette();
         }
 
+        if (input.WasPressed(Key.G))
+        {
+            _editor.NextGore();
+        }
+
         if (input.WasPressed(Key.L))
         {
             var languages = _localizer.Languages;
@@ -533,6 +538,7 @@ internal sealed class UiSession : IDisposable
         _values.SetText("options.field_of_view", $"{_localizer.Get("options.field_of_view")}: {Settings.FieldOfViewDegrees:0}");
         _values.SetText("options.head_bob", $"{_localizer.Get("options.head_bob")}: {_localizer.Get(Settings.HeadBob ? "options.on" : "options.off")}");
         _values.SetText("options.palette", $"{_localizer.Get("options.palette")}: {_localizer.Get($"options.palette.{Settings.Palette.ToString().ToLowerInvariant()}")}");
+        _values.SetText("options.gore", $"{_localizer.Get("options.gore")}: {_localizer.Get($"options.gore.{Settings.Gore.ToString().ToLowerInvariant()}")}");
         _values.SetText("options.keys", $"{_localizer.Get("options.keys")}: {_keys.KeyFor(GameAction.Inventory)}");
         UiRenderer.Draw(sprites, _options, _values, _context, palette);
     }

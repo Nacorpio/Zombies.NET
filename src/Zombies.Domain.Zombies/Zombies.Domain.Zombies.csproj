@@ -3,6 +3,7 @@
   <ItemGroup>
     <ProjectReference Include="../Zombies.Domain.Items/Zombies.Domain.Items.csproj" />
     <ProjectReference Include="../Zombies.Domain.Crafting/Zombies.Domain.Crafting.csproj" />
+    <ProjectReference Include="../Zombies.Domain.Combat/Zombies.Domain.Combat.csproj" />
   </ItemGroup>
 
 </Project>

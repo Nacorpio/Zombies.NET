@@ -219,6 +219,9 @@ public sealed class GameClient : ITickable
 
     public ReplicatedWorld World { get; } = new();
 
+    /// <summary>This player's own Body and Held weapon, as the Server last told them.</summary>
+    public ReplicatedStatus Status { get; } = new();
+
     /// <summary>The local player, predicted from input and reconciled against the Server's snapshots.</summary>
     public LocalPlayer Local { get; } = new();
 
@@ -322,6 +325,9 @@ public sealed class GameClient : ITickable
                 case MessageType.CommandRejected when State == ClientState.Joined:
                     LastRejection = new CommandRejected(reader.ReadUInt32(), (CommandRejection)reader.ReadByte(), reader.ReadString());
                     RejectionCount++;
+                    break;
+                case MessageType.PlayerStatus when State == ClientState.Joined:
+                    Status.Apply(ref reader);
                     break;
                 case MessageType.Snapshot when State == ClientState.Joined:
                     if (World.Apply(ref reader))

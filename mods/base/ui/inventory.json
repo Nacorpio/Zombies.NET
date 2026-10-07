@@ -4,8 +4,9 @@
     "type": "panel", "id": "inv.root", "anchor": "center", "width": 320, "height": 180,
     "children": [
       { "type": "label", "id": "inv.title", "textKey": "inv.title", "anchor": "topLeft", "x": 6, "y": 6, "role": "text" },
-      { "type": "panel", "id": "inv.backpack", "anchor": "topLeft", "x": 6, "y": 20, "width": 150, "height": 140, "tooltipKey": "inv.backpack" },
-      { "type": "panel", "id": "inv.ground", "anchor": "topRight", "x": 6, "y": 20, "width": 150, "height": 140, "tooltipKey": "inv.ground" },
+      { "type": "panel", "id": "inv.backpack", "anchor": "topLeft", "x": 6, "y": 20, "width": 150, "height": 104, "tooltipKey": "inv.backpack" },
+      { "type": "panel", "id": "inv.ground", "anchor": "topRight", "x": 6, "y": 20, "width": 150, "height": 104, "tooltipKey": "inv.ground" },
+      { "type": "panel", "id": "inv.mounts", "anchor": "topLeft", "x": 6, "y": 128, "width": 308, "height": 30, "tooltipKey": "inv.mount_hint" },
       { "type": "label", "id": "inv.hint", "textKey": "inv.drop_hint", "anchor": "bottomLeft", "x": 6, "y": 6, "role": "muted" }
     ]
   }

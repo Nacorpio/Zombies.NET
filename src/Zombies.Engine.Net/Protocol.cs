@@ -16,6 +16,9 @@ public enum MessageType : byte
 
     /// <summary>The Server's account of the receiving player's own Body and Held weapon, sent with each snapshot.</summary>
     PlayerStatus,
+
+    /// <summary>The Status effects on the receiving player, sent to that player alone whenever they change.</summary>
+    StatusEffects,
 }
 
 public static class NetProtocol

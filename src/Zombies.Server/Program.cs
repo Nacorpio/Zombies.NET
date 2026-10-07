@@ -4,6 +4,7 @@ using Zombies.Domain.Combat;
 using Zombies.Domain.Death;
 using Zombies.Domain.Items;
 using Zombies.Domain.Mods;
+using Zombies.Domain.StatusEffects;
 using Zombies.Engine.Core;
 using Zombies.Engine.Core.Modding;
 using Zombies.Engine.Net;
@@ -159,11 +160,23 @@ if (savePath is not null)
 }
 
 var items = new ItemCatalog(mods.Registry.OfKind("item").Select(d => ItemDefinitionJson.Parse(d.Json)));
+StatusEffectCatalog effects;
+try
+{
+    effects = StatusEffectContentLoader.Load(mods.Registry);
+}
+catch (Exception ex) when (ex is StatusEffectDefinitionException or ArgumentException)
+{
+    Console.Error.WriteLine($"Zombies.Server: {ex.Message}");
+    return 1;
+}
+
 var woundKinds = new WoundKindCatalog(mods.Registry.OfKind("wound_kind").Select(d => WoundKindJson.Parse(d.Json)));
 var options = new ServerOptions(identity, seed)
 {
     MaxPlayers = maxPlayers,
     Items = items,
+    Effects = effects,
     Weapons = new WeaponCatalog(
         mods.Registry.OfKind("weapon_category").Select(d => WeaponDefinitionJson.ParseCategory(d.Json)),
         mods.Registry.OfKind("weapon").Select(d => WeaponDefinitionJson.ParseWeapon(d.Json)),

@@ -1,7 +1,7 @@
-﻿{
+{
   "id": "base:item/antibiotics",
   "mass": "30 g",
   "volume": "120 ml",
-  "maxStack": 5
+  "maxStack": 5,
+  "edible": true
 }
-

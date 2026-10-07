@@ -177,6 +177,7 @@ while (!window.CloseRequested)
         }
 
         world.Solo.Advance(TimeSpan.FromSeconds(seconds));
+        ui?.SetEffects(world.Solo.Client.Effects);
         world.StepPhysics(TimeSpan.FromSeconds(seconds));
 
         var updateStart = Stopwatch.GetTimestamp();

@@ -170,6 +170,22 @@
     "item.base.item.pistol_rounds_9mm": "9mm rounds",
     "item.base.item.red_dot_sight": "Red dot sight",
     "item.base.item.suppressor": "Suppressor",
-    "item.base.item.water_bottle": "Water bottle"
+    "item.base.item.water_bottle": "Water bottle",
+    "hud.effect.stage": "Stage: {0}.",
+    "hud.effect.cure_item": "Cure: {0}",
+    "hud.effect.cure_effect": "Cured by: {0}",
+    "hud.effect.cure_time": "Wears off with time",
+    "hud.effect.cure_none": "No known cure",
+    "status_effect.base.status_effect.infection": "Infection",
+    "status_effect.base.status_effect.infection.tooltip": "A bite has festered. It gets worse until treated.",
+    "status_effect.base.status_effect.infection.stage.mild": "Mild",
+    "status_effect.base.status_effect.infection.stage.severe": "Severe",
+    "status_effect.base.status_effect.food_poisoning": "Food poisoning",
+    "status_effect.base.status_effect.food_poisoning.tooltip": "Spoiled food. You are slowed and queasy.",
+    "status_effect.base.status_effect.painkiller": "Painkiller",
+    "status_effect.base.status_effect.painkiller.tooltip": "You can take more pain for a while.",
+    "item.base.item.antibiotics": "Antibiotics",
+    "item.base.item.painkillers": "Painkillers",
+    "item.base.item.spoiled_food": "Spoiled food"
   }
 }

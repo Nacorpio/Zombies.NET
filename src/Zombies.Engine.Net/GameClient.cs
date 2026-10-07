@@ -1,4 +1,5 @@
 using System.Numerics;
+using Zombies.Domain.StatusEffects;
 using Zombies.Engine.Core;
 
 namespace Zombies.Engine.Net;
@@ -236,6 +237,12 @@ public sealed class GameClient : ITickable
     /// </summary>
     public bool IsSpectating => World.TryGet(PlayerEntityId, out var entity) && entity.Player.Dead;
 
+    /// <summary>
+    /// The Status effects on this client's own player, as the Server last told them. Other players' effects are never sent, so there is
+    /// no way to see them.
+    /// </summary>
+    public IReadOnlyList<ActiveEffect> Effects { get; private set; } = [];
+
     public CommandRejected? LastRejection { get; private set; }
 
     public int RejectionCount { get; private set; }
@@ -328,6 +335,9 @@ public sealed class GameClient : ITickable
                     break;
                 case MessageType.PlayerStatus when State == ClientState.Joined:
                     Status.Apply(ref reader);
+                    break;
+                case MessageType.StatusEffects when State == ClientState.Joined:
+                    Effects = StatusEffectMessages.Read(ref reader);
                     break;
                 case MessageType.Snapshot when State == ClientState.Joined:
                     if (World.Apply(ref reader))

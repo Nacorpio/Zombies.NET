@@ -42,5 +42,6 @@
     { "item": "base:item/baseball_bat", "weight": 1 }
   ],
   "weakpointSet": "base:weakpoint_set/humanoid",
-  "upgrade": { "zombieType": "base:zombie/runner", "afterDays": 30 }
+  "upgrade": { "zombieType": "base:zombie/runner", "afterDays": 30 },
+  "bite": { "effect": "base:status_effect/infection", "chance": 0.3 }
 }

@@ -162,6 +162,20 @@ public sealed class Container
         return InventoryResult.Success([.. events]);
     }
 
+    /// <summary>Takes one unit of an item out, from whichever Stack of it holds one, as consuming it does. Fails with no change when there is none.</summary>
+    public InventoryResult TryRemoveOne(ItemId item)
+    {
+        var entry = _entries.Find(e => e.Item == item);
+        if (entry is null)
+        {
+            return InventoryResult.Failure(InventoryError.InsufficientItems);
+        }
+
+        var state = entry.State;
+        Remove(item, 1, state);
+        return InventoryResult.Success(new ItemsRemoved(Id, item, 1, state));
+    }
+
     public int CountOf(ItemId item) => _entries.Where(e => e.Item == item).Sum(e => e.Count);
 
     private static ItemStateSnapshot? SnapshotOf(ItemState? state) => state is null

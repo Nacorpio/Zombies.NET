@@ -163,6 +163,21 @@ public sealed class ZombieSystem : ITickable
         return false;
     }
 
+    /// <summary>The Zombie type and spec of a zombie, which decide its bite.</summary>
+    public bool TryGetType(uint id, out ZombieTypeDefinition type, out ZombieSpec spec)
+    {
+        if (_zombies.TryGetValue(id, out var data))
+        {
+            type = data.Type;
+            spec = data.Spec;
+            return true;
+        }
+
+        type = null!;
+        spec = default;
+        return false;
+    }
+
     public bool TryGetBody(uint id, out Body body)
     {
         if (_zombies.TryGetValue(id, out var data))

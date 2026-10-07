@@ -19,6 +19,23 @@
     },
     "drinkable": {
       "type": "boolean"
+    },
+    "onConsume": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "effect": {
+            "type": "string"
+          },
+          "chance": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "effect"
+        ]
+      }
     }
   },
   "required": [

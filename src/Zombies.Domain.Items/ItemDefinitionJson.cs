@@ -6,6 +6,16 @@ namespace Zombies.Domain.Items;
 
 public sealed class ItemDefinitionException(string message) : Exception(message);
 
+/// <summary>A Status effect that consuming an item may apply.</summary>
+public sealed record ConsumeEffectDto
+{
+    /// <summary>Content ID of the Status effect, such as <c>base:status_effect/painkiller</c>.</summary>
+    public required string Effect { get; init; }
+
+    /// <summary>Chance from 0 to 1 that the effect is applied. Defaults to 1.</summary>
+    public double Chance { get; init; } = 1;
+}
+
 /// <summary>
 /// JSON shape of an Item definition. Mass and volume are UnitsNet strings such as "1.2 kg".
 /// This type is the source of the generated JSON Schema, so keep it in step with <see cref="ItemDefinitionJson"/>.
@@ -29,6 +39,9 @@ public sealed record ItemDefinitionDto
 
     /// <summary>Whether the item can be drunk. Defaults to false.</summary>
     public bool Drinkable { get; init; }
+
+    /// <summary>Status effects that consuming the item may apply. Only edible or drinkable items can have them.</summary>
+    public IReadOnlyList<ConsumeEffectDto> OnConsume { get; init; } = [];
 }
 
 /// <summary>Parses an Item definition from JSON.</summary>
@@ -63,13 +76,20 @@ public static class ItemDefinitionJson
 
         try
         {
-            return new ItemDefinition(itemId, mass, volume, dto.MaxStack, dto.Edible, dto.Drinkable);
+            return new ItemDefinition(itemId, mass, volume, dto.MaxStack, dto.Edible, dto.Drinkable, dto.OnConsume.Select(ToConsume));
         }
         catch (ArgumentOutOfRangeException ex)
         {
             throw new ItemDefinitionException($"Item '{dto.Id}' has an out-of-range value: {ex.ParamName}.");
         }
+        catch (ArgumentException ex)
+        {
+            throw new ItemDefinitionException($"Item '{dto.Id}' is invalid: {ex.Message}");
+        }
     }
+
+    private static ConsumeEffect ToConsume(ConsumeEffectDto dto) =>
+        new(dto.Effect, double.IsFinite(dto.Chance) && dto.Chance is >= 0 and <= 1 ? (int)Math.Round(dto.Chance * ConsumeEffect.BasisPoints) : throw new ArgumentException("A chance must be between 0 and 1."));
 
     private static T ParseQuantity<T>(string text, string name, Func<string, IFormatProvider?, T> parse)
     {

@@ -30,14 +30,16 @@ public sealed record DraggedItem(ContainerId From, StackId Stack, ItemId Item, i
 /// <summary>
 /// The inventory screen's model. It reads Containers through the repository and changes them only through the Inventory
 /// commands, so a drag either succeeds or leaves everything as it was. The list and the grid are two ways of drawing the
-/// same slots. With a <see cref="WeaponFittingService"/> it also shows the Mounts of an opened weapon and fits Attachments.
+/// same slots. With a <see cref="WeaponFittingService"/> it also shows the Mounts of an opened weapon and fits Attachments, and with an\n/// <see cref="ItemActionService"/> a right click opens a menu of the Item actions the Domain says a Stack offers and runs the one chosen.
 /// </summary>
 public sealed partial class InventoryView(
     InventoryService inventory,
     IContainerRepository containers,
     IItemCatalog catalog,
     Localizer localizer,
-    WeaponFittingService? fitting = null)
+    WeaponFittingService? fitting = null,
+    ItemActionService? actions = null,
+    Outfit? outfit = null)
 {
     private const int SlotHeightPixels = 10;
     private const int SlotGapPixels = 2;
@@ -109,6 +111,7 @@ public sealed partial class InventoryView(
     public bool BeginDrag(ContainerId container, StackId stack)
     {
         Message = null;
+        _menu?.Close();
         if (!TryContainer(container, out var found) || Stack(found, stack) is not { } item)
         {
             return false;

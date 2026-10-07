@@ -228,6 +228,20 @@ public sealed class ModLoadingTests
     }
 
     [Fact]
+    public void BaseWalker_CanSpawnHoldingEachOfItsMeleeWeapons_OrNothing()
+    {
+        var catalog = ZombieContentLoader.Load(LoadRepositoryMods().Registry);
+        Assert.True(catalog.TryGet("base:zombie/walker", out var walker));
+
+        var held = Enumerable.Range(0, 2000)
+            .Select(seed => Zombies.Domain.Zombies.ZombieGenerator.Generate(walker, new Zombies.Domain.Zombies.ZombieSpec((ulong)seed, walker.Id, 1), catalog.Weapons).HeldWeapon?.Item.Value)
+            .ToHashSet();
+
+        Assert.Equal(walker.HeldWeapons.Select(h => h.Item?.Value).Order(), held.Order());
+        Assert.Contains(null, held);
+    }
+
+    [Fact]
     public void EveryItemCategoryAndMountReferenceInWeaponContentResolves()
     {
         var registry = LoadRepositoryMods().Registry;

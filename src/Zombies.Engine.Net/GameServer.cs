@@ -43,6 +43,15 @@ public sealed record ServerOptions(GameIdentity Identity, ulong WorldSeed)
 
     /// <summary>How long a day lasts, which a Memorial counts a life in.</summary>
     public TimeSpan DayLength { get; init; } = TimeSpan.FromMinutes(24);
+
+    /// <summary>The weapons a player can hold and use. Null means this Server has none, so every weapon command is refused.</summary>
+    public WeaponCatalog? Weapons { get; init; }
+
+    /// <summary>The Treatments a player can apply to their own Wounds. Null means none, so every treat command is refused.</summary>
+    public TreatmentCatalog? Treatments { get; init; }
+
+    /// <summary>Tuning for each player's Body, including the Wound kinds their hits cause. Defaults to a healthy adult with unkinded Wounds.</summary>
+    public BodyConfig? PlayerBody { get; init; }
 }
 
 /// <summary>One connection to the Server, from connect to disconnect, and its player once it has joined.</summary>
@@ -76,6 +85,21 @@ public sealed class PlayerSession
 
     /// <summary>What this player carries. Empty while they are dead, because it went into their Corpse.</summary>
     public Container Carried { get; internal set; } = null!;
+
+    /// <summary>The Held weapon, which must be a Stack in <see cref="Carried"/>, or null when the hands are empty.</summary>
+    public ItemId? Held { get; internal set; }
+
+    /// <summary>The Item state of the Held weapon: its Condition and loaded rounds, which the Server alone changes.</summary>
+    public ItemState? HeldState { get; internal set; }
+
+    /// <summary>The tick from which the Held weapon may be used again, so the rate of fire is the Server's to enforce.</summary>
+    internal long NextAttackTick { get; set; }
+
+    /// <summary>Whether the player's Body or Held weapon changed since the Server last told them, so only a change is sent.</summary>
+    internal bool StatusDirty { get; set; }
+
+    /// <summary>The Inventory commands over <see cref="Carried"/>, which is how the Server takes an item out or puts one back with new Item state.</summary>
+    internal InventoryService Inventory { get; set; } = null!;
 
     /// <summary>Whether the Body is dead, which makes the player a Spectator who cannot act.</summary>
     public bool IsDead => !Body.IsAlive;
@@ -114,7 +138,7 @@ public sealed class PlayerSession
 /// Each tick it reads messages, validates and applies Domain commands, and sends delta snapshots at
 /// <see cref="ServerOptions.SnapshotRateHz"/> to each joined client, limited to the chunks around its player.
 /// </summary>
-public sealed class GameServer : ITickable
+public sealed partial class GameServer : ITickable
 {
     private const int RefusalGraceTicks = Simulation.TickRateHz;
     private const ulong SaltStatusEffects = 0x57A7E5;
@@ -129,6 +153,7 @@ public sealed class GameServer : ITickable
     private readonly DeterministicRandom _chance;
     private readonly long _dayTicks;
     private readonly long _respawnTicks;
+    private readonly WeaponService? _weapons;
     private long _tick;
     private int _snapshotAccumulator;
 
@@ -159,6 +184,11 @@ public sealed class GameServer : ITickable
         Commands.Register<PlayerInputCommand>(PlayerInputCommand.Handle);
         Commands.Register<LootCorpse>(LootCorpse.Handle);
         Commands.Register<UseItem>(UseItem.Handle);
+        Commands.Register<HoldWeapon>(HoldWeapon.Handle);
+        Commands.Register<UseWeapon>(UseWeapon.Handle);
+        Commands.Register<LoadWeapon>(LoadWeapon.Handle);
+        Commands.Register<TreatWounds>(TreatWounds.Handle);
+        _weapons = options.Weapons is null ? null : new WeaponService(options.Weapons);
         foreach (var corpse in stores.Corpses.All())
         {
             _corpses[World.Spawn(EntityKind.Corpse, corpse.Position, 0f)] = corpse;
@@ -309,6 +339,7 @@ public sealed class GameServer : ITickable
 
     private CombatResult Resolve(PlayerSession session, CombatResult result)
     {
+        session.StatusDirty = true;
         if (result.Events.OfType<BodyDied>().FirstOrDefault() is { } died)
         {
             Die(session, died.Cause);
@@ -325,6 +356,8 @@ public sealed class GameServer : ITickable
         var report = _death.Die(session.Carried, session.Outfit, session.Name, cause, days, session.Kills, player.Position);
         _corpses[World.Spawn(EntityKind.Corpse, report.Corpse.Position, player.Yaw)] = report.Corpse;
         World.UpdatePlayer(session.EntityId, new PlayerState(Dead: true));
+        session.Held = null;
+        session.HeldState = null;
 
         // What afflicted the Body dies with it; the next life starts clean.
         session.Effects = new CreatureEffects(new CreatureId(session.EntityId), Options.Effects);
@@ -335,8 +368,11 @@ public sealed class GameServer : ITickable
     /// <summary>Gives a dead player a fresh Body and fresh Needs at the spawn point. What they carried stays in their Corpse.</summary>
     private void Respawn(PlayerSession session)
     {
-        session.Body = new Body(new BodyId(session.EntityId));
+        session.Body = new Body(new BodyId(session.EntityId), Options.PlayerBody);
         session.Needs = new Needs();
+        session.Held = null;
+        session.HeldState = null;
+        session.StatusDirty = true;
         session.Kills = 0;
         session.LifeStartTick = _tick;
         session.RespawnAtTick = null;
@@ -381,6 +417,11 @@ public sealed class GameServer : ITickable
             {
                 Respawn(session);
             }
+            else if (session.IsJoined && !session.IsDead && session.Body.HasWounds)
+            {
+                // A Wound that bleeds keeps costing blood, so a player left bleeding eventually dies of it.
+                Resolve(session, session.Body.Advance(TimeSpan.FromSeconds(1.0 / Simulation.TickRateHz)));
+            }
         }
 
         AdvanceEffects();
@@ -393,6 +434,7 @@ public sealed class GameServer : ITickable
                 if (session.IsJoined)
                 {
                     SendSnapshot(session);
+                    SendStatus(session);
                 }
             }
         }
@@ -523,12 +565,14 @@ public sealed class GameServer : ITickable
         session.EntityId = World.Spawn(EntityKind.Player, Options.SpawnPoint, 0f);
         session.Movement = PlayerMoveState.At(Options.SpawnPoint);
         session.Collision = Collision.Create(Options.SpawnPoint, PlayerMovement.StandingHeight);
-        session.Body = new Body(new BodyId(session.EntityId));
+        session.Body = new Body(new BodyId(session.EntityId), Options.PlayerBody);
         session.Needs = new Needs();
         session.Effects = new CreatureEffects(new CreatureId(session.EntityId), Options.Effects);
         session.Outfit = new Outfit(Options.Wearables);
         session.Carried = new Container(_death.NextContainerId(), Options.CarryMass, Options.CarryVolume, Options.Items);
+        session.Inventory = new InventoryService(Options.Items, new SingleContainerRepository(session.Carried));
         session.LifeStartTick = _tick;
+        session.StatusDirty = true;
         PlayerCount++;
 
         _writer.WriteByte((byte)MessageType.JoinAccepted);

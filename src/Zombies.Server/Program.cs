@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Globalization;
+using Zombies.Domain.Combat;
 using Zombies.Domain.Death;
 using Zombies.Domain.Items;
 using Zombies.Domain.Mods;
@@ -170,7 +171,19 @@ catch (Exception ex) when (ex is StatusEffectDefinitionException or ArgumentExce
     return 1;
 }
 
-var options = new ServerOptions(identity, seed) { MaxPlayers = maxPlayers, Items = items, Effects = effects };
+var woundKinds = new WoundKindCatalog(mods.Registry.OfKind("wound_kind").Select(d => WoundKindJson.Parse(d.Json)));
+var options = new ServerOptions(identity, seed)
+{
+    MaxPlayers = maxPlayers,
+    Items = items,
+    Effects = effects,
+    Weapons = new WeaponCatalog(
+        mods.Registry.OfKind("weapon_category").Select(d => WeaponDefinitionJson.ParseCategory(d.Json)),
+        mods.Registry.OfKind("weapon").Select(d => WeaponDefinitionJson.ParseWeapon(d.Json)),
+        mods.Registry.OfKind("attachment").Select(d => WeaponDefinitionJson.ParseAttachment(d.Json))),
+    Treatments = new TreatmentCatalog(mods.Registry.OfKind("treatment").Select(d => TreatmentJson.Parse(d.Json)), woundKinds),
+    PlayerBody = new BodyConfig { WoundKinds = woundKinds },
+};
 
 // With a save, Corpses and their Containers and the Memorials are kept in it; without one they last as long as the process.
 var deathStores = save is null

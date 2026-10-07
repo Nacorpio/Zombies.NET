@@ -262,6 +262,47 @@ public sealed class Container
         return null;
     }
 
+    /// <summary>
+    /// Whether a single-item Stack can take a new state and still fit, as when an Item is fitted to it or taken out of it.
+    /// <paramref name="leaving"/> and <paramref name="arriving"/> name one Item that leaves or joins this Container at the same time.
+    /// </summary>
+    internal InventoryError? CheckRestate(ItemStack host, ItemState? state, ItemId? leaving = null, ItemId? arriving = null)
+    {
+        if (state is not null && state.Attached.Keys.Any(a => !_catalog.TryGet(a, out _)))
+        {
+            return InventoryError.UnknownItem;
+        }
+
+        var mass = TotalMass - UnitMass(host.Item, host.State) + UnitMass(host.Item, state);
+        var volume = TotalVolume - UnitVolume(host.Item, host.State) + UnitVolume(host.Item, state);
+        if (leaving is { } left)
+        {
+            mass -= UnitMass(left, null);
+            volume -= UnitVolume(left, null);
+        }
+
+        if (arriving is { } joined)
+        {
+            mass += UnitMass(joined, null);
+            volume += UnitVolume(joined, null);
+        }
+
+        if (mass.Kilograms > MassLimit.Kilograms + MassSlackKg)
+        {
+            return InventoryError.ExceedsMassLimit;
+        }
+
+        return volume.CubicMeters > VolumeLimit.CubicMeters + VolumeSlackM3 ? InventoryError.ExceedsVolumeLimit : null;
+    }
+
+    /// <summary>Gives a Stack a new Item state and keeps its id and place. The caller has already checked limits.</summary>
+    internal void Restate(StackId id, ItemState? state)
+    {
+        var index = _entries.FindIndex(e => e.Id == id);
+        var entry = _entries[index];
+        _entries[index] = new Entry(entry.Id, entry.Item, entry.Count, state);
+    }
+
     /// <summary>Adds items, topping up partial Stacks first. The caller has already checked limits.</summary>
     internal void Add(ItemId item, int count, ItemState? state = null)
     {

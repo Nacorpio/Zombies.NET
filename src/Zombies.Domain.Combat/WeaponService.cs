@@ -70,8 +70,36 @@ public sealed class WeaponService(WeaponCatalog catalog)
         return true;
     }
 
-    /// <summary>Fits an Attachment to the Mount it belongs on, if the weapon offers that Mount and it is free.</summary>
-    public WeaponResult Attach(ItemId weapon, ItemState? state, ItemId attachment)
+    /// <summary>The Mounts a weapon offers, its category's first, or none when the Item is not a weapon.</summary>
+    public IReadOnlyList<string> Mounts(ItemId weapon) =>
+        catalog.TryGetWeapon(weapon, out var definition) ? [.. MountsOf(definition).Distinct()] : [];
+
+    /// <summary>The Mount an Attachment belongs on, or null when the Item is not an Attachment.</summary>
+    public string? MountFor(ItemId attachment) => catalog.TryGetAttachment(attachment, out var definition) ? definition.Mount : null;
+
+    /// <summary>The Attachment fitted to <paramref name="mount"/>, or null when the Mount is free.</summary>
+    public ItemId? FittedTo(ItemState? state, string mount)
+    {
+        foreach (var attached in state?.Attached.Keys ?? [])
+        {
+            if (catalog.TryGetAttachment(attached, out var attachment) && attachment.Mount == mount)
+            {
+                return attached;
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>The Mounts that have an Attachment fitted, which is what a weapon rig needs to draw them on a Held weapon.</summary>
+    public IReadOnlyList<string> FittedMounts(ItemState? state) =>
+        [.. (state?.Attached.Keys ?? []).Select(a => catalog.TryGetAttachment(a, out var attachment) ? attachment.Mount : null).OfType<string>().Distinct()];
+
+    /// <summary>
+    /// Fits an Attachment to the Mount it belongs on, if the weapon offers that Mount and it is free. When
+    /// <paramref name="mount"/> is given, the Attachment must belong on that Mount, as when it is dropped on one.
+    /// </summary>
+    public WeaponResult Attach(ItemId weapon, ItemState? state, ItemId attachment, string? mount = null)
     {
         if (!catalog.TryGetWeapon(weapon, out var definition))
         {
@@ -81,6 +109,11 @@ public sealed class WeaponService(WeaponCatalog catalog)
         if (!catalog.TryGetAttachment(attachment, out var fitting))
         {
             return WeaponResult.Failure(WeaponError.UnknownAttachment);
+        }
+
+        if (mount is not null && mount != fitting.Mount)
+        {
+            return WeaponResult.Failure(WeaponError.WrongMount);
         }
 
         if (!MountsOf(definition).Contains(fitting.Mount))

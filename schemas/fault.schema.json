@@ -1,0 +1,91 @@
+{
+  "type": "object",
+  "properties": {
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z0-9_]+:[a-z0-9_]+(/[a-z0-9_]+)*$"
+    },
+    "target": {
+      "enum": [
+        "weapon",
+        "armor"
+      ]
+    },
+    "effects": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "stat": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_]*$"
+          },
+          "operation": {
+            "enum": [
+              "add",
+              "multiply"
+            ]
+          },
+          "value": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "stat",
+          "operation",
+          "value"
+        ]
+      }
+    },
+    "gained": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "properties": {
+        "cause": {
+          "enum": [
+            "weapon_use",
+            "armor_hit"
+          ]
+        },
+        "chance": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "cause",
+        "chance"
+      ]
+    },
+    "weaponCategories": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "repair": {
+      "type": "object",
+      "properties": {
+        "consumes": {
+          "type": "string",
+          "pattern": "^[a-z0-9_]+:[a-z0-9_]+(/[a-z0-9_]+)*$"
+        },
+        "time": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "consumes",
+        "time"
+      ]
+    }
+  },
+  "required": [
+    "id",
+    "target",
+    "effects",
+    "repair"
+  ],
+  "$schema": "https://json-schema.org/draft/2020-12/schema"
+}

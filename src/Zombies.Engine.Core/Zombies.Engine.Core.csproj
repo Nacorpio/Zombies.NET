@@ -5,7 +5,9 @@
     <ProjectReference Include="../Zombies.Domain.Actions/Zombies.Domain.Actions.csproj" />
     <ProjectReference Include="../Zombies.Domain.Combat/Zombies.Domain.Combat.csproj" />
     <ProjectReference Include="../Zombies.Domain.Crafting/Zombies.Domain.Crafting.csproj" />
+    <ProjectReference Include="../Zombies.Domain.Statistics/Zombies.Domain.Statistics.csproj" />
     <ProjectReference Include="../Zombies.Domain.StatusEffects/Zombies.Domain.StatusEffects.csproj" />
+    <ProjectReference Include="../Zombies.Domain.Survival/Zombies.Domain.Survival.csproj" />
     <ProjectReference Include="../Zombies.Domain.World/Zombies.Domain.World.csproj" />
     <ProjectReference Include="../Zombies.Domain.Zombies/Zombies.Domain.Zombies.csproj" />
   </ItemGroup>

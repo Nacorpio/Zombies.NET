@@ -6,7 +6,9 @@ using Zombies.Domain.Inventory;
 using Zombies.Domain.Items;
 using Zombies.Domain.Mods;
 using Zombies.Domain.StatusEffects;
+using Zombies.Domain.Survival;
 using Zombies.Engine.Core.Modding;
+using Zombies.Engine.Net;
 
 namespace Zombies.Engine.Tests;
 
@@ -33,7 +35,7 @@ public sealed class ModLoadingTests
 
         Assert.True(result.IsSuccess, string.Join(Environment.NewLine, result.Errors));
         Assert.Equal(["base", "sample_data"], result.Mods.Select(m => m.Manifest.Id));
-        Assert.Equal(79, result.Registry.Count);
+        Assert.Equal(134, result.Registry.Count);
     }
 
     [Fact]
@@ -61,6 +63,21 @@ public sealed class ModLoadingTests
     }
 
     [Fact]
+    public void BaseFaults_DeclareTwoWeaponFaultsAndAnArmorFault_EachRepairedWithABaseItem()
+    {
+        var registry = LoadRepositoryMods().Registry;
+        var items = new ItemCatalog(registry.OfKind("item").Select(d => ItemDefinitionJson.Parse(d.Json)));
+        var categories = registry.OfKind("weapon_category").Select(d => WeaponDefinitionJson.ParseCategory(d.Json).Id).ToHashSet();
+
+        var faults = new FaultCatalog(registry.OfKind("fault").Select(d => FaultJson.Parse(d.Json)));
+
+        Assert.True(faults.All.Count(f => f.Target == FaultTarget.Weapon) >= 2);
+        Assert.Contains(faults.All, f => f.Target == FaultTarget.Armor);
+        Assert.All(faults.All, f => Assert.True(items.TryGet(f.Repair.Consumes, out _), $"{f.Id} is repaired with unknown item {f.Repair.Consumes}."));
+        Assert.All(faults.All.SelectMany(f => f.WeaponCategories), c => Assert.Contains(c, categories));
+    }
+
+    [Fact]
     public void BaseLimbScores_ParseAndScoreAWholeBodyAsFull()
     {
         var scores = LoadRepositoryMods().Registry.OfKind("limb_score").Select(d => LimbScoreJson.Parse(d.Json)).ToList();
@@ -84,6 +101,66 @@ public sealed class ModLoadingTests
         Assert.True(treatments.TryGet("base:treatment/bandage", out var bandage));
         Assert.True(bandage.StopsBleeding);
         Assert.Equal(new ItemId("base:item/bandage"), bandage.Consumes);
+    }
+
+    [Fact]
+    public void BaseMoraleSourcesAndBands_ParseIntoACatalog_WithATeammateDeathAndAComfortItem()
+    {
+        var registry = LoadRepositoryMods().Registry;
+        var items = new ItemCatalog(registry.OfKind("item").Select(d => ItemDefinitionJson.Parse(d.Json)));
+
+        var catalog = new MoraleCatalog(
+            registry.OfKind("morale_source").Select(d => MoraleSourceJson.Parse(d.Json)),
+            registry.OfKind("morale_band").Select(d => MoraleBandJson.Parse(d.Json)));
+
+        Assert.True(catalog.Sources.Count >= 5);
+        Assert.Contains(catalog.Sources, s => s.Trigger.Event == new StatName("teammate_died"));
+        var comfort = Assert.Single(catalog.Sources, s => s.Trigger.Item is not null);
+        Assert.True(items.TryGet(comfort.Trigger.Item!.Value, out _), $"{comfort.Id} names unknown item {comfort.Trigger.Item}.");
+        Assert.Equal(["base:morale_band/low", "base:morale_band/steady", "base:morale_band/high"], catalog.Bands.Select(b => b.Id));
+
+        var morale = new Morale(catalog);
+        morale.OnEvent(new StatName("teammate_died"));
+        Assert.Equal("base:morale_band/low", morale.Band?.Id);
+        Assert.True(morale.EffectiveValue(new StatName("aim_spread"), 1) > 1);
+    }
+
+    [Fact]
+    public void BaseSubstances_ParseIntoACatalog_WithAStimulantAndAnAlcoholicDrink()
+    {
+        var registry = LoadRepositoryMods().Registry;
+        var items = new ItemCatalog(registry.OfKind("item").Select(d => ItemDefinitionJson.Parse(d.Json)));
+        var effects = new StatusEffectCatalog(registry.OfKind("status_effect").Select(d => StatusEffectJson.Parse(d.Json)));
+
+        var substances = new SubstanceCatalog(registry.OfKind("substance").Select(d => SubstanceJson.Parse(d.Json)), effects);
+
+        Assert.Equal(["base:substance/alcohol", "base:substance/stimulant"], substances.All.Select(s => s.Id).Order());
+        Assert.All(substances.All.SelectMany(s => s.Items), i => Assert.True(items.TryGet(i.Item, out _), $"{i.Item} is not a defined item."));
+        Assert.True(items.TryGet(new ItemId("base:item/beer"), out var beer) && beer.Drinkable);
+    }
+
+    [Fact]
+    public void DrinkingBeer_ImpairsAimMoreWithEveryDrink_AndAnAddictGetsWithdrawal()
+    {
+        var registry = LoadRepositoryMods().Registry;
+        var catalog = new StatusEffectCatalog(registry.OfKind("status_effect").Select(d => StatusEffectJson.Parse(d.Json)));
+        var effects = new CreatureEffects(new CreatureId(1), catalog);
+        var substances = new CreatureSubstances(new SubstanceCatalog(registry.OfKind("substance").Select(d => SubstanceJson.Parse(d.Json)), catalog), effects);
+        var beer = new ItemId("base:item/beer");
+        var aim = new StatName("aim_spread");
+
+        substances.Consume(beer, 0);
+        var oneDrink = effects.EffectiveValue(aim, 1);
+        substances.Consume(beer, 0.99);
+        var twoDrinks = effects.EffectiveValue(aim, 1);
+
+        Assert.True(oneDrink > 1);
+        Assert.True(twoDrinks > oneDrink);
+        Assert.True(substances.IsAddicted("base:substance/alcohol"));
+
+        substances.Advance(TimeSpan.FromDays(2));
+        Assert.True(effects.Has("base:status_effect/alcohol_withdrawal"));
+        Assert.False(effects.Has("base:status_effect/drunk"));
     }
 
     private static (ItemCatalog Items, LootTableCatalog Loot) LoadCatalogs()
@@ -285,13 +362,38 @@ public sealed class ModLoadingTests
         new(registry.OfKind("status_effect").Select(d => StatusEffectJson.Parse(d.Json)));
 
     [Fact]
-    public void BaseMod_ShipsInfectionPainkillerAndFoodPoisoning()
+    public void BaseMod_ShipsInfectionPainkillerFoodPoisoningAndTheFatigueEffects()
     {
         var registry = LoadRepositoryMods().Registry;
 
         var effects = registry.OfKind("status_effect").Where(d => d.DefinedBy == "base").Select(d => d.Id.Value.Split('/')[1]).Order();
 
-        Assert.Equal(["food_poisoning", "infection", "painkiller"], effects);
+        Assert.Subset(effects.ToHashSet(), new HashSet<string> { "exhausted", "food_poisoning", "infection", "painkiller", "tired" });
+    }
+
+    [Fact]
+    public void EveryFatigueLevelEffectTheServerAppliesExistsInTheBaseModAndChangesAStat()
+    {
+        var catalog = LoadEffects(LoadRepositoryMods().Registry);
+        var applied = new ServerOptions(new GameIdentity(NetProtocol.Version, 0, []), 1).FatigueEffects;
+
+        Assert.Equal([FatigueLevel.Tired, FatigueLevel.Exhausted], applied.Keys.Order());
+        foreach (var effect in applied.Values)
+        {
+            Assert.True(catalog.TryGet(effect, out var definition), effect);
+            Assert.NotEmpty(definition.Modifiers);
+        }
+    }
+
+    [Fact]
+    public void ABaseConsumable_ReducesFatigueThroughItsDefinition()
+    {
+        var registry = LoadRepositoryMods().Registry;
+
+        var coffee = ItemDefinitionJson.Parse(registry.OfKind("item").Single(d => d.Id.Value == "base:item/coffee").Json);
+
+        Assert.True(coffee.Drinkable);
+        Assert.True(coffee.FatigueRelief > 0);
     }
 
     [Fact]
@@ -356,13 +458,13 @@ public sealed class ModLoadingTests
         new(registry.OfKind("item_action").Select(d => ItemActionJson.Parse(d.Json)));
 
     [Fact]
-    public void BaseMod_DefinesUseEquipDropSplitAndInspect()
+    public void BaseMod_DefinesUseEquipDropSplitInspectAndRepair()
     {
         var registry = LoadRepositoryMods().Registry;
 
         var actions = registry.OfKind("item_action").Where(d => d.DefinedBy == "base").Select(d => d.Id.Value.Split('/')[1]).Order();
 
-        Assert.Equal(["drop", "equip", "inspect", "split", "use"], actions);
+        Assert.Equal(["drop", "equip", "inspect", "repair", "split", "use"], actions);
     }
 
     [Fact]

@@ -139,5 +139,43 @@ internal static class SaveSchema
             cause         INTEGER NOT NULL
         );
         """,
+
+        // Version 4: the Faults of each worn item, as a comma separated list of Content IDs.
+        """
+        ALTER TABLE outfit_items ADD COLUMN faults TEXT NOT NULL DEFAULT '';
+        """,
+
+        // Version 5: each creature's tolerance and addiction to substances.
+        """
+        CREATE TABLE substance_use (
+            owner_id               INTEGER NOT NULL,
+            substance              TEXT    NOT NULL,
+            tolerance              REAL    NOT NULL,
+            is_addicted            INTEGER NOT NULL,
+            since_last_use_seconds REAL    NOT NULL,
+            PRIMARY KEY (owner_id, substance)
+        ) WITHOUT ROWID;
+        """,
+
+        // Version 6: how tired each character is.
+        """
+        ALTER TABLE needs ADD COLUMN fatigue REAL NOT NULL DEFAULT 0;
+        """,
+
+        // Version 7: the value of each Statistic per player, and the Achievements each player has completed.
+        """
+        CREATE TABLE player_statistics (
+            player    TEXT NOT NULL,
+            statistic TEXT NOT NULL,
+            value     REAL NOT NULL,
+            PRIMARY KEY (player, statistic)
+        ) WITHOUT ROWID;
+
+        CREATE TABLE player_achievements (
+            player      TEXT NOT NULL,
+            achievement TEXT NOT NULL,
+            PRIMARY KEY (player, achievement)
+        ) WITHOUT ROWID;
+        """,
     ];
 }

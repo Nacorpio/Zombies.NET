@@ -1,0 +1,7 @@
+{
+  "id": "base:movement_mode/sprint",
+  "trigger": "sprint",
+  "speed": 1.5,
+  "noise": 2.5,
+  "stamina": 4
+}

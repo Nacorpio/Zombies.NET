@@ -1,0 +1,6 @@
+{
+  "id": "base:achievement/scavenger",
+  "statistic": "base:statistic/items_looted",
+  "comparison": "atLeast",
+  "target": 100
+}

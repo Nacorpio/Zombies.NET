@@ -35,6 +35,10 @@ public sealed class HudTests
               "hud.warmth.hypothermic": "Freezing",
               "hud.warmth.hot": "Hot",
               "hud.warmth.hyperthermic": "Overheating",
+              "hud.fatigue.rested": "Rested",
+              "hud.fatigue.tired": "Tired",
+              "hud.fatigue.exhausted": "Exhausted",
+              "hud.fatigue.asleep": "Asleep",
               "hud.part.head": "Head",
               "hud.part.torso": "Torso",
               "hud.part.left_arm": "Left arm",
@@ -94,6 +98,21 @@ public sealed class HudTests
 
         Assert.Equal(0, Model(body).HealthFraction, 3);
         Assert.Equal(PaletteRole.Danger, Model(body).HealthRole);
+    }
+
+    [Fact]
+    public void Stamina_ShowsHowMuchIsLeft_AndAnExhaustedPlayerIsInDanger()
+    {
+        var body = new Body(new BodyId(1));
+        var rested = new HudModel(body, new Needs(), null, null, English());
+        var tired = new HudModel(body, new Needs(), null, null, English(), stamina: 0.5);
+        var spent = new HudModel(body, new Needs(), null, null, English(), stamina: 0.3, exhausted: true);
+
+        Assert.Equal(1, rested.StaminaFraction, 3);
+        Assert.Equal(PaletteRole.Good, rested.StaminaRole);
+        Assert.Equal(0.5, tired.StaminaFraction, 3);
+        Assert.Equal(PaletteRole.Warning, tired.StaminaRole);
+        Assert.Equal(PaletteRole.Danger, spent.StaminaRole);
     }
 
     [Fact]
@@ -193,6 +212,34 @@ public sealed class HudTests
 
         Assert.Equal("Comfortable", model.WarmthLabel);
         Assert.Equal(PaletteRole.Good, model.WarmthRole);
+    }
+
+    [Fact]
+    public void Fatigue_TurnsToWarningAndThenDangerAsItGrows()
+    {
+        var needs = new Needs();
+        var model = Model(new Body(new BodyId(1)), needs);
+        Assert.Equal("Rested", model.FatigueLabel);
+        Assert.Equal(PaletteRole.Good, model.FatigueRole);
+
+        needs.AdvanceFatigue(TimeSpan.FromHours(10));
+        Assert.Equal("Tired", model.FatigueLabel);
+        Assert.Equal(PaletteRole.Warning, model.FatigueRole);
+        Assert.Equal(needs.Fatigue, model.FatigueFraction);
+
+        needs.AdvanceFatigue(TimeSpan.FromHours(4));
+        Assert.Equal("Exhausted", model.FatigueLabel);
+        Assert.Equal(PaletteRole.Danger, model.FatigueRole);
+    }
+
+    [Fact]
+    public void Fatigue_ShowsAsleepWhileSleeping()
+    {
+        var needs = new Needs();
+        needs.AdvanceFatigue(TimeSpan.FromHours(10));
+        needs.Sleep(RestPlace.Bed);
+
+        Assert.Equal("Asleep", Model(new Body(new BodyId(1)), needs).FatigueLabel);
     }
 
     [Fact]

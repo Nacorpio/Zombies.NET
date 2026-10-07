@@ -1,0 +1,6 @@
+{
+  "id": "base:achievement/zombie_slayer",
+  "statistic": "base:statistic/zombies_killed",
+  "comparison": "atLeast",
+  "target": 50
+}

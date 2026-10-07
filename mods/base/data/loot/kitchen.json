@@ -3,6 +3,7 @@
   "rolls": { "min": 1, "max": 3 },
   "entries": [
     { "item": "base:item/canned_beans", "weight": 10, "count": { "min": 1, "max": 3 } },
-    { "item": "base:item/water_bottle", "weight": 5 }
+    { "item": "base:item/water_bottle", "weight": 5 },
+    { "item": "base:item/coffee", "weight": 3 }
   ]
 }

@@ -102,7 +102,8 @@ public sealed class DeathService(IItemCatalog items, DeathStores stores)
     {
         var wetness = (int)Math.Round(worn.Wetness * 100);
         var condition = (int)Math.Round(worn.Condition * 100);
-        return wetness == 0 && condition == 100 ? null : ItemState.Create([new(WetnessState, wetness), new(ConditionState, condition)]);
+        var state = wetness == 0 && condition == 100 ? null : ItemState.Create([new(WetnessState, wetness), new(ConditionState, condition)]);
+        return (worn.Faults ?? []).Aggregate(state, (s, fault) => ItemFaults.With(s, fault));
     }
 
     private static void Require(InventoryResult result, string what)

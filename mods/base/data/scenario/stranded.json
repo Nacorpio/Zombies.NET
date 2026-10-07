@@ -1,0 +1,12 @@
+{
+  "id": "base:scenario/stranded",
+  "startLocation": "wilderness",
+  "timeOfDay": 0.75,
+  "startingCondition": {
+    "satiety": 0.5,
+    "hydration": 0.4,
+    "wounds": [
+      { "part": "leftLeg", "damageType": "cut", "damage": 6 }
+    ]
+  }
+}

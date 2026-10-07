@@ -20,6 +20,7 @@ using Zombies.Engine.Ui;
 //   --frames N        quit after N frames                       --capture f.png   save the last frame
 //   --shot f.png      load the world, wait until it settles, save a picture, quit
 //   --bench           fly a fixed path at 1080p and report frame times; exit code 1 if over --budget-ms (default 16.6)
+//   --profession ID   start solo play as this profession      --scenario ID     start the solo world in this scenario
 //   --session F       show a debug session badge (top right) that follows the JSON file F; F4 pins it open, hovering opens it
 //   --screen NAME     open a screen at startup (inventory, body, options, dialog) so a screenshot can show it
 //   --smoke           scripted resize / minimize / restore / input check; exit code 0 means it all worked
@@ -53,7 +54,8 @@ var sprites = new SpriteBatch();
 var stats = new FrameStats();
 var smoke = options.Smoke ? new SmokeScript(window) : null;
 var benchmark = options.Benchmark ? new BenchmarkRun() : null;
-using var ui = options.NoWorld ? null : new UiSession(options, new PlayerStatus());
+var status = new PlayerStatus();
+using var ui = options.NoWorld ? null : new UiSession(options, status);
 if (ui is not null && options.Screen is { } startScreen && !ui.Open(startScreen))
 {
     throw new ArgumentException($"Unknown screen '{startScreen}'. Use inventory, body, options, dialog, or none.");
@@ -192,6 +194,8 @@ while (!window.CloseRequested)
         if (benchmark is null)
         {
             PlayerController.ApplyToCamera(camera, world.Solo.Client.Local.State, world.Solo.Client.Local.Lean);
+            status.Stamina = world.Solo.Client.Local.State.Stamina / PlayerMovement.FullStamina;
+            status.Exhausted = world.Solo.Client.Local.State.Exhausted;
         }
 
         scene = new WorldScene(

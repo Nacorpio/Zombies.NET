@@ -1,0 +1,6 @@
+{
+  "id": "base:item/sewing_kit",
+  "mass": "200 g",
+  "volume": "300 ml",
+  "maxStack": 3
+}

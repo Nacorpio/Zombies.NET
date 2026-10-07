@@ -201,9 +201,15 @@ public readonly record struct PlayerInputCommand(PlayerInput Input) : INetComman
             return CommandResult.Invalid("The player has no entity.");
         }
 
+        // A sleeper lies still. The input is accepted so the client is not told it was wrong, and the snapshot holds the player in place.
+        if (context.Player.Needs.IsSleeping)
+        {
+            return CommandResult.Accepted;
+        }
+
         var input = command.Input.Sanitized();
         var state = context.Player.Movement;
-        var next = PlayerMovement.Step(state, input, PlayerMovement.StepSeconds, context.Player.Collision);
+        var next = PlayerMovement.Step(state, input, PlayerMovement.StepSeconds, context.Player.Collision, null, context.Server.Options.MovementModes, (float)context.Player.Carried.TotalMass.Kilograms);
         if (Vector3.DistanceSquared(state.Position, next.Position) > PlayerMovement.MaxStepPerTick * PlayerMovement.MaxStepPerTick)
         {
             return CommandResult.Invalid($"A step may cover at most {PlayerMovement.MaxStepPerTick} blocks.");
@@ -211,6 +217,7 @@ public readonly record struct PlayerInputCommand(PlayerInput Input) : INetComman
 
         context.Player.Movement = next;
         world.Move(id, next.Position, next.Yaw);
+        context.Server.Walked(context.Player, state.Position, next.Position);
         return CommandResult.Accepted;
     }
 }

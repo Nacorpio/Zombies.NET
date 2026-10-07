@@ -1,0 +1,12 @@
+{
+  "id": "base:statistic/bites_taken",
+  "counts": [
+    {
+      "event": "DamageTaken",
+      "match": {
+        "property": "Type",
+        "value": "Bite"
+      }
+    }
+  ]
+}

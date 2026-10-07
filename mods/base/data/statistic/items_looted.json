@@ -1,0 +1,9 @@
+{
+  "id": "base:statistic/items_looted",
+  "counts": [
+    {
+      "event": "ItemsLooted",
+      "sum": "Count"
+    }
+  ]
+}

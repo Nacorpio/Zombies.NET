@@ -1,4 +1,6 @@
 using System.Numerics;
+using Zombies.Domain.Statistics;
+using Zombies.Domain.Survival;
 using Zombies.Engine.Core;
 
 namespace Zombies.Engine.Net;
@@ -28,6 +30,9 @@ public sealed class ReplicatedWorld
     /// <summary>The newest player input the Server had processed when it took the newest snapshot, or 0.</summary>
     public uint AckedInput => _latest?.AckedInput ?? 0;
 
+    /// <summary>The local player's Stamina and carried mass in the newest snapshot.</summary>
+    public PlayerVitals Vitals => _latest?.Vitals ?? PlayerVitals.Fresh;
+
     public ReadOnlySpan<EntityState> Entities => _latest is null ? [] : _latest.Entities;
 
     public bool TryGet(uint id, out EntityState state)
@@ -48,7 +53,7 @@ public sealed class ReplicatedWorld
     /// <summary>Decodes one snapshot message after its type byte. Returns false when it is stale or its baseline is gone.</summary>
     internal bool Apply(ref NetReader reader)
     {
-        var (sequence, tick, ackedInput, baselineSequence) = SnapshotCodec.ReadHeader(ref reader);
+        var (sequence, tick, ackedInput, vitals, baselineSequence) = SnapshotCodec.ReadHeader(ref reader);
         if (sequence <= Sequence)
         {
             return false;
@@ -60,7 +65,7 @@ public sealed class ReplicatedWorld
             return false;
         }
 
-        var frame = _history.Begin(sequence, tick, ackedInput);
+        var frame = _history.Begin(sequence, tick, ackedInput, vitals);
         try
         {
             SnapshotCodec.ReadEntries(ref reader, baseline, frame);
@@ -96,6 +101,12 @@ public sealed class LocalPlayer
 
     /// <summary>Where the client currently draws the player, after prediction and any reconciliation.</summary>
     public PlayerMoveState State { get; private set; }
+
+    /// <summary>The Movement modes the prediction reads. They must be the Server's, which a client's matching mods guarantee.</summary>
+    public MovementModes Modes { get; set; } = PlayerMovement.DefaultModes;
+
+    /// <summary>The mass the player carries as the Server last said, which costs Stamina.</summary>
+    public float CarriedKilograms { get; private set; }
 
     /// <summary>How far the camera leans sideways, in blocks. Cosmetic, so it is never reconciled.</summary>
     public float Lean { get; private set; }
@@ -133,7 +144,7 @@ public sealed class LocalPlayer
     /// </summary>
     public uint Predict(uint sequence, in PlayerInput input, IPlayerCollision collision)
     {
-        State = PlayerMovement.Step(State, input, PlayerMovement.StepSeconds, collision);
+        State = PlayerMovement.Step(State, input, PlayerMovement.StepSeconds, collision, null, Modes, CarriedKilograms);
         Lean = PlayerMovement.StepLean(Lean, input, PlayerMovement.StepSeconds);
         _pending.Add(new PredictedInput(sequence, input));
         _historySequence[sequence % HistoryCapacity] = sequence;
@@ -144,21 +155,23 @@ public sealed class LocalPlayer
     /// <summary>
     /// Takes the Server's authoritative position for the newest input it has processed and replays every input after it.
     /// The replay starts from the state the client itself predicted at that input, so the velocity and ground state are
-    /// the ones the Server also had; only the position is corrected. A prediction that matched is left untouched.
+    /// the ones the Server also had; only the position, and the Stamina the Server holds, are corrected. A prediction that
+    /// matched is left untouched.
     /// </summary>
-    public void Reconcile(Vector3 serverPosition, float serverYaw, uint acknowledgedSequence, IPlayerCollision collision)
+    public void Reconcile(Vector3 serverPosition, float serverYaw, PlayerVitals vitals, uint acknowledgedSequence, IPlayerCollision collision)
     {
+        CarriedKilograms = vitals.CarriedKilograms;
         while (_pending.Count > 0 && _pending[0].Sequence <= acknowledgedSequence)
         {
             _pending.RemoveAt(0);
         }
 
         var predicted = State.Position;
-        var baseState = StateAt(acknowledgedSequence) with { Position = serverPosition, Yaw = serverYaw };
+        var baseState = StateAt(acknowledgedSequence) with { Position = serverPosition, Yaw = serverYaw, Stamina = vitals.Stamina, Exhausted = vitals.Exhausted };
         var state = baseState;
         foreach (var pending in _pending)
         {
-            state = PlayerMovement.Step(state, pending.Input, PlayerMovement.StepSeconds, collision);
+            state = PlayerMovement.Step(state, pending.Input, PlayerMovement.StepSeconds, collision, null, Modes, CarriedKilograms);
         }
 
         State = state;
@@ -188,14 +201,19 @@ public sealed class LocalPlayer
 /// </summary>
 public sealed class GameClient : ITickable
 {
+    private const int MaxRunEntries = 512;
+
     private readonly ITransport _transport;
     private readonly GameIdentity _identity;
     private readonly string _playerName;
+    private readonly string _profession;
     private readonly NetWriter _writer = new(1024);
     private readonly Handler _handler;
+    private readonly Queue<string> _completedAchievements = new();
     private uint _nextCommand = 1;
 
-    public GameClient(ITransport transport, GameIdentity identity, string playerName)
+    /// <param name="profession">Content ID of the Profession this player picks, or null to start with none. The Server refuses a join that names one it does not have.</param>
+    public GameClient(ITransport transport, GameIdentity identity, string playerName, string? profession = null)
     {
         ArgumentNullException.ThrowIfNull(transport);
         ArgumentNullException.ThrowIfNull(identity);
@@ -203,6 +221,7 @@ public sealed class GameClient : ITickable
         _transport = transport;
         _identity = identity;
         _playerName = playerName;
+        _profession = profession ?? string.Empty;
         _handler = new Handler(this);
     }
 
@@ -216,6 +235,9 @@ public sealed class GameClient : ITickable
     public uint PlayerEntityId { get; private set; }
 
     public ulong WorldSeed { get; private set; }
+
+    /// <summary>The time of day when this client joined, as a fraction of a day from 0 at midnight, for the sky to start at.</summary>
+    public float StartTimeOfDay { get; private set; }
 
     public ReplicatedWorld World { get; } = new();
 
@@ -232,6 +254,12 @@ public sealed class GameClient : ITickable
     /// Server rejects every command from a dead player.
     /// </summary>
     public bool IsSpectating => World.TryGet(PlayerEntityId, out var entity) && entity.Player.Dead;
+
+    /// <summary>How the player's latest life ended, as the Server reported it: scores and the Conducts they kept. Null until a life ends.</summary>
+    public RunSummary? LastRun { get; private set; }
+
+    /// <summary>Takes the Content ID of the oldest Achievement the Server said this player completed and nobody has shown yet.</summary>
+    public bool TryTakeCompletedAchievement(out string achievement) => _completedAchievements.TryDequeue(out achievement!);
 
     public CommandRejected? LastRejection { get; private set; }
 
@@ -293,6 +321,7 @@ public sealed class GameClient : ITickable
         _writer.WriteByte((byte)MessageType.JoinRequest);
         _identity.Write(_writer);
         _writer.WriteString(_playerName);
+        _writer.WriteString(_profession);
         _transport.Send(ConnectionId.Server, _writer.Written, Delivery.ReliableOrdered);
     }
 
@@ -311,6 +340,7 @@ public sealed class GameClient : ITickable
                     reader.ReadByte();
                     var spawn = new Vector3(reader.ReadSingle(), reader.ReadSingle(), reader.ReadSingle());
                     var yaw = reader.ReadSingle();
+                    StartTimeOfDay = reader.ReadSingle();
                     Local.Reset(PlayerMoveState.At(spawn, yaw));
                     State = ClientState.Joined;
                     break;
@@ -322,6 +352,14 @@ public sealed class GameClient : ITickable
                 case MessageType.CommandRejected when State == ClientState.Joined:
                     LastRejection = new CommandRejected(reader.ReadUInt32(), (CommandRejection)reader.ReadByte(), reader.ReadString());
                     RejectionCount++;
+                    break;
+                case MessageType.AchievementCompleted when State == ClientState.Joined:
+                    var achievement = reader.ReadString();
+                    reader.EnsureEnd();
+                    _completedAchievements.Enqueue(achievement);
+                    break;
+                case MessageType.RunEnded when State == ClientState.Joined:
+                    LastRun = ReadRun(ref reader);
                     break;
                 case MessageType.Snapshot when State == ClientState.Joined:
                     if (World.Apply(ref reader))
@@ -343,6 +381,36 @@ public sealed class GameClient : ITickable
         }
     }
 
+    private static RunSummary ReadRun(ref NetReader reader)
+    {
+        var scoreCount = reader.ReadVarUInt();
+        if (scoreCount > MaxRunEntries)
+        {
+            throw new MalformedMessageException($"A run lists {scoreCount} scores; at most {MaxRunEntries} are allowed.");
+        }
+
+        var scores = new List<StatisticValue>((int)scoreCount);
+        for (var i = 0; i < scoreCount; i++)
+        {
+            scores.Add(new StatisticValue(reader.ReadString(), BitConverter.UInt64BitsToDouble(reader.ReadUInt64())));
+        }
+
+        var conductCount = reader.ReadVarUInt();
+        if (conductCount > MaxRunEntries)
+        {
+            throw new MalformedMessageException($"A run lists {conductCount} conducts; at most {MaxRunEntries} are allowed.");
+        }
+
+        var conducts = new List<string>((int)conductCount);
+        for (var i = 0; i < conductCount; i++)
+        {
+            conducts.Add(reader.ReadString());
+        }
+
+        reader.EnsureEnd();
+        return new RunSummary(scores, conducts);
+    }
+
     private void OnDisconnected()
     {
         if (State != ClientState.Refused)
@@ -362,15 +430,15 @@ public sealed class GameClient : ITickable
             return;
         }
 
-        // A dead player is not moving: drop the inputs the Server rejected instead of replaying them.
-        if (entity.Player.Dead)
+        // A dead or sleeping player is not moving: drop the inputs the Server rejected or ignored instead of replaying them.
+        if (entity.Player.Dead || entity.Player.Sleeping)
         {
             Local.Reset(PlayerMoveState.At(entity.Position, entity.Yaw));
             return;
         }
 
-        // The Server's snapshot is the truth for position and yaw; the rest of the state is the client's own.
-        Local.Reconcile(entity.Position, entity.Yaw, World.AckedInput, Collision);
+        // The Server's snapshot is the truth for position, yaw and Stamina; the rest of the state is the client's own.
+        Local.Reconcile(entity.Position, entity.Yaw, World.Vitals, World.AckedInput, Collision);
     }
 
     private sealed class Handler(GameClient client) : ITransportHandler

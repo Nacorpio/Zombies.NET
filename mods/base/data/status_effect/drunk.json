@@ -1,0 +1,32 @@
+{
+  "id": "base:status_effect/drunk",
+  "category": "ailment",
+  "duration": 5400,
+  "stacking": "stack",
+  "maxStacks": 6,
+  "stages": [
+    {
+      "name": "drunk",
+      "after": 0,
+      "modifiers": [
+        { "stat": "aim_spread", "operation": "multiply", "value": 1.25 },
+        { "stat": "move_speed", "operation": "multiply", "value": 0.93 }
+      ]
+    },
+    {
+      "name": "tipsy",
+      "after": 1800,
+      "modifiers": [
+        { "stat": "aim_spread", "operation": "multiply", "value": 1.12 },
+        { "stat": "move_speed", "operation": "multiply", "value": 0.97 }
+      ]
+    },
+    {
+      "name": "buzzed",
+      "after": 3600,
+      "modifiers": [
+        { "stat": "aim_spread", "operation": "multiply", "value": 1.05 }
+      ]
+    }
+  ]
+}

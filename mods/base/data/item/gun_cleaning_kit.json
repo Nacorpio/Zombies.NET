@@ -1,0 +1,6 @@
+{
+  "id": "base:item/gun_cleaning_kit",
+  "mass": "300 g",
+  "volume": "400 ml",
+  "maxStack": 3
+}

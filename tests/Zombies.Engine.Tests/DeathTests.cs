@@ -21,7 +21,7 @@ public sealed class DeathTests
     private static readonly ItemId Scope = new("base:item/scope");
     private static readonly ItemId Jacket = new("base:item/jacket");
 
-    private static readonly ItemState ScopedRifle = ItemState.Create([new("condition", 70), new("rounds", 5)], [new(Scope, 1)]);
+    private static readonly ItemState ScopedRifle = ItemFaults.With(ItemState.Create([new("condition", 70), new("rounds", 5)], [new(Scope, 1)]), "base:fault/jammed_action");
 
     private static readonly ItemCatalog Items = new(
     [

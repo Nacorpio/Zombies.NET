@@ -1,0 +1,7 @@
+{
+  "id": "base:morale_band/high",
+  "min": 25,
+  "modifiers": [
+    { "stat": "aim_spread", "operation": "multiply", "value": 0.9 }
+  ]
+}

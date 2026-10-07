@@ -1,0 +1,7 @@
+{
+  "id": "base:wearable/beanie",
+  "item": "base:item/beanie",
+  "layer": "base",
+  "coverage": [ "head" ],
+  "insulation": 0.08
+}

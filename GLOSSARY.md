@@ -66,6 +66,14 @@ _Avoid_: Damage, dirtiness
 How much of its durability an item has left, from broken to pristine.
 _Avoid_: Health, durability (as a current value), integrity
 
+**Fault**:
+A specific kind of wear an item carries in its item state, such as a chipped blade, a jammed action or ripped seams. A Fault definition declares the Stat changes it causes (a weapon Fault changes handling or reliability, an armor Fault changes protection), how an item gains it, and the Repair that removes it. Stacks with different Faults are different Stacks.
+_Avoid_: Damage, defect, malfunction
+
+**Repair**:
+The Item action that removes a Fault: it uses up the item the Fault's definition names, takes the time the definition gives, and leaves the item without that Fault. Not the same as raising Condition.
+_Avoid_: Fix, mend, restore
+
 ## Loot
 
 **Loot table**:
@@ -200,6 +208,14 @@ _Avoid_: Entity, actor, mob
 A lasting state on a creature, such as infection or a painkiller, that runs for a duration, may progress through stages, and may apply modifiers or periodic changes until it ends or is cured.
 _Avoid_: Buff, debuff, condition, ailment, status
 
+**Substance**:
+A definition of something a creature takes in through Items, such as a stimulant or alcohol: the Status effect each dose applies, the chance a use causes addiction, how fast Tolerance grows, and the withdrawal effect that follows addiction.
+_Avoid_: Drug, consumable
+
+**Tolerance**:
+How used to a Substance a creature has become, from 0 to 1, counted per creature and Substance. Each dose raises it, it cancels part of the doses of the next use, and it makes addiction likelier. It is exposed as a Modifier with the source `tolerance:` and the Substance's Content ID, and it is kept in the Save.
+_Avoid_: Resistance, immunity
+
 **Animal**:
 A non-hostile or predatory wild creature defined by a type, a behavior archetype, and the habitats it lives in.
 _Avoid_: Wildlife, critter, fauna
@@ -211,8 +227,20 @@ _Avoid_: Biome (a habitat is a tag, not the whole biome), ecosystem
 ## Survival and Skills
 
 **Need**:
-A survival meter the player must manage: hunger, thirst, body temperature.
+A survival meter the player must manage: hunger, thirst, body temperature, fatigue.
 _Avoid_: Stat, vital
+
+**Fatigue**:
+The Need that grows while a player is awake and falls while they sleep, from 0 rested to 1 when they collapse asleep. Its levels, rested, tired, and exhausted, each apply a Status effect whose Modifiers worsen the player's stats. An Item can take some of it away.
+_Avoid_: Stamina, energy, sleepiness
+
+**Rest place**:
+Where a player sleeps, on the ground, in a shelter, or in a bed, which sets how fast sleep recovers Fatigue. A sleeper wakes to a noise within half the distance it carries, to damage, or when fully rested, and other players see that they sleep.
+_Avoid_: Bed (a bed is one kind), camp
+
+**Morale**:
+How a character feels, from low to high: the sum of the Morale sources that are active, clamped to a range. A Morale source is a definition of what triggers it, a game event or the use of an Item, how much it moves Morale and how long it takes to fade. The band Morale is in grants Modifiers, recorded with the source `morale:` and the band's Content ID. Morale is not a Need.
+_Avoid_: Mood, sanity, happiness
 
 **Skill**:
 A trained capability that levels up through use.
@@ -229,6 +257,26 @@ _Avoid_: Attribute, property
 **Modifier**:
 A JSON-defined change to a stat, recipe availability, or interaction, granted by a perk, an attachment, or a status effect, and removed when its source is removed.
 _Avoid_: Buff, bonus, boost
+
+**Profession**:
+A definition of what a player starts with and is good at: starting items, what they wear, loot tables rolled for more items, and Modifiers. Each player picks their own when they join, and the Server grants the same loadout to the same player in the same world every time.
+_Avoid_: Class, job, loadout (that is only the items)
+
+**Scenario**:
+A definition of where, when and in what state a world's players begin: a kind of start location, a time of day, and a starting condition of Needs and Wounds. The host picks one when the world is created.
+_Avoid_: Challenge, start mode, difficulty
+
+**Movement mode**:
+How the player moves, declared by a mod with a Content ID: walking, sprinting and crouching are the base modes. Each has a speed, noise and Stamina multiplier, and is chosen by the input that asks for it. A mod adds one by declaring it with a higher priority for the same input.
+_Avoid_: Gait, stance, movement state
+
+**Stamina**:
+The pool a player drains by moving in a costly Movement mode or while carrying more than they comfortably can, and recovers at rest. An empty pool exhausts the player, who cannot sprint until it has recovered. Not a Need, because it recovers by itself within seconds.
+_Avoid_: Energy, endurance
+
+**Noise**:
+How loud the player is this tick, as a multiple of a walking step, from the Movement mode they move in. It is only a value on the player for systems that listen; nothing reacts to it yet.
+_Avoid_: Sound, volume
 
 ## Death
 
@@ -247,6 +295,24 @@ _Avoid_: Revive, resurrect
 **Memorial**:
 The record of one death: the player's name, the days they survived, the zombies they killed, and the cause of death the Combat context raised. It outlives the Corpse.
 _Avoid_: Obituary, scoreboard entry, death log
+
+## Statistics and Goals
+
+**Statistic**:
+A JSON-defined number kept per player that domain events add to, such as zombies killed or distance walked. It names the events it counts, what each adds, and whether it lasts a player's lifetime or one Run. Statistics persist in the Save and survive a Respawn.
+_Avoid_: Stat (that is a Modifier's target), counter, metric
+
+**Run**:
+One life of a player, from joining or respawning until their Body dies. A Statistic that counts one Run starts again from zero at the next Respawn, and its final value is a score on the end-of-run screen.
+_Avoid_: Session (that is a connection), game, round
+
+**Achievement**:
+A JSON-defined goal that names a Statistic, a comparison and a target. It is completed the first time the Statistic meets it, once per player, and completing it raises a replicated event and a toast.
+_Avoid_: Trophy, badge, quest
+
+**Conduct**:
+A JSON-defined self-imposed restriction that names a Statistic, a comparison and a target, such as killing no zombie. It is kept when the comparison still holds as the Run ends, and the end-of-run screen lists the Conducts kept.
+_Avoid_: Challenge, rule, penalty
 
 ## World
 
@@ -431,7 +497,7 @@ A modal question with a title, a concise message, an optional caption, and butto
 _Avoid_: Modal, alert, prompt
 
 **HUD**:
-The always-on overlay: health, blood, bleeding, hunger, thirst, warmth, and the weapon in hand.
+The always-on overlay: health, blood, bleeding, hunger, thirst, warmth, fatigue, and the weapon in hand.
 _Avoid_: Overlay, status bar, heads-up display
 
 **Body screen**:

@@ -14,6 +14,8 @@ public enum EffectError
     NotActive,
     NothingToCure,
     InvalidDuration,
+    NotASubstance,
+    InvalidRoll,
 }
 
 public sealed record EffectApplied(CreatureId Creature, string Effect, int Stacks) : IDomainEvent;
@@ -35,6 +37,9 @@ public sealed record EffectPeriodicChange(CreatureId Creature, string Effect, St
 public sealed record EffectExpired(CreatureId Creature, string Effect) : IDomainEvent;
 
 public sealed record EffectRemoved(CreatureId Creature, string Effect) : IDomainEvent;
+
+/// <summary>The effect went back one stage. <paramref name="Stage"/> is null when it was in its first stage and so ended.</summary>
+public sealed record EffectEased(CreatureId Creature, string Effect, string? Stage) : IDomainEvent;
 
 /// <summary>The effect was cured. <paramref name="By"/> is the Content ID of the item or the effect that cured it.</summary>
 public sealed record EffectCured(CreatureId Creature, string Effect, CureCause Cause, string By) : IDomainEvent;

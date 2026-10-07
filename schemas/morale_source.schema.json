@@ -1,0 +1,44 @@
+{
+  "type": "object",
+  "properties": {
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z0-9_]+:[a-z0-9_]+(/[a-z0-9_]+)*$"
+    },
+    "trigger": {
+      "type": "object",
+      "properties": {
+        "event": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^[a-z][a-z0-9_]*$"
+        },
+        "item": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^[a-z0-9_]+:[a-z0-9_]+(/[a-z0-9_]+)*$"
+        }
+      }
+    },
+    "size": {
+      "type": "number"
+    },
+    "duration": {
+      "type": "number"
+    },
+    "maxStacks": {
+      "type": "integer"
+    }
+  },
+  "required": [
+    "id",
+    "trigger",
+    "size",
+    "duration"
+  ],
+  "$schema": "https://json-schema.org/draft/2020-12/schema"
+}

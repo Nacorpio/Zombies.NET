@@ -1,6 +1,7 @@
 using System.Numerics;
 using Zombies.Domain.Combat;
 using Zombies.Domain.Items;
+using Zombies.Domain.Survival;
 using Zombies.Domain.World;
 using Zombies.Engine.Net;
 using Zombies.Engine.Physics;
@@ -42,8 +43,8 @@ public sealed class PlayerMovementTests
         var sprint = Run(PlayerMoveState.At(Vector3.Zero), Input(forward: 1f, sprint: true), 60);
         var crouch = Run(PlayerMoveState.At(Vector3.Zero), Input(forward: 1f, crouch: true), 60);
 
-        Assert.Equal(PlayerMovement.SprintSpeed, new Vector2(sprint.Velocity.X, sprint.Velocity.Z).Length(), 2);
-        Assert.Equal(PlayerMovement.CrouchSpeed, new Vector2(crouch.Velocity.X, crouch.Velocity.Z).Length(), 2);
+        Assert.Equal(PlayerMovement.WalkSpeed * 1.5f, new Vector2(sprint.Velocity.X, sprint.Velocity.Z).Length(), 2);
+        Assert.Equal(PlayerMovement.WalkSpeed * 0.4f, new Vector2(crouch.Velocity.X, crouch.Velocity.Z).Length(), 2);
         Assert.True(sprint.Position.Z < walk.Position.Z);
         Assert.True(crouch.Position.Z > walk.Position.Z);
         Assert.True(crouch.Crouched);
@@ -64,7 +65,109 @@ public sealed class PlayerMovementTests
 
         Assert.Equal(PlayerMovement.WalkSpeed * 0.2f, new Vector2(slowed.Velocity.X, slowed.Velocity.Z).Length(), 3);
         Assert.Equal(PlayerMovement.WalkSpeed, new Vector2(full.Velocity.X, full.Velocity.Z).Length(), 3);
-        Assert.Equal(PlayerMovement.SprintSpeed, PlayerMovement.TargetSpeed(Input(sprint: true)));
+    }
+
+    private static PlayerMoveState RunWith(PlayerMoveState state, PlayerInput input, int ticks, MovementModes? modes = null, float carriedKilograms = 0f)
+    {
+        for (var i = 0; i < ticks; i++)
+        {
+            state = PlayerMovement.Step(state, input, PlayerMovement.StepSeconds, FlatFloorCollision.Instance, null, modes, carriedKilograms);
+        }
+
+        return state;
+    }
+
+    private static float Speed(in PlayerMoveState state) => new Vector2(state.Velocity.X, state.Velocity.Z).Length();
+
+    [Fact]
+    public void AMovementModeFromJson_ChangesTheSpeedAndNoiseOfItsTrigger()
+    {
+        var sneak = MovementModeJson.Parse("""
+            { "id": "test:movement_mode/sneak", "trigger": "crouch", "priority": 1, "speed": 0.2, "noise": 0.05, "stamina": 0 }
+            """);
+        var modes = new MovementModes([.. PlayerMovement.DefaultModes.All, sneak]);
+
+        var crouch = RunWith(PlayerMoveState.At(Vector3.Zero), Input(forward: 1f, crouch: true), 60, modes);
+        var sprint = RunWith(PlayerMoveState.At(Vector3.Zero), Input(forward: 1f, sprint: true), 60, modes);
+
+        Assert.Equal(PlayerMovement.WalkSpeed * 0.2f, Speed(crouch), 2);
+        Assert.Equal(0.05f, crouch.Noise, 3);
+        Assert.Equal(PlayerMovement.WalkSpeed * 1.5f, Speed(sprint), 2);
+    }
+
+    [Fact]
+    public void Noise_FollowsTheModeWhileMoving_AndIsSilentAtRest()
+    {
+        var walk = RunWith(PlayerMoveState.At(Vector3.Zero), Input(forward: 1f), 5);
+        var sprint = RunWith(PlayerMoveState.At(Vector3.Zero), Input(forward: 1f, sprint: true), 5);
+        var crouch = RunWith(PlayerMoveState.At(Vector3.Zero), Input(forward: 1f, crouch: true), 5);
+        var still = RunWith(PlayerMoveState.At(Vector3.Zero), Input(sprint: true), 5);
+
+        Assert.Equal(1f, walk.Noise);
+        Assert.True(sprint.Noise > walk.Noise);
+        Assert.True(crouch.Noise < walk.Noise);
+        Assert.Equal(0f, still.Noise);
+    }
+
+    [Fact]
+    public void Sprinting_DrainsStamina_WalkingAndCrouchingDoNot_AndRestingRecovers()
+    {
+        var sprint = RunWith(PlayerMoveState.At(Vector3.Zero), Input(forward: 1f, sprint: true), 60);
+        var walk = RunWith(PlayerMoveState.At(Vector3.Zero), Input(forward: 1f), 60);
+        var crouch = RunWith(PlayerMoveState.At(Vector3.Zero), Input(forward: 1f, crouch: true), 60);
+
+        Assert.True(sprint.Stamina < PlayerMovement.FullStamina);
+        Assert.Equal(PlayerMovement.FullStamina, walk.Stamina);
+        Assert.Equal(PlayerMovement.FullStamina, crouch.Stamina);
+
+        var rested = RunWith(sprint, Input(), 60);
+        Assert.True(rested.Stamina > sprint.Stamina);
+    }
+
+    [Fact]
+    public void AnEmptyPool_BlocksSprinting_UntilStaminaHasRecovered()
+    {
+        var state = RunWith(PlayerMoveState.At(Vector3.Zero), Input(forward: 1f, sprint: true), 155);
+
+        Assert.True(state.Exhausted);
+
+        // Still holding sprint, the player walks.
+        state = RunWith(state, Input(forward: 1f, sprint: true), 10);
+        Assert.Equal(PlayerMovement.WalkSpeed, Speed(state), 2);
+
+        // At rest Stamina comes back, and once it passes the threshold sprinting works again.
+        state = RunWith(state, Input(), 60);
+        Assert.False(state.Exhausted);
+        Assert.Equal(PlayerMovement.WalkSpeed * 1.5f, Speed(RunWith(state, Input(forward: 1f, sprint: true), 30)), 2);
+    }
+
+    [Fact]
+    public void CarryingMoreThanTheThreshold_CostsStaminaInEveryModeWhileMoving()
+    {
+        var light = RunWith(PlayerMoveState.At(Vector3.Zero), Input(forward: 1f), 120, null, PlayerMovement.EncumbranceThresholdKilograms);
+        var heavy = RunWith(PlayerMoveState.At(Vector3.Zero), Input(forward: 1f), 120, null, 40f);
+        var heavySprint = RunWith(PlayerMoveState.At(Vector3.Zero), Input(forward: 1f, sprint: true), 60, null, 40f);
+        var lightSprint = RunWith(PlayerMoveState.At(Vector3.Zero), Input(forward: 1f, sprint: true), 60, null, PlayerMovement.EncumbranceThresholdKilograms);
+        var heavyRest = RunWith(PlayerMoveState.At(Vector3.Zero) with { Stamina = 0.5f }, Input(), 60, null, 40f);
+
+        Assert.Equal(PlayerMovement.FullStamina, light.Stamina);
+        Assert.True(heavy.Stamina < light.Stamina);
+        Assert.True(heavySprint.Stamina < lightSprint.Stamina);
+        Assert.True(heavyRest.Stamina > 0.5f, "carrying a load costs nothing while standing still.");
+    }
+
+    [Fact]
+    public void BaseMovementModes_AreTheOnesThePlayerMovementStartsWith()
+    {
+        var root = new DirectoryInfo(AppContext.BaseDirectory);
+        while (!File.Exists(Path.Combine(root.FullName, "Zombies.slnx")))
+        {
+            root = root.Parent!;
+        }
+
+        var loaded = new MovementModes(Directory.GetFiles(Path.Combine(root.FullName, "mods", "base", "data", "movement_mode"), "*.json").Select(p => MovementModeJson.Parse(File.ReadAllText(p))));
+
+        Assert.Equal(PlayerMovement.DefaultModes.All, loaded.All);
     }
 
     [Fact]

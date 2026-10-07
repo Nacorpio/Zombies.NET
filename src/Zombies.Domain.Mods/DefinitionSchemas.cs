@@ -33,7 +33,7 @@ public static class DefinitionSchemas
                     obj["$schema"] = "https://json-schema.org/draft/2020-12/schema";
                 }
 
-                if (context.PropertyInfo?.Name is "id" or "item" or "category" or "ammoItem" or "areaType" or "structure" or "zombieType" or "trait" or "from" or "to" or "weakpointSet" or "kind" or "consumes")
+                if (context.PropertyInfo?.Name is "id" or "item" or "category" or "ammoItem" or "areaType" or "structure" or "zombieType" or "trait" or "from" or "to" or "weakpointSet" or "kind" or "consumes" or "statistic")
                 {
                     obj["pattern"] = ContentIdPattern;
                 }
@@ -48,6 +48,11 @@ public static class DefinitionSchemas
                     obj["enum"] = new JsonArray([.. Enum.GetNames<BodyPart>().Select(n => (JsonNode)(char.ToLowerInvariant(n[0]) + n[1..]))]);
                 }
 
+                if (context.PropertyInfo?.Name is "layer")
+                {
+                    obj["enum"] = new JsonArray([.. Enum.GetNames<ClothingLayer>().Select(n => (JsonNode)n.ToLowerInvariant())]);
+                }
+
                 if (context.PropertyInfo?.Name is "label")
                 {
                     obj["pattern"] = LabelKeyPattern;
@@ -56,6 +61,16 @@ public static class DefinitionSchemas
                 if (context.PropertyInfo?.Name is "stat" or "mount" or "change" or "name" or "icon" or "group" or "containerKind")
                 {
                     obj["pattern"] = StatNamePattern;
+                }
+
+                if (context.PropertyInfo is { Name: "event", DeclaringType.Name: "MoraleTriggerDto" })
+                {
+                    obj["pattern"] = StatNamePattern;
+                }
+
+                if (context.PropertyInfo?.Name is "statusEffect")
+                {
+                    obj["pattern"] = ContentIdPattern;
                 }
             }
 

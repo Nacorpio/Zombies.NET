@@ -1,0 +1,6 @@
+{
+  "id": "base:achievement/first_bite",
+  "statistic": "base:statistic/bites_taken",
+  "comparison": "atLeast",
+  "target": 1
+}

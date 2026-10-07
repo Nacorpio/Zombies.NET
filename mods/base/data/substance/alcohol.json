@@ -1,0 +1,10 @@
+{
+  "id": "base:substance/alcohol",
+  "items": [
+    { "item": "base:item/beer" }
+  ],
+  "statusEffect": "base:status_effect/drunk",
+  "addictionChance": 0.02,
+  "toleranceGrowth": 0.03,
+  "withdrawal": { "statusEffect": "base:status_effect/alcohol_withdrawal", "delay": 86400 }
+}

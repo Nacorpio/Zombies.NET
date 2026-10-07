@@ -19,6 +19,9 @@
     },
     "drinkable": {
       "type": "boolean"
+    },
+    "fatigueRelief": {
+      "type": "number"
     }
   },
   "required": [

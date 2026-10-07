@@ -1,3 +1,4 @@
+using System.Globalization;
 using UnitsNet;
 using Zombies.Domain.Combat;
 using Zombies.Domain.Items;
@@ -27,8 +28,11 @@ public sealed record LimbScoreReason(string Part, string Cause);
 /// <summary>A Limb score that is below full, with the reasons it is.</summary>
 public sealed record LimbScoreStatus(string Label, double Value, IReadOnlyList<LimbScoreReason> Reasons, PaletteRole Role);
 
+/// <summary>One Morale source as the HUD tooltip lists it, with how much it moves Morale right now.</summary>
+public sealed record MoraleSourceStatus(string Label, double Amount);
+
 /// <summary>
-/// What the HUD shows: health, blood, bleeding, hunger, thirst, warmth, and the weapon in hand. It reads the Body, the
+/// What the HUD shows: health, blood, bleeding, hunger, thirst, warmth, fatigue, and the weapon in hand. It reads the Body, the
 /// Needs, and the weapon's Item state and turns them into fractions, colors, and localized words, so the drawing code
 /// only has to place them.
 /// </summary>
@@ -41,7 +45,10 @@ public sealed class HudModel(
     IReadOnlyList<LimbScoreDefinition>? limbScores = null,
     IReadOnlyList<WearableDefinition>? worn = null,
     TreatmentCatalog? treatments = null,
-    Func<ItemId, bool>? holds = null)
+    Func<ItemId, bool>? holds = null,
+    Morale? morale = null,
+    double stamina = 1,
+    bool exhausted = false)
 {
     /// <summary>Health below this fraction is a warning.</summary>
     public const double WarningThreshold = 0.6;
@@ -69,6 +76,12 @@ public sealed class HudModel(
 
     public PaletteRole BleedRole => IsBleeding ? PaletteRole.Danger : PaletteRole.Good;
 
+    /// <summary>The Stamina left, as a fraction of a full pool.</summary>
+    public double StaminaFraction => Fraction(stamina, 1);
+
+    /// <summary>An exhausted player cannot sprint, which is dangerous however much Stamina has come back.</summary>
+    public PaletteRole StaminaRole => exhausted ? PaletteRole.Danger : Role(StaminaFraction);
+
     public double SatietyFraction => needs.Satiety;
 
     public string HungerLabel => localizer.Get($"hud.hunger.{Snake(needs.Hunger.ToString())}");
@@ -90,6 +103,18 @@ public sealed class HudModel(
         _ => PaletteRole.Danger,
     };
 
+    public double FatigueFraction => needs.Fatigue;
+
+    /// <summary>How tired the player is, or that they are asleep.</summary>
+    public string FatigueLabel => localizer.Get(needs.IsSleeping ? "hud.fatigue.asleep" : $"hud.fatigue.{Snake(needs.Tiredness.ToString())}");
+
+    public PaletteRole FatigueRole => needs.Tiredness switch
+    {
+        FatigueLevel.Rested => PaletteRole.Good,
+        FatigueLevel.Tired => PaletteRole.Warning,
+        _ => PaletteRole.Danger,
+    };
+
     /// <summary>The rounds left in the weapon, or null when nothing is held.</summary>
     public int? Ammo => weapon is null ? null : WeaponService.RoundsOf(weaponState);
 
@@ -98,6 +123,20 @@ public sealed class HudModel(
     public PaletteRole ConditionRole => Role(ConditionFraction);
 
     public string WeaponLabel => weapon is null ? localizer.Get("hud.no_weapon") : localizer.Get($"item.{weapon.Value.Value.Replace(':', '.').Replace('/', '.')}");
+
+    /// <summary>The band Morale is in, such as "Low spirits", or null when there is no Morale or it is below every band.</summary>
+    public string? MoraleLabel => morale?.Band is { } band ? localizer.Get(ContentKey("morale_band", band.Id)) : null;
+
+    public PaletteRole MoraleRole => morale is { Value: < 0 } ? PaletteRole.Warning : PaletteRole.Good;
+
+    /// <summary>The Morale sources that are active, the ones moving Morale most first.</summary>
+    public IReadOnlyList<MoraleSourceStatus> MoraleSources =>
+        [.. (morale?.Sources ?? []).OrderByDescending(s => Math.Abs(s.Amount)).Select(s => new MoraleSourceStatus(localizer.Get(ContentKey("morale_source", s.Source)), s.Amount))];
+
+    /// <summary>The tooltip for the Morale band: the band and the sources behind it, or null when there is nothing to show.</summary>
+    public Tooltip? MoraleTooltip => MoraleLabel is { } label
+        ? Tooltip.Create(localizer.Get("hud.morale"), string.Join(", ", MoraleSources.Select(s => string.Create(CultureInfo.InvariantCulture, $"{s.Label} {s.Amount:+0;-0}"))), label)
+        : null;
 
     /// <summary>Every body part in a fixed order, with its health and what is wrong with it.</summary>
     public IReadOnlyList<BodyPartStatus> Parts =>

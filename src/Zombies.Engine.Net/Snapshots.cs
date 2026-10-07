@@ -1,5 +1,14 @@
 namespace Zombies.Engine.Net;
 
+/// <summary>
+/// What the Server tells a client about its own player that the client predicts but cannot work out alone: the Stamina the
+/// player had at the acknowledged input, and the mass they carry, which costs Stamina.
+/// </summary>
+public readonly record struct PlayerVitals(float Stamina, bool Exhausted, float CarriedKilograms)
+{
+    public static PlayerVitals Fresh => new(PlayerMovement.FullStamina, false, 0f);
+}
+
 /// <summary>The entities one snapshot holds for one client, sorted by id so two frames diff in one pass.</summary>
 internal sealed class SnapshotFrame
 {
@@ -12,15 +21,19 @@ internal sealed class SnapshotFrame
     /// <summary>The newest player input the Server had processed when it took this snapshot, or 0.</summary>
     public uint AckedInput { get; private set; }
 
+    /// <summary>The receiving player's own Stamina and carried mass when the Server took this snapshot.</summary>
+    public PlayerVitals Vitals { get; private set; }
+
     public int Count { get; private set; }
 
     public ReadOnlySpan<EntityState> Entities => _entities.AsSpan(0, Count);
 
-    public void Reset(uint sequence, ulong tick, uint ackedInput)
+    public void Reset(uint sequence, ulong tick, uint ackedInput, PlayerVitals vitals)
     {
         Sequence = sequence;
         Tick = tick;
         AckedInput = ackedInput;
+        Vitals = vitals;
         Count = 0;
     }
 
@@ -64,10 +77,10 @@ internal sealed class SnapshotHistory
         return frame.Sequence == sequence ? frame : null;
     }
 
-    public SnapshotFrame Begin(uint sequence, ulong tick, uint ackedInput)
+    public SnapshotFrame Begin(uint sequence, ulong tick, uint ackedInput, PlayerVitals vitals)
     {
         var frame = _frames[sequence % Capacity];
-        frame.Reset(sequence, tick, ackedInput);
+        frame.Reset(sequence, tick, ackedInput, vitals);
         return frame;
     }
 }
@@ -92,6 +105,9 @@ internal static class SnapshotCodec
         writer.WriteUInt32(current.Sequence);
         writer.WriteUInt64(current.Tick);
         writer.WriteUInt32(current.AckedInput);
+        writer.WriteSingle(current.Vitals.Stamina);
+        writer.WriteBool(current.Vitals.Exhausted);
+        writer.WriteSingle(current.Vitals.CarriedKilograms);
         writer.WriteUInt32(baseline?.Sequence ?? 0);
         var countAt = writer.ReserveUInt16();
         var count = 0;
@@ -122,7 +138,7 @@ internal static class SnapshotCodec
                 }
                 else if (e.Kind == EntityKind.Player)
                 {
-                    writer.WriteBool(e.Player.Dead);
+                    WritePlayer(writer, e.Player);
                 }
 
                 n++;
@@ -165,7 +181,7 @@ internal static class SnapshotCodec
 
                     if (e.Kind == EntityKind.Player && (flags & (Created | PlayerChanged)) != 0)
                     {
-                        writer.WriteBool(e.Player.Dead);
+                        WritePlayer(writer, e.Player);
                     }
 
                     count++;
@@ -184,9 +200,9 @@ internal static class SnapshotCodec
         writer.PatchUInt16(countAt, (ushort)count);
     }
 
-    /// <summary>Reads the header after the message type. Returns the sequence, tick, acknowledged input, and baseline sequence.</summary>
-    public static (uint Sequence, ulong Tick, uint AckedInput, uint Baseline) ReadHeader(ref NetReader reader) =>
-        (reader.ReadUInt32(), reader.ReadUInt64(), reader.ReadUInt32(), reader.ReadUInt32());
+    /// <summary>Reads the header after the message type. Returns the sequence, tick, acknowledged input, the player's vitals, and baseline sequence.</summary>
+    public static (uint Sequence, ulong Tick, uint AckedInput, PlayerVitals Vitals, uint Baseline) ReadHeader(ref NetReader reader) =>
+        (reader.ReadUInt32(), reader.ReadUInt64(), reader.ReadUInt32(), new PlayerVitals(reader.ReadSingle(), reader.ReadBool(), reader.ReadSingle()), reader.ReadUInt32());
 
     /// <summary>Applies the entries after the header to <paramref name="baseline"/> and writes the result into <paramref name="target"/>.</summary>
     public static void ReadEntries(ref NetReader reader, SnapshotFrame? baseline, SnapshotFrame target)
@@ -224,7 +240,7 @@ internal static class SnapshotCodec
                     target.Add(kind switch
                     {
                         EntityKind.Zombie => created with { Zombie = ReadZombie(ref reader, default, whole: true) },
-                        EntityKind.Player => created with { Player = new PlayerState(reader.ReadBool()) },
+                        EntityKind.Player => created with { Player = ReadPlayer(ref reader) },
                         _ => created,
                     });
                     b += known ? 1 : 0;
@@ -234,7 +250,7 @@ internal static class SnapshotCodec
                     var position = (flags & PositionChanged) != 0 ? ReadPosition(ref reader) : old.Position;
                     var yaw = (flags & YawChanged) != 0 ? reader.ReadSingle() : old.Yaw;
                     var zombie = (flags & ZombieChanged) != 0 && old.Kind == EntityKind.Zombie ? ReadZombie(ref reader, old.Zombie, whole: false) : old.Zombie;
-                    var player = (flags & PlayerChanged) != 0 && old.Kind == EntityKind.Player ? new PlayerState(reader.ReadBool()) : old.Player;
+                    var player = (flags & PlayerChanged) != 0 && old.Kind == EntityKind.Player ? ReadPlayer(ref reader) : old.Player;
                     target.Add(old with { Position = position, Yaw = yaw, Zombie = zombie, Player = player });
                     break;
                 default:
@@ -246,6 +262,15 @@ internal static class SnapshotCodec
         {
             target.Add(before[b++]);
         }
+    }
+
+    private static void WritePlayer(NetWriter writer, in PlayerState player) =>
+        writer.WriteByte((byte)((player.Dead ? 1 : 0) | (player.Sleeping ? 2 : 0)));
+
+    private static PlayerState ReadPlayer(ref NetReader reader)
+    {
+        var flags = reader.ReadByte();
+        return new PlayerState((flags & 1) != 0, (flags & 2) != 0);
     }
 
     private static void WriteZombie(NetWriter writer, in ZombieState zombie, bool whole)

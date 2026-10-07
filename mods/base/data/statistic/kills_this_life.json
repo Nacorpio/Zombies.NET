@@ -1,0 +1,9 @@
+{
+  "id": "base:statistic/kills_this_life",
+  "scope": "life",
+  "counts": [
+    {
+      "event": "ZombieKilled"
+    }
+  ]
+}

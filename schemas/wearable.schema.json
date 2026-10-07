@@ -1,0 +1,48 @@
+{
+  "type": "object",
+  "properties": {
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z0-9_]+:[a-z0-9_]+(/[a-z0-9_]+)*$"
+    },
+    "item": {
+      "type": "string",
+      "pattern": "^[a-z0-9_]+:[a-z0-9_]+(/[a-z0-9_]+)*$"
+    },
+    "layer": {
+      "type": "string",
+      "enum": [
+        "underwear",
+        "base",
+        "mid",
+        "outer",
+        "armor"
+      ]
+    },
+    "coverage": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "insulation": {
+      "type": "number"
+    },
+    "protection": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "number"
+      }
+    },
+    "encumbrance": {
+      "type": "number"
+    }
+  },
+  "required": [
+    "id",
+    "item",
+    "layer",
+    "coverage"
+  ],
+  "$schema": "https://json-schema.org/draft/2020-12/schema"
+}

@@ -1,4 +1,6 @@
 using System.Numerics;
+using UnitsNet;
+using Zombies.Domain.Items;
 using Zombies.Domain.Mods;
 using Zombies.Engine.Core;
 using Zombies.Engine.Core.Modding;
@@ -384,8 +386,8 @@ public sealed class NetTests
 
         rig.Run(30);
 
-        // Header only: type, sequence, tick, acknowledged input, baseline, and an entry count of zero.
-        Assert.Equal(1 + 4 + 8 + 4 + 4 + 2, (rig.Server.SnapshotBytesSent - bytes) / (rig.Server.SnapshotsSent - count));
+        // Header only: type, sequence, tick, acknowledged input, Stamina, exhausted flag, carried mass, baseline, and an entry count of zero.
+        Assert.Equal(1 + 4 + 8 + 4 + 4 + 1 + 4 + 4 + 2, (rig.Server.SnapshotBytesSent - bytes) / (rig.Server.SnapshotsSent - count));
     }
 
     [Fact]
@@ -422,12 +424,23 @@ public sealed class NetTests
         var mover = new Mover(alice, rig.Server.Options.SpawnPoint);
         var simulation = new Simulation(mover, rig.Server, alice, bob);
 
-        var allocated = AllocationProbe.MeasureSteadyState(simulation, warmupTicks: 60, ticks: 300);
+        simulation.Run(60);
+        var allocating = new List<string>();
+        for (var i = 0; i < 300; i++)
+        {
+            var before = GC.GetAllocatedBytesForCurrentThread();
+            simulation.Run(1);
+            var bytes = GC.GetAllocatedBytesForCurrentThread() - before;
+            if (bytes != 0)
+            {
+                allocating.Add($"steady-state tick {i} allocated {bytes} bytes");
+            }
+        }
 
         Assert.Equal(ClientState.Joined, alice.State);
         Assert.True(bob.World.TryGet(alice.PlayerEntityId, out var seen));
         Assert.NotEqual(rig.Server.Options.SpawnPoint, seen.Position);
-        Assert.Equal(0, allocated);
+        Assert.True(allocating.Count == 0, string.Join("; ", allocating));
     }
 
     [Fact]
@@ -477,6 +490,64 @@ public sealed class NetTests
         Assert.Equal(0, alice.Local.PendingCount);
         Assert.Equal(0, alice.Local.ReconciliationCount);
         Assert.Equal(0f, alice.Local.LastCorrectionDistance);
+    }
+
+    [Theory]
+    [InlineData(false, false, 0)]
+    [InlineData(true, false, 0)]
+    [InlineData(false, true, 0)]
+    [InlineData(true, false, 35)]
+    public void PredictedMovementModes_MatchTheServer_IncludingStaminaAndExhaustion(bool sprint, bool crouch, int carriedKilograms)
+    {
+        var anvil = new ItemId("test:item/anvil");
+        var items = new ItemCatalog([new ItemDefinition(anvil, Mass.FromKilograms(1), Volume.FromLiters(1), maxStack: 64)]);
+        var rig = new Rig(new ServerOptions(Identity, WorldSeed: 777) { Items = items }, latencyPolls: 5);
+        var alice = rig.Join("alice");
+        rig.Run(10);
+        Assert.True(rig.Server.TryGetPlayer(new ConnectionId(1), out var session));
+        if (carriedKilograms > 0)
+        {
+            Assert.True(session!.Carried.TryAdd(anvil, carriedKilograms).IsSuccess);
+        }
+
+        rig.Run(10);
+
+        // Long enough to run a sprinting player dry, and to see sprinting come back once the pool recovers.
+        var input = new PlayerInput(1f, 0f, 0.4f, 0f, sprint, crouch, false, false, false);
+        for (var i = 0; i < 240; i++)
+        {
+            alice.SendInput(input);
+            rig.Run(1);
+        }
+
+        rig.Run(20);
+
+        Assert.True(rig.Server.World.TryGet(alice.PlayerEntityId, out var truth));
+        Assert.Equal(truth.Position, alice.Local.State.Position);
+        Assert.Equal(session!.Movement.Stamina, alice.Local.State.Stamina);
+        Assert.Equal(session.Movement.Exhausted, alice.Local.State.Exhausted);
+        Assert.Equal(session.Movement.Noise, alice.Local.State.Noise);
+        Assert.Equal(0, alice.Local.ReconciliationCount);
+        Assert.Equal(0f, alice.Local.MaxCorrectionDistance);
+        Assert.Equal(sprint || carriedKilograms > 0, session.Movement.Stamina < PlayerMovement.FullStamina || session.Movement.Exhausted);
+    }
+
+    [Fact]
+    public void ALocalPlayer_WhoseStaminaDiffersFromTheServers_TakesTheServersStamina()
+    {
+        var local = new LocalPlayer();
+        local.Reset(PlayerMoveState.At(Vector3.Zero));
+        var input = new PlayerInput(1f, 0f, 0f, 0f, true, false, false, false, false);
+        for (uint sequence = 1; sequence <= 10; sequence++)
+        {
+            local.Predict(sequence, input, FlatFloorCollision.Instance);
+        }
+
+        // The Server says that at input 6 the player had little Stamina left; the four inputs after it replay from there.
+        local.Reconcile(Vector3.Zero, 0f, new PlayerVitals(0.1f, false, 0f), 6, FlatFloorCollision.Instance);
+
+        Assert.True(local.State.Stamina < 0.1f);
+        Assert.Equal(4, local.PendingCount);
     }
 
     [Fact]

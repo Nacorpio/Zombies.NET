@@ -1,0 +1,6 @@
+{
+  "id": "base:item/whetstone",
+  "mass": "150 g",
+  "volume": "80 ml",
+  "maxStack": 5
+}

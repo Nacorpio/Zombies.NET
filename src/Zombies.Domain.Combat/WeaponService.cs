@@ -2,8 +2,11 @@
 
 namespace Zombies.Domain.Combat;
 
-/// <summary>Domain commands for weapons. A weapon's Condition, loaded rounds, and fitted Attachments live in its Item state.</summary>
-public sealed class WeaponService(WeaponCatalog catalog)
+/// <summary>
+/// Domain commands for weapons. A weapon's Condition, loaded rounds, fitted Attachments, and Faults live in its Item state.
+/// Faults only count when a <see cref="FaultCatalog"/> is given.
+/// </summary>
+public sealed class WeaponService(WeaponCatalog catalog, FaultCatalog? faults = null)
 {
     public const string ConditionValue = "condition";
     public const string RoundsValue = "rounds";
@@ -56,6 +59,11 @@ public sealed class WeaponService(WeaponCatalog catalog)
             }
         }
 
+        foreach (var modifier in FaultModifiers(state))
+        {
+            modifiers.Add(modifier);
+        }
+
         var wear = 1 - (double)ConditionOf(state) / MaxCondition;
         modifiers.Add(new Modifier(Damage, ModifierOperation.Multiply, 1 - (wear * (1 - WornDamageFloor)), ConditionSource));
 
@@ -68,6 +76,18 @@ public sealed class WeaponService(WeaponCatalog catalog)
             Math.Max(0, modifiers.EffectiveValue(Noise, definition.Noise)),
             definition.HandsNeeded);
         return true;
+    }
+
+    /// <summary>The chance, from 0 to 1, that using a weapon with this state fails because it jams.</summary>
+    public double JamChanceOf(ItemState? state)
+    {
+        var modifiers = new ModifierSet();
+        foreach (var modifier in FaultModifiers(state))
+        {
+            modifiers.Add(modifier);
+        }
+
+        return Math.Clamp(modifiers.EffectiveValue(FaultDefinition.JamChance, 0), 0, 1);
     }
 
     /// <summary>Fits an Attachment to the Mount it belongs on, if the weapon offers that Mount and it is free.</summary>
@@ -112,8 +132,13 @@ public sealed class WeaponService(WeaponCatalog catalog)
         return WeaponResult.Success(state.WithoutAttached(attachment), new AttachmentRemoved(weapon, attachment, fitted.Mount));
     }
 
-    /// <summary>Uses the weapon once: wears it, spends a round if it uses ammo, and returns the damage for Combat.</summary>
-    public WeaponResult Use(ItemId weapon, ItemState? state)
+    /// <summary>
+    /// Uses the weapon once: wears it, spends a round if it uses ammo, and returns the damage for Combat. The weapon jams, and
+    /// nothing is spent, when <paramref name="jamRoll"/> is below its <see cref="JamChanceOf"/>. When it is not broken, it may
+    /// gain a Fault from <paramref name="gainRoll"/>. Both rolls are from 0 up to but not including 1, and the defaults never
+    /// jam and never gain.
+    /// </summary>
+    public WeaponResult Use(ItemId weapon, ItemState? state, double jamRoll = 1, double gainRoll = 1)
     {
         if (!TryGetEffectiveStats(weapon, state, out var stats))
         {
@@ -133,6 +158,11 @@ public sealed class WeaponService(WeaponCatalog catalog)
             return WeaponResult.Failure(WeaponError.OutOfAmmo);
         }
 
+        if (jamRoll < JamChanceOf(state))
+        {
+            return WeaponResult.Failure(WeaponError.Jammed);
+        }
+
         var worn = Math.Max(0, condition - definition.WearPerUse);
         var remaining = definition.AmmoItem is null ? rounds : rounds - 1;
         var next = (state ?? ItemState.Create()).With(ConditionValue, worn);
@@ -142,10 +172,23 @@ public sealed class WeaponService(WeaponCatalog catalog)
         }
 
         var used = new WeaponUsed(weapon, stats.Damage, definition.DamageType, stats.Noise, worn, remaining);
-        return worn == 0 && condition > 0
-            ? WeaponResult.Success(next, used, new WeaponBroke(weapon))
-            : WeaponResult.Success(next, used);
+        var events = new List<IDomainEvent> { used };
+        if (faults?.Gained(FaultCause.WeaponUse, gainRoll, f => f.AppliesToCategory(definition.Category)) is { } gained && !ItemFaults.Has(next, gained.Id))
+        {
+            next = ItemFaults.With(next, gained.Id);
+            events.Add(new WeaponFaulted(weapon, gained.Id));
+        }
+
+        if (worn == 0 && condition > 0)
+        {
+            events.Add(new WeaponBroke(weapon));
+        }
+
+        return WeaponResult.Success(next, [.. events]);
     }
+
+    private IEnumerable<Modifier> FaultModifiers(ItemState? state) =>
+        (faults?.Of(state) ?? []).SelectMany(f => f.ModifiersFrom(new ModifierSource(f.Id)));
 
     private IReadOnlyCollection<string> MountsOf(WeaponDefinition weapon) =>
         [.. (catalog.TryGetCategory(weapon.Category, out var category) ? category.Mounts : []).Concat(weapon.ExtraMounts)];

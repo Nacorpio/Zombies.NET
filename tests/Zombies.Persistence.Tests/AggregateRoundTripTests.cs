@@ -151,6 +151,52 @@ public sealed class AggregateRoundTripTests
     }
 
     [Fact]
+    public void Container_WithFaultyItems_KeepsTheFaultsAndDoesNotMergeThem()
+    {
+        var memory = Armory(out var service);
+        var chipped = ItemFaults.With(ItemState.Create([new("condition", 60)]), "base:fault/chipped_blade");
+        var jammed = ItemFaults.With(null, "base:fault/jammed_action");
+        Assert.True(service.AddItems(Crate, Rifle, 1, chipped).IsSuccess);
+        Assert.True(service.AddItems(Crate, Rifle, 1, jammed).IsSuccess);
+        Assert.True(service.AddItems(Crate, Rifle, 1).IsSuccess);
+        memory.TryGet(Crate, out var original);
+        using var save = new TempSave();
+        using (var database = save.Open())
+        {
+            new SqliteContainerRepository(database, Items).Save(original);
+        }
+
+        using var reopened = save.Open();
+        Assert.True(new SqliteContainerRepository(reopened, Items).TryGet(Crate, out var loaded));
+
+        Assert.Equal(original.Stacks, loaded.Stacks);
+        Assert.Equal(3, loaded.Stacks.Count);
+        Assert.Equal(1, loaded.CountOf(Rifle, chipped));
+        Assert.Equal(1, loaded.CountOf(Rifle, jammed));
+        Assert.Equal(1, loaded.CountOf(Rifle, null));
+    }
+
+    [Fact]
+    public void Outfit_WithFaults_KeepsThemAcrossASaveAndTheirEffectOnProtection()
+    {
+        var faults = new FaultCatalog([FaultJson.Parse("""{ "id": "base:fault/ripped_seams", "target": "armor", "effects": [ { "stat": "protection", "operation": "multiply", "value": 0.5 } ], "repair": { "consumes": "base:item/sewing_kit", "time": 1 } }""")]);
+        var original = new Outfit(Wearables, faults);
+        Assert.True(original.Equip(Jacket).IsSuccess);
+        Assert.True(original.SetFaults(Jacket, ["base:fault/ripped_seams"]).IsSuccess);
+        using var save = new TempSave();
+        using (var database = save.Open())
+        {
+            new SqliteOutfitRepository(database, Wearables, faults: faults).Save(5, original);
+        }
+
+        using var reopened = save.Open();
+        Assert.True(new SqliteOutfitRepository(reopened, Wearables, faults: faults).TryGet(5, out var loaded));
+
+        Assert.Equal(["base:fault/ripped_seams"], loaded.FaultsOf(Jacket));
+        Assert.Equal(original.Protection(BodyPart.Torso, DamageType.Cut), loaded.Protection(BodyPart.Torso, DamageType.Cut), 12);
+    }
+
+    [Fact]
     public void Container_RestoredFromAnEmptyState_HoldsTheStackWithNoState()
     {
         var snapshot = new ContainerSnapshot(Crate.Value, 50, 0.05, 2, [new StackSnapshot(1, Beans.Value, 2, new ItemStateSnapshot([], []))]);
@@ -317,6 +363,22 @@ public sealed class AggregateRoundTripTests
         database.Transact(t => database.Command(t, "UPDATE needs SET body_celsius = 400").ExecuteNonQuery());
 
         Assert.Throws<SaveCorruptException>(() => repository.TryGet(1, out _));
+    }
+
+    [Fact]
+    public void Needs_FromASaveBeforeFatigue_LoadRested()
+    {
+        using var save = new TempSave();
+        using (var old = SaveDatabase.Open(save.Path, SaveSchema.Migrations[..3]))
+        {
+            old.Transact(t => old.Command(t, "INSERT INTO needs (owner_id, satiety, hydration, body_celsius) VALUES (7, 0.5, 0.25, 37)").ExecuteNonQuery());
+        }
+
+        using var migrated = save.Open();
+
+        Assert.True(new SqliteNeedsRepository(migrated).TryGet(7, out var loaded));
+        Assert.Equal(0.5, loaded.Satiety);
+        Assert.Equal(0, loaded.Fatigue);
     }
 
     [Fact]

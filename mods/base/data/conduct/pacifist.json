@@ -1,0 +1,6 @@
+{
+  "id": "base:conduct/pacifist",
+  "statistic": "base:statistic/kills_this_life",
+  "comparison": "atMost",
+  "target": 0
+}

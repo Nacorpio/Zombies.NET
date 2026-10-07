@@ -1,0 +1,1 @@
+{ "id": "base:morale_source/comfort_chocolate", "trigger": { "item": "base:item/chocolate_bar" }, "size": 10, "duration": 10800 }

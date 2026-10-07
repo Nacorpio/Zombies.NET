@@ -77,6 +77,9 @@ public sealed class Body
 
     public IReadOnlyList<Wound> Wounds => [.. _wounds.Select(w => w.ToView())];
 
+    /// <summary>Whether any Wound is on the Body, without building the list <see cref="Wounds"/> does.</summary>
+    public bool HasWounds => _wounds.Count > 0;
+
     public IReadOnlyList<BodyPart> MissingParts => [.. _parts.Where(p => p.Value.IsMissing).Select(p => p.Key)];
 
     public VolumeFlow TotalBleedRate

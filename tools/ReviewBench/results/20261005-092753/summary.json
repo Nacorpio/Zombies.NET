@@ -1,0 +1,209 @@
+{
+ "anthropic/claude-haiku-4.5": {
+  "found": [
+   "B2",
+   "B4",
+   "B7"
+  ],
+  "missed": [
+   "B1",
+   "B3",
+   "B5",
+   "B6",
+   "B8"
+  ],
+  "extra_on_seeded": [],
+  "findings_on_clean": [
+   {
+    "file": "src/Zombies.Engine.Ui/ContextMenu.cs",
+    "line": 159,
+    "severity": "high",
+    "description": "The modulo operation for wrapping can produce incorrect results: when HighlightedIndex is -1 and delta is negative, ((-1 + (-1)) % count + count) % count evaluates to ((-2 % count) + count) % count, which gives count - 2 instead of count - 1, skipping the last entry."
+   },
+   {
+    "file": "src/Zombies.Engine.Ui/ContextMenu.cs",
+    "line": 180,
+    "severity": "medium",
+    "description": "The height calculation counts dividers for all items with StartsGroup=true, but StartsGroup is only set to true when i > 0 (line 91), so the first item never has a divider. However, the Measure function doesn't account for this logic and will overcount dividers if the first item has StartsGroup set externally."
+   }
+  ],
+  "cost": 0.0174,
+  "secs": [
+   4,
+   4
+  ],
+  "errors": [],
+  "unparsed": []
+ },
+ "anthropic/claude-sonnet-5.5": {
+  "found": [
+   "B2",
+   "B3",
+   "B4",
+   "B5",
+   "B6",
+   "B7",
+   "B8"
+  ],
+  "missed": [
+   "B1"
+  ],
+  "extra_on_seeded": [],
+  "findings_on_clean": [],
+  "cost": 0.0709,
+  "secs": [
+   13,
+   22
+  ],
+  "errors": [],
+  "unparsed": []
+ },
+ "anthropic/claude-opus-5.5": {
+  "found": [
+   "B2",
+   "B3",
+   "B4",
+   "B5",
+   "B8"
+  ],
+  "missed": [
+   "B1",
+   "B6",
+   "B7"
+  ],
+  "extra_on_seeded": [
+   {
+    "file": "src/Zombies.Engine.Ui/ContextMenuHost.cs",
+    "line": 273,
+    "severity": "medium",
+    "description": "A click outside closes the menu but returns false, so the closing click is not consumed and also acts on whatever lies underneath, contrary to the stated design."
+   },
+   {
+    "file": "src/Zombies.Engine.Ui/ContextMenuHost.cs",
+    "line": 277,
+    "severity": "high",
+    "description": "The check `index > 0` excludes the first entry, so clicking the first enabled entry never chooses it; it should be `index >= 0`."
+   }
+  ],
+  "findings_on_clean": [
+   {
+    "file": "src/Zombies.Engine.Ui/ContextMenu.cs",
+    "line": 167,
+    "severity": "medium",
+    "description": "Row height comes only from the unscaled icon plus scaled padding and ignores the text height (DebugFont.LineHeight * scale), so at larger UI scales the label can be taller than its row and overlap neighbouring rows and dividers."
+   },
+   {
+    "file": "src/Zombies.Engine.Ui/ContextMenu.cs",
+    "line": 139,
+    "severity": "low",
+    "description": "Moving the pointer off every entry keeps the old highlight, so a disabled entry's reason tooltip stays visible at the pointer even when it is outside the menu or over another area, not only while that entry is hovered."
+   }
+  ],
+  "cost": 0.1273,
+  "secs": [
+   18,
+   17
+  ],
+  "errors": [],
+  "unparsed": []
+ },
+ "anthropic/claude-fable-5.1": {
+  "found": [
+   "B2",
+   "B3",
+   "B4",
+   "B5",
+   "B6",
+   "B7",
+   "B8"
+  ],
+  "missed": [
+   "B1"
+  ],
+  "extra_on_seeded": [
+   {
+    "file": "src/Zombies.Engine.Ui/ContextMenu.cs",
+    "line": 190,
+    "severity": "low",
+    "description": "A divider is placed (and measured) above the first entry when it has StartsGroup, contradicting the documented 'unless it is the first' rule."
+   }
+  ],
+  "findings_on_clean": [
+   {
+    "file": "src/Zombies.Engine.Ui/ContextMenu.cs",
+    "line": 316,
+    "severity": "low",
+    "description": "Because Hover keeps the previous highlight when the pointer leaves an entry, the disabled-reason tooltip stays visible (anchored to the pointer, possibly outside the menu) after the pointer has moved off the disabled entry, rather than only while hovering it."
+   }
+  ],
+  "cost": 0.4037,
+  "secs": [
+   23,
+   38
+  ],
+  "errors": [],
+  "unparsed": []
+ },
+ "openai/gpt-5.6-sol": {
+  "found": [
+   "B2",
+   "B3",
+   "B4",
+   "B5",
+   "B6",
+   "B7",
+   "B8"
+  ],
+  "missed": [
+   "B1"
+  ],
+  "extra_on_seeded": [
+   {
+    "file": "src/Zombies.Engine.Ui/ContextMenu.cs",
+    "line": 190,
+    "severity": "low",
+    "description": "StartsGroup creates a divider even for the first item, despite the contract that no divider is shown before the first entry."
+   }
+  ],
+  "findings_on_clean": [
+   {
+    "file": "src/Zombies.Engine.Ui/ContextMenu.cs",
+    "line": 139,
+    "severity": "medium",
+    "description": "Hovering away from a disabled entry onto menu padding, a divider, or outside the menu does not clear the highlight, so its disabled-reason tooltip remains visible when the entry is no longer hovered."
+   }
+  ],
+  "cost": 0.0667,
+  "secs": [
+   33,
+   35
+  ],
+  "errors": [],
+  "unparsed": []
+ },
+ "google/gemini-3.8-flash": {
+  "found": [
+   "B2",
+   "B3",
+   "B4",
+   "B6",
+   "B7",
+   "B8"
+  ],
+  "missed": [
+   "B1",
+   "B5"
+  ],
+  "extra_on_seeded": [],
+  "findings_on_clean": null,
+  "cost": 0.0722,
+  "secs": [
+   29,
+   72
+  ],
+  "errors": [],
+  "unparsed": [
+   "clean"
+  ]
+ }
+}

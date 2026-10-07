@@ -1,5 +1,8 @@
 using System.Numerics;
+using Zombies.Domain.StatusEffects;
 using Zombies.Engine.Core;
+using Zombies.Engine.Core.Modding;
+using Zombies.Modding.Api;
 
 namespace Zombies.Engine.Net;
 
@@ -192,6 +195,7 @@ public sealed class GameClient : ITickable
     private readonly GameIdentity _identity;
     private readonly string _playerName;
     private readonly NetWriter _writer = new(1024);
+    private readonly ModMessageWriter _modWriter = new();
     private readonly Handler _handler;
     private uint _nextCommand = 1;
 
@@ -219,6 +223,9 @@ public sealed class GameClient : ITickable
 
     public ReplicatedWorld World { get; } = new();
 
+    /// <summary>This player's own Body and Held weapon, as the Server last told them.</summary>
+    public ReplicatedStatus Status { get; } = new();
+
     /// <summary>The local player, predicted from input and reconciled against the Server's snapshots.</summary>
     public LocalPlayer Local { get; } = new();
 
@@ -232,6 +239,12 @@ public sealed class GameClient : ITickable
     /// Server rejects every command from a dead player.
     /// </summary>
     public bool IsSpectating => World.TryGet(PlayerEntityId, out var entity) && entity.Player.Dead;
+
+    /// <summary>
+    /// The Status effects on this client's own player, as the Server last told them. Other players' effects are never sent, so there is
+    /// no way to see them.
+    /// </summary>
+    public IReadOnlyList<ActiveEffect> Effects { get; private set; } = [];
 
     public CommandRejected? LastRejection { get; private set; }
 
@@ -268,8 +281,41 @@ public sealed class GameClient : ITickable
         return sequence;
     }
 
+    /// <summary>Sends a Domain command by an id known only at run time, with a payload already written, and returns its sequence.</summary>
+    public uint Send(ushort commandId, ReadOnlySpan<byte> payload)
+    {
+        var sequence = _nextCommand++;
+        BeginCommand(sequence, commandId);
+        _writer.WriteBytes(payload);
+        _transport.Send(ConnectionId.Server, _writer.Written, Delivery.ReliableOrdered);
+        return sequence;
+    }
+
+    /// <summary>Sends a Code mod's message under the number <paramref name="messages"/> gives it, and returns its sequence.</summary>
+    /// <exception cref="ArgumentException">No loaded mod registered the message, so it has no number.</exception>
+    public uint Send<TMessage>(ModMessageTable messages, in TMessage message)
+        where TMessage : IModMessage<TMessage>
+    {
+        ArgumentNullException.ThrowIfNull(messages);
+        if (!messages.TryGetNumber(TMessage.Id, out var number))
+        {
+            throw new ArgumentException($"No loaded mod registered the message '{TMessage.Id}'.", nameof(messages));
+        }
+
+        _modWriter.Clear();
+        message.Write(_modWriter);
+        return Send(number, _modWriter.Written);
+    }
+
     private void SendWithSequence<TCommand>(uint sequence, in TCommand command)
         where TCommand : INetCommand<TCommand>
+    {
+        BeginCommand(sequence, TCommand.CommandId);
+        command.Write(_writer);
+        _transport.Send(ConnectionId.Server, _writer.Written, Delivery.ReliableOrdered);
+    }
+
+    private void BeginCommand(uint sequence, ushort commandId)
     {
         if (State != ClientState.Joined)
         {
@@ -279,9 +325,7 @@ public sealed class GameClient : ITickable
         _writer.Clear();
         _writer.WriteByte((byte)MessageType.Command);
         _writer.WriteUInt32(sequence);
-        _writer.WriteUInt16(TCommand.CommandId);
-        command.Write(_writer);
-        _transport.Send(ConnectionId.Server, _writer.Written, Delivery.ReliableOrdered);
+        _writer.WriteUInt16(commandId);
     }
 
     /// <summary>Sends raw bytes as a message, for tests that play a broken or hostile client.</summary>
@@ -322,6 +366,12 @@ public sealed class GameClient : ITickable
                 case MessageType.CommandRejected when State == ClientState.Joined:
                     LastRejection = new CommandRejected(reader.ReadUInt32(), (CommandRejection)reader.ReadByte(), reader.ReadString());
                     RejectionCount++;
+                    break;
+                case MessageType.PlayerStatus when State == ClientState.Joined:
+                    Status.Apply(ref reader);
+                    break;
+                case MessageType.StatusEffects when State == ClientState.Joined:
+                    Effects = StatusEffectMessages.Read(ref reader);
                     break;
                 case MessageType.Snapshot when State == ClientState.Joined:
                     if (World.Apply(ref reader))

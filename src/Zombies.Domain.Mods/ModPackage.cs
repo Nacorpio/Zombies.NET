@@ -15,9 +15,13 @@ public sealed record ModPackage(string Source, string ManifestJson, IReadOnlyLis
     /// <summary>Files that are not definitions. The mod loader ignores them; each system that owns a kind of asset reads its own.</summary>
     public IReadOnlyList<ModAsset> Assets { get; init; } = [];
 
+    /// <summary>The C# assemblies a Code mod ships, as <c>assemblies/&lt;file&gt;.dll</c>. Empty for a Data mod.</summary>
+    public IReadOnlyList<ModAsset> Assemblies { get; init; } = [];
+
     /// <summary>
-    /// A SHA-256 over the manifest and every file, in path order, as lowercase hex. Line endings are normalized first,
-    /// so a Windows checkout and a Linux checkout of the same mod hash the same. Join compares these hashes.
+    /// A SHA-256 over the manifest, every definition file, and every assembly, in path order, as lowercase hex. Line endings
+    /// of text are normalized first, so a Windows checkout and a Linux checkout of the same mod hash the same; assemblies are
+    /// hashed byte for byte, so two builds of a Code mod only match when they are the same file. Join compares these hashes.
     /// </summary>
     public string ComputeContentHash()
     {
@@ -28,6 +32,13 @@ public sealed record ModPackage(string Source, string ManifestJson, IReadOnlyLis
         {
             Append(hash, file.Path);
             Append(hash, file.Json);
+        }
+
+        foreach (var assembly in Assemblies.OrderBy(a => a.Path, StringComparer.Ordinal))
+        {
+            Append(hash, assembly.Path);
+            hash.AppendData(assembly.Bytes);
+            hash.AppendData([0]);
         }
 
         return Convert.ToHexStringLower(hash.GetHashAndReset());

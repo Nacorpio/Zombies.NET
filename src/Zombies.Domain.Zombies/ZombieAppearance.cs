@@ -3,6 +3,20 @@ using Zombies.Domain.Items;
 namespace Zombies.Domain.Zombies;
 
 /// <summary>
+/// The melee weapon a zombie spawned holding. A one-handed weapon is in the right hand, or in the left when the right arm is a
+/// Missing part from spawn; a two-handed one is in the right hand and needs both arms.
+/// </summary>
+public sealed record ZombieHeldWeapon(ItemId Item, int HandsNeeded, BodyPart Arm)
+{
+    /// <summary>Whether the zombie still holds it once it lacks <paramref name="missing"/>: losing the holding arm, or either arm of a two-handed weapon, drops it.</summary>
+    public bool IsHeldWith(IReadOnlyCollection<BodyPart> missing)
+    {
+        ArgumentNullException.ThrowIfNull(missing);
+        return !missing.Contains(Arm) && (HandsNeeded < 2 || !missing.Contains(BodyPart.LeftArm));
+    }
+}
+
+/// <summary>
 /// How one zombie looks and what it wears, a pure function of its <see cref="ZombieSpec"/> and type (see <see cref="ZombieGenerator"/>).
 /// Every client derives the same value from the same spec, so none of it is sent over the network.
 /// </summary>
@@ -15,7 +29,8 @@ public sealed class ZombieAppearance : IEquatable<ZombieAppearance>
         IReadOnlyList<ItemId> clothing,
         ItemId? headwear,
         ItemId? backpack,
-        IReadOnlyList<BodyPart> missingParts)
+        IReadOnlyList<BodyPart> missingParts,
+        ZombieHeldWeapon? heldWeapon = null)
     {
         HeightPermille = heightPermille;
         BuildPermille = buildPermille;
@@ -24,6 +39,7 @@ public sealed class ZombieAppearance : IEquatable<ZombieAppearance>
         Headwear = headwear;
         Backpack = backpack;
         MissingParts = missingParts;
+        HeldWeapon = heldWeapon;
     }
 
     /// <summary>Body height in thousandths of the skeleton's own.</summary>
@@ -43,6 +59,9 @@ public sealed class ZombieAppearance : IEquatable<ZombieAppearance>
 
     /// <summary>The Body parts the zombie lacks from spawn, in Body part order.</summary>
     public IReadOnlyList<BodyPart> MissingParts { get; }
+
+    /// <summary>The melee weapon the zombie spawned holding, or null for none.</summary>
+    public ZombieHeldWeapon? HeldWeapon { get; }
 
     public float HeightScale => HeightPermille / 1000f;
 
@@ -75,6 +94,7 @@ public sealed class ZombieAppearance : IEquatable<ZombieAppearance>
         && SkinColor == other.SkinColor
         && Headwear == other.Headwear
         && Backpack == other.Backpack
+        && HeldWeapon == other.HeldWeapon
         && Clothing.SequenceEqual(other.Clothing)
         && MissingParts.SequenceEqual(other.MissingParts);
 

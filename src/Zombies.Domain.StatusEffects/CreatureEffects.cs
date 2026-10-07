@@ -37,6 +37,7 @@ public sealed class CreatureEffects(CreatureId id, StatusEffectCatalog catalog)
     }
 
     private readonly List<Active> _active = [];
+    private readonly List<IDomainEvent> _advanceEvents = [];
     private ModifierSet _modifiers = new();
 
     public CreatureId Id { get; } = id;
@@ -53,6 +54,9 @@ public sealed class CreatureEffects(CreatureId id, StatusEffectCatalog catalog)
 
     /// <summary>The Modifiers granted by active effects, one set per stack. They disappear when the effect ends.</summary>
     public IReadOnlyList<Modifier> Modifiers => _modifiers.All;
+
+    /// <summary>How many effects are active.</summary>
+    public int Count => _active.Count;
 
     public bool Has(string effect) => _active.Exists(a => a.Definition.Id == effect);
 
@@ -121,6 +125,46 @@ public sealed class CreatureEffects(CreatureId id, StatusEffectCatalog catalog)
         return EffectResult.Success([.. cured.Select(a => new EffectCured(Id, a.Definition.Id, CureCause.Item, item.Value))]);
     }
 
+    /// <summary>
+    /// Consumes an Item: first it cures every active effect it cures, then each effect it may apply is rolled and applied.
+    /// <paramref name="roll"/> takes a chance in basis points and says whether it came up, so the caller owns the randomness.
+    /// A medicine that has nothing to cure and applies nothing is refused with <see cref="EffectError.NothingToCure"/>, so it is not wasted.
+    /// </summary>
+    public EffectResult Consume(ItemDefinition item, Func<int, bool> roll)
+    {
+        ArgumentNullException.ThrowIfNull(item);
+        ArgumentNullException.ThrowIfNull(roll);
+        if (!item.Consumable)
+        {
+            return EffectResult.Failure(EffectError.NotConsumable);
+        }
+
+        foreach (var consumed in item.OnConsume)
+        {
+            if (!catalog.TryGet(consumed.Effect, out _))
+            {
+                return EffectResult.Failure(EffectError.UnknownEffect);
+            }
+        }
+
+        var cured = CureWithItem(item.Id);
+        if (!cured.IsSuccess && item.OnConsume.Count == 0 && catalog.All.Any(d => d.CuredByItems.Contains(item.Id)))
+        {
+            return cured;
+        }
+
+        var events = new List<IDomainEvent>(cured.Events);
+        foreach (var consumed in item.OnConsume)
+        {
+            if (roll(consumed.ChanceBasis))
+            {
+                events.AddRange(Apply(consumed.Effect).Events);
+            }
+        }
+
+        return EffectResult.Success(events);
+    }
+
     /// <summary>Moves every effect forward in time, raising stage changes, periodic changes, and expiries as they come due.</summary>
     public EffectResult Advance(TimeSpan elapsed)
     {
@@ -129,22 +173,44 @@ public sealed class CreatureEffects(CreatureId id, StatusEffectCatalog catalog)
             return EffectResult.Failure(EffectError.InvalidDuration);
         }
 
-        var events = new List<IDomainEvent>();
         if (elapsed == TimeSpan.Zero)
         {
-            return EffectResult.Success(events);
+            return EffectResult.NoChange;
         }
 
-        foreach (var active in _active.ToList())
+        // This runs every Server tick, so it allocates nothing unless something happened: events go into a reused buffer,
+        // and the Modifiers are only rebuilt when a stage changed or an effect ended.
+        var events = _advanceEvents;
+        var modifiersChanged = false;
+        var i = 0;
+        while (i < _active.Count)
         {
+            var active = _active[i];
+            var stage = active.StageIndex;
             if (!AdvanceOne(active, elapsed, events))
             {
-                _active.Remove(active);
+                _active.RemoveAt(i);
+                modifiersChanged = true;
+                continue;
             }
+
+            modifiersChanged |= active.StageIndex != stage;
+            i++;
         }
 
-        RebuildModifiers();
-        return EffectResult.Success(events);
+        if (modifiersChanged)
+        {
+            RebuildModifiers();
+        }
+
+        if (events.Count == 0)
+        {
+            return EffectResult.NoChange;
+        }
+
+        IDomainEvent[] raised = [.. events];
+        events.Clear();
+        return EffectResult.Success(raised);
     }
 
     private void Restack(Active existing, List<IDomainEvent> events)
@@ -227,8 +293,14 @@ public sealed class CreatureEffects(CreatureId id, StatusEffectCatalog catalog)
             }
 
             EnterDueStages(active, events);
-            foreach (var periodic in active.Periodic.ToList().Where(p => p.Due <= active.Elapsed))
+            for (var p = 0; p < active.Periodic.Count; p++)
             {
+                var periodic = active.Periodic[p];
+                if (periodic.Due > active.Elapsed)
+                {
+                    continue;
+                }
+
                 events.Add(new EffectPeriodicChange(Id, active.Definition.Id, periodic.Change.Change, periodic.Change.Amount * active.Stacks));
                 periodic.Due += periodic.Change.Every;
             }

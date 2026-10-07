@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    The sample Code mod. It references only the public modding API, which the game supplies at run time, so the API is not
+    copied next to it. After each build the mod's assembly is copied into ../assemblies, where the game loads it from, as
+    mod.json lists it. That folder is a build output and is not committed.
+  -->
+  <PropertyGroup>
+    <AssemblyName>SampleCodeMod</AssemblyName>
+    <RootNamespace>SampleCodeMod</RootNamespace>
+    <ModAssemblyFolder>$(MSBuildThisFileDirectory)../assemblies/</ModAssemblyFolder>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../../../src/Zombies.Modding.Api/Zombies.Modding.Api.csproj" Private="false" />
+  </ItemGroup>
+
+  <Target Name="CopyIntoMod" AfterTargets="Build">
+    <Copy SourceFiles="$(TargetPath)" DestinationFolder="$(ModAssemblyFolder)" SkipUnchangedFiles="true" />
+  </Target>
+
+</Project>

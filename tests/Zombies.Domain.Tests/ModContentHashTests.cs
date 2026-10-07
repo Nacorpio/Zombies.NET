@@ -29,6 +29,16 @@ public sealed class ModContentHashTests
     }
 
     [Fact]
+    public void ContentHash_CoversACodeModsAssembliesByteForByte()
+    {
+        var data = Mod(Manifest, ("data/a.json", "{}"));
+        var code = data with { Assemblies = [new ModAsset("assemblies/A.dll", [1, 2, 3])] };
+
+        Assert.NotEqual(data.ComputeContentHash(), code.ComputeContentHash());
+        Assert.NotEqual(code.ComputeContentHash(), (data with { Assemblies = [new ModAsset("assemblies/A.dll", [1, 2, 4])] }).ComputeContentHash());
+    }
+
+    [Fact]
     public void Load_RecordsEachModsContentHash()
     {
         var package = Mod(Manifest);

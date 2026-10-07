@@ -84,6 +84,9 @@ public ref struct NetReader(ReadOnlySpan<byte> data)
         }
     }
 
+    /// <summary>Takes every byte left, such as a payload whose layout another reader knows.</summary>
+    public ReadOnlySpan<byte> ReadToEnd() => Take(Remaining);
+
     /// <summary>Fails the message when bytes are left over, so a sender cannot smuggle data after a valid message.</summary>
     public readonly void EnsureEnd()
     {

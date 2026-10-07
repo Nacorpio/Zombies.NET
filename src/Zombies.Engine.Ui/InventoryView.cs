@@ -1,3 +1,4 @@
+using Zombies.Domain.Actions;
 using Zombies.Domain.Combat;
 using Zombies.Domain.Inventory;
 using Zombies.Domain.Items;
@@ -20,15 +21,23 @@ public sealed record InventoryTarget(ContainerId Container, string Title);
 /// <summary>A container as a panel: its title, its slots, and how full it is.</summary>
 public sealed record InventoryPanel(ContainerId Container, string Title, IReadOnlyList<InventorySlot> Slots, double MassFraction, double VolumeFraction);
 
-/// <summary>A Stack picked up and not yet dropped.</summary>
-public sealed record DraggedItem(ContainerId From, StackId Stack, ItemId Item, int Count, ItemState? State);
+/// <summary>
+/// A Stack picked up and not yet dropped. When <paramref name="FromMount"/> is set, it is the Attachment on that Mount of the
+/// weapon in <paramref name="Stack"/>, picked up to be taken off.
+/// </summary>
+public sealed record DraggedItem(ContainerId From, StackId Stack, ItemId Item, int Count, ItemState? State, string? FromMount = null);
 
 /// <summary>
 /// The inventory screen's model. It reads Containers through the repository and changes them only through the Inventory
 /// commands, so a drag either succeeds or leaves everything as it was. The list and the grid are two ways of drawing the
-/// same slots.
+/// same slots. With a <see cref="WeaponFittingService"/> it also shows the Mounts of an opened weapon and fits Attachments.
 /// </summary>
-public sealed class InventoryView(InventoryService inventory, IContainerRepository containers, IItemCatalog catalog, Localizer localizer)
+public sealed partial class InventoryView(
+    InventoryService inventory,
+    IContainerRepository containers,
+    IItemCatalog catalog,
+    Localizer localizer,
+    WeaponFittingService? fitting = null)
 {
     private const int SlotHeightPixels = 10;
     private const int SlotGapPixels = 2;
@@ -115,6 +124,11 @@ public sealed class InventoryView(InventoryService inventory, IContainerReposito
         if (Dragging is not { } dragged)
         {
             return false;
+        }
+
+        if (dragged.FromMount is { } mount)
+        {
+            return TakeOff(dragged, mount, container);
         }
 
         if (dragged.From == container)

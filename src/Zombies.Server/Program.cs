@@ -1,8 +1,10 @@
 using System.Diagnostics;
 using System.Globalization;
+using Zombies.Domain.Combat;
 using Zombies.Domain.Death;
 using Zombies.Domain.Items;
 using Zombies.Domain.Mods;
+using Zombies.Domain.StatusEffects;
 using Zombies.Engine.Core;
 using Zombies.Engine.Core.Modding;
 using Zombies.Engine.Net;
@@ -56,7 +58,9 @@ for (var i = 0; i < args.Length; i++)
     }
 }
 
-var mods = ModLoader.Load(DirectoryModSource.Read(modsDirectory ?? DirectoryModSource.Find(AppContext.BaseDirectory)));
+// A dedicated Server never loads a client-only mod, data or code; a join leaves those mods out for the same reason.
+var packages = ModSides.ForRole(DirectoryModSource.Read(modsDirectory ?? DirectoryModSource.Find(AppContext.BaseDirectory)), ProcessRole.Server);
+var mods = ModLoader.Load(packages);
 if (!mods.IsSuccess)
 {
     foreach (var error in mods.Errors)
@@ -65,6 +69,22 @@ if (!mods.IsSuccess)
     }
 
     return 1;
+}
+
+var codeMods = CodeModLoader.Load(packages, mods, ProcessRole.Server);
+if (!codeMods.IsSuccess)
+{
+    foreach (var problem in codeMods.Problems)
+    {
+        Console.Error.WriteLine(problem);
+    }
+
+    return 1;
+}
+
+foreach (var codeMod in codeMods.Mods)
+{
+    Console.WriteLine($"Zombies.Server: running code mod '{codeMod.Manifest.Id}' {codeMod.Manifest.Version} as trusted code, without a sandbox");
 }
 
 WorldOptionCatalog optionCatalog;
@@ -158,7 +178,30 @@ if (savePath is not null)
 }
 
 var items = new ItemCatalog(mods.Registry.OfKind("item").Select(d => ItemDefinitionJson.Parse(d.Json)));
-var options = new ServerOptions(identity, seed) { MaxPlayers = maxPlayers, Items = items };
+StatusEffectCatalog effects;
+try
+{
+    effects = StatusEffectContentLoader.Load(mods.Registry);
+}
+catch (Exception ex) when (ex is StatusEffectDefinitionException or ArgumentException)
+{
+    Console.Error.WriteLine($"Zombies.Server: {ex.Message}");
+    return 1;
+}
+
+var woundKinds = new WoundKindCatalog(mods.Registry.OfKind("wound_kind").Select(d => WoundKindJson.Parse(d.Json)));
+var options = new ServerOptions(identity, seed)
+{
+    MaxPlayers = maxPlayers,
+    Items = items,
+    Effects = effects,
+    Weapons = new WeaponCatalog(
+        mods.Registry.OfKind("weapon_category").Select(d => WeaponDefinitionJson.ParseCategory(d.Json)),
+        mods.Registry.OfKind("weapon").Select(d => WeaponDefinitionJson.ParseWeapon(d.Json)),
+        mods.Registry.OfKind("attachment").Select(d => WeaponDefinitionJson.ParseAttachment(d.Json))),
+    Treatments = new TreatmentCatalog(mods.Registry.OfKind("treatment").Select(d => TreatmentJson.Parse(d.Json)), woundKinds),
+    PlayerBody = new BodyConfig { WoundKinds = woundKinds },
+};
 
 // With a save, Corpses and their Containers and the Memorials are kept in it; without one they last as long as the process.
 var deathStores = save is null
@@ -166,6 +209,7 @@ var deathStores = save is null
     : new DeathStores(new SqliteContainerRepository(save, items), new SqliteCorpseRepository(save), new SqliteMemorialRepository(save));
 using var transport = LiteNetTransport.Listen(port, key, maxPlayers + 2);
 var server = new GameServer(transport, options, deathStores);
+CodeModMessages.Register(server.Commands, codeMods);
 var simulation = new Simulation(server);
 
 using var stop = new CancellationTokenSource();

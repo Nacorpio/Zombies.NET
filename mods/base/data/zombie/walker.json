@@ -34,6 +34,14 @@
     { "part": "leftLeg", "chance": 0.08 },
     { "part": "rightLeg", "chance": 0.08 }
   ],
+  "heldWeapons": [
+    { "weight": 20 },
+    { "item": "base:item/kitchen_knife", "weight": 1 },
+    { "item": "base:item/crowbar", "weight": 1 },
+    { "item": "base:item/machete", "weight": 1 },
+    { "item": "base:item/baseball_bat", "weight": 1 }
+  ],
   "weakpointSet": "base:weakpoint_set/humanoid",
-  "upgrade": { "zombieType": "base:zombie/runner", "afterDays": 30 }
+  "upgrade": { "zombieType": "base:zombie/runner", "afterDays": 30 },
+  "bite": { "effect": "base:status_effect/infection", "chance": 0.3 }
 }

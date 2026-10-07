@@ -57,9 +57,20 @@ public sealed class Dialog
 
     public UiRect Bounds { get; private set; }
 
-    public static Dialog Create(Localizer localizer, string titleKey, string messageKey, string? captionKey, IReadOnlyList<DialogButton> buttons)
+    /// <param name="arguments">Values for <c>{0}</c> style placeholders in the title and the message, such as a mod's name.</param>
+    public static Dialog Create(Localizer localizer, string titleKey, string messageKey, string? captionKey, IReadOnlyList<DialogButton> buttons, params object[] arguments)
     {
         ArgumentNullException.ThrowIfNull(localizer);
+        ArgumentNullException.ThrowIfNull(arguments);
+        return CreateText(localizer, localizer.Format(titleKey, arguments), localizer.Format(messageKey, arguments), captionKey is null ? null : localizer.Get(captionKey), buttons);
+    }
+
+    /// <summary>A dialog whose title, message, and caption are already localized, such as a message filled in with names and numbers.</summary>
+    public static Dialog CreateText(Localizer localizer, string title, string message, string? caption, IReadOnlyList<DialogButton> buttons)
+    {
+        ArgumentNullException.ThrowIfNull(localizer);
+        ArgumentNullException.ThrowIfNull(title);
+        ArgumentNullException.ThrowIfNull(message);
         ArgumentNullException.ThrowIfNull(buttons);
         if (buttons.Count == 0)
         {
@@ -67,9 +78,9 @@ public sealed class Dialog
         }
 
         return new Dialog(
-            TextWrap.Truncate(localizer.Get(titleKey), MaxCharsPerLine),
-            TextWrap.Wrap(localizer.Get(messageKey), MaxCharsPerLine, MaxMessageLines),
-            captionKey is null ? null : TextWrap.Truncate(localizer.Get(captionKey), MaxCharsPerLine),
+            TextWrap.Truncate(title, MaxCharsPerLine),
+            TextWrap.Wrap(message, MaxCharsPerLine, MaxMessageLines),
+            caption is null ? null : TextWrap.Truncate(caption, MaxCharsPerLine),
             [.. buttons.Select(b => new DialogButtonView(b.Id, localizer.Get(b.LabelKey), b.IsCancel))]);
     }
 

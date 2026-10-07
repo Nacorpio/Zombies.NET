@@ -27,13 +27,13 @@ public sealed class ModLoadingTests
     private static ModLoadResult LoadRepositoryMods() => ModLoader.Load(DirectoryModSource.Read(Path.Combine(RepoRoot(), "mods")));
 
     [Fact]
-    public void BaseAndSampleDataMod_LoadThroughOneCodePath()
+    public void BaseAndSampleMods_LoadThroughOneCodePath()
     {
         var result = LoadRepositoryMods();
 
         Assert.True(result.IsSuccess, string.Join(Environment.NewLine, result.Errors));
-        Assert.Equal(["base", "sample_data"], result.Mods.Select(m => m.Manifest.Id));
-        Assert.Equal(79, result.Registry.Count);
+        Assert.Equal(["base", "sample_code", "sample_data"], result.Mods.Select(m => m.Manifest.Id));
+        Assert.Equal(82, result.Registry.Count);
     }
 
     [Fact]
@@ -225,6 +225,20 @@ public sealed class ModLoadingTests
         Assert.True(attachments.Count >= 4);
         Assert.Equal(attachments.Count, attachments.Select(a => string.Join(',', a.Effects.Select(e => $"{e.Stat}:{e.Operation}").Order())).Distinct().Count());
         Assert.Contains(attachments, a => a.Effects.Any(e => e.Stat.Value == "noise" && e.Operation == ModifierOperation.Multiply && e.Value < 1));
+    }
+
+    [Fact]
+    public void BaseWalker_CanSpawnHoldingEachOfItsMeleeWeapons_OrNothing()
+    {
+        var catalog = ZombieContentLoader.Load(LoadRepositoryMods().Registry);
+        Assert.True(catalog.TryGet("base:zombie/walker", out var walker));
+
+        var held = Enumerable.Range(0, 2000)
+            .Select(seed => Zombies.Domain.Zombies.ZombieGenerator.Generate(walker, new Zombies.Domain.Zombies.ZombieSpec((ulong)seed, walker.Id, 1), catalog.Weapons).HeldWeapon?.Item.Value)
+            .ToHashSet();
+
+        Assert.Equal(walker.HeldWeapons.Select(h => h.Item?.Value).Order(), held.Order());
+        Assert.Contains(null, held);
     }
 
     [Fact]

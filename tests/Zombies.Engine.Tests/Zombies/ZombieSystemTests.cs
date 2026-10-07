@@ -333,17 +333,16 @@ public sealed class ZombieSystemTests
     }
 
     [Fact]
-    public void TheBaseModsZombies_AllSpawnAndTakeAHit()
+    public void TheRepositoryModsZombies_AllSpawnAndTakeAHit()
     {
         var loaded = ModLoader.Load(DirectoryModSource.Read(Path.Combine(RigTestData.RepoRoot(), "mods")));
         Assert.True(loaded.IsSuccess, string.Join(Environment.NewLine, loaded.Errors));
         var catalog = ZombieContentLoader.Load(loaded.Registry);
-        var traits = new TraitRegistry();
-        BaseTraits.Register(traits);
+        var traits = RepositoryMods.Traits();
         var world = new ServerWorld();
         var system = new ZombieSystem(world, catalog, traits, RigTestData.BaseSkeleton("humanoid"), RigTestData.BaseClips("humanoid"));
 
-        Assert.Equal(["base:zombie/bloater", "base:zombie/runner", "base:zombie/walker"], catalog.Types.Select(t => t.Id));
+        Assert.Equal(["base:zombie/bloater", "base:zombie/runner", "base:zombie/walker", "sample_code:zombie/screamer"], catalog.Types.Select(t => t.Id));
         for (var i = 0; i < catalog.Types.Count; i++)
         {
             var position = new Vector3(i * 10, 0, 0);
@@ -362,8 +361,7 @@ public sealed class ZombieSystemTests
         var loaded = ModLoader.Load(DirectoryModSource.Read(Path.Combine(RigTestData.RepoRoot(), "mods")));
         Assert.True(loaded.IsSuccess, string.Join(Environment.NewLine, loaded.Errors));
         var catalog = ZombieContentLoader.Load(loaded.Registry);
-        var traits = new TraitRegistry();
-        BaseTraits.Register(traits);
+        var traits = RepositoryMods.Traits();
         var items = loaded.Registry.OfKind("item").Select(d => d.Id.Value).ToHashSet();
         var worn = catalog.Types.SelectMany(t => t.Outfit.Clothing.Concat(t.Outfit.Headwear).Concat(t.Outfit.Backpacks)).Select(w => w.Item).OfType<ItemId>();
 
@@ -392,8 +390,7 @@ public sealed class ZombieSystemTests
     {
         var (plan, registry) = PlanWithZombies();
         var catalog = ZombieContentLoader.Load(registry);
-        var traits = new TraitRegistry();
-        BaseTraits.Register(traits);
+        var traits = RepositoryMods.Traits();
         var world = new ServerWorld();
         var system = new ZombieSystem(world, catalog, traits, RigTestData.BaseSkeleton("humanoid"), RigTestData.BaseClips("humanoid"));
 
@@ -432,8 +429,7 @@ public sealed class ZombieSystemTests
     {
         var (plan, registry) = PlanWithZombies();
         var catalog = ZombieContentLoader.Load(registry);
-        var traits = new TraitRegistry();
-        BaseTraits.Register(traits);
+        var traits = RepositoryMods.Traits();
 
         // The types, in plan order, of the zombies a fresh Server spawns when the world is this many days old.
         List<ZombieState> Spawned(int worldDay)

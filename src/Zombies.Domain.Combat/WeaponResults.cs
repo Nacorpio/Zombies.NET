@@ -11,6 +11,9 @@ public enum WeaponError
     NotFitted,
     Broken,
     OutOfAmmo,
+
+    /// <summary>The Attachment belongs on a different Mount from the one it was dropped on.</summary>
+    WrongMount,
 }
 
 public sealed record AttachmentFitted(ItemId Weapon, ItemId Attachment, string Mount) : IDomainEvent;

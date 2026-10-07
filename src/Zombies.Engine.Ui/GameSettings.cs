@@ -1,3 +1,5 @@
+using Zombies.Engine.Core;
+
 namespace Zombies.Engine.Ui;
 
 /// <summary>Which set of colors the UI draws status in. The colorblind set tells states apart by lightness and hue pairs that stay distinct for the common kinds of color blindness.</summary>
@@ -29,6 +31,9 @@ public sealed record GameSettings
 
     public UiPaletteKind Palette { get; init; }
 
+    /// <summary>How much blood, decals, particles and severed parts the client draws. Visuals only; hit results never depend on it.</summary>
+    public GoreLevel Gore { get; init; } = GoreLevel.Low;
+
     public string Language { get; init; } = "en";
 
     public KeyBindings Keys { get; init; } = KeyBindings.Defaults();
@@ -39,6 +44,7 @@ public sealed record GameSettings
     {
         UiScale = float.IsFinite(UiScale) ? Math.Clamp(UiScale, MinUiScale, MaxUiScale) : DefaultUiScale,
         FieldOfViewDegrees = float.IsFinite(FieldOfViewDegrees) ? Math.Clamp(FieldOfViewDegrees, MinFieldOfView, MaxFieldOfView) : DefaultFieldOfView,
+        Gore = Enum.IsDefined(Gore) ? Gore : GoreLevel.Low,
         Language = string.IsNullOrWhiteSpace(Language) ? "en" : Language,
     };
 

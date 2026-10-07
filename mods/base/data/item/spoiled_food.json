@@ -1,0 +1,10 @@
+{
+  "id": "base:item/spoiled_food",
+  "mass": "0.4 kg",
+  "volume": "350 ml",
+  "maxStack": 4,
+  "edible": true,
+  "onConsume": [
+    { "effect": "base:status_effect/food_poisoning", "chance": 0.75 }
+  ]
+}

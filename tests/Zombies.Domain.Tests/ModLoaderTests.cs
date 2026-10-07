@@ -103,6 +103,9 @@ public sealed class ModLoaderTests
     [InlineData("""{ "id": "a", "version": "1.0.0", "dependencies": "base" }""")]
     [InlineData("""{ "id": "a", "version": "1.0.0", "dependencies": [{ "minVersion": "1.0.0" }] }""")]
     [InlineData("""{ "id": "a", "version": "1.0.0", "loadAfter": [1] }""")]
+    [InlineData("""{ "id": "a", "version": "1.0.0", "assemblies": "A.dll" }""")]
+    [InlineData("""{ "id": "a", "version": "1.0.0", "assemblies": ["A.exe"] }""")]
+    [InlineData("""{ "id": "a", "version": "1.0.0", "assemblies": ["../A.dll"] }""")]
     [InlineData("[]")]
     [InlineData("not json")]
     public void Load_InvalidManifestFails(string manifest)
@@ -126,6 +129,55 @@ public sealed class ModLoaderTests
         Assert.Equal("m", minimal.Name);
         Assert.Equal(ModSide.Both, minimal.Side);
         Assert.Empty(minimal.Dependencies);
+        Assert.False(minimal.IsCodeMod);
+    }
+
+    [Fact]
+    public void Manifest_ThatListsAssemblies_IsACodeMod()
+    {
+        Assert.True(ModManifest.TryParse("""{ "id": "m", "version": "1.0.0", "assemblies": ["My.Mod.dll"] }""", out var manifest, out var error), error);
+
+        Assert.True(manifest.IsCodeMod);
+        Assert.Equal(["My.Mod.dll"], manifest.Assemblies);
+    }
+
+    [Fact]
+    public void Load_ACodeModWithItsAssembly_Loads_AndOneWithout_Fails()
+    {
+        const string manifest = """{ "id": "m", "version": "1.0.0", "assemblies": ["M.dll"] }""";
+        var shipped = new ModPackage("m", manifest, []) { Assemblies = [new ModAsset("assemblies/M.dll", [1, 2, 3])] };
+
+        Assert.True(ModLoader.Load([shipped]).IsSuccess);
+        AssertFails(ModLoader.Load([new ModPackage("m", manifest, [])]), ModLoadErrorKind.MissingAssembly);
+    }
+
+    [Theory]
+    [InlineData(ModSide.Both, ProcessRole.Server, true, true)]
+    [InlineData(ModSide.Both, ProcessRole.Client, true, true)]
+    [InlineData(ModSide.Client, ProcessRole.Server, false, false)]
+    [InlineData(ModSide.Client, ProcessRole.Client, true, true)]
+    [InlineData(ModSide.Client, ProcessRole.Solo, true, true)]
+    [InlineData(ModSide.Server, ProcessRole.Server, true, true)]
+    [InlineData(ModSide.Server, ProcessRole.Client, true, false)]
+    [InlineData(ModSide.Server, ProcessRole.Solo, true, true)]
+    public void Side_DecidesWhereAModLoadsAndWhereItsCodeRuns(ModSide side, ProcessRole role, bool loads, bool runsCode)
+    {
+        Assert.Equal(loads, side.LoadsIn(role));
+        Assert.Equal(runsCode, side.RunsCodeIn(role));
+    }
+
+    [Fact]
+    public void ForRole_LeavesClientOnlyModsOutOfADedicatedServer_AndKeepsUnreadableOnesForTheLoaderToReport()
+    {
+        var packages = new[]
+        {
+            new ModPackage("a", """{ "id": "a", "version": "1.0.0", "side": "client" }""", []),
+            new ModPackage("b", """{ "id": "b", "version": "1.0.0", "side": "server" }""", []),
+            new ModPackage("broken", "not json", []),
+        };
+
+        Assert.Equal(["b", "broken"], ModSides.ForRole(packages, ProcessRole.Server).Select(p => p.Source));
+        Assert.Equal(["a", "b", "broken"], ModSides.ForRole(packages, ProcessRole.Client).Select(p => p.Source));
     }
 
     [Fact]

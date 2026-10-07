@@ -25,8 +25,7 @@ public sealed class ZombieReplicationTests
             Network.DropEveryNthUnreliable = dropEveryNthUnreliable;
             var transport = Network.CreateServer();
             Server = new GameServer(transport, new ServerOptions(Identity, WorldSeed: 5));
-            var traits = new TraitRegistry();
-            BaseTraits.Register(traits);
+            var traits = RepositoryMods.Traits();
             Zombies = new ZombieSystem(Server.World, Catalog, traits, RigTestData.BaseSkeleton("humanoid"), RigTestData.BaseClips("humanoid"));
         }
 
@@ -100,7 +99,7 @@ public sealed class ZombieReplicationTests
     private static ZombieAppearance Derive(ZombieCatalog catalog, in ZombieState state)
     {
         var type = catalog.At(state.Type);
-        return ZombieGenerator.Generate(type, new ZombieSpec(state.Seed, type.Id, state.Level));
+        return ZombieGenerator.Generate(type, new ZombieSpec(state.Seed, type.Id, state.Level), catalog.Weapons);
     }
 
     [Fact]

@@ -14,6 +14,7 @@ public enum EffectError
     NotActive,
     NothingToCure,
     InvalidDuration,
+    NotConsumable,
 }
 
 public sealed record EffectApplied(CreatureId Creature, string Effect, int Stacks) : IDomainEvent;
@@ -60,6 +61,9 @@ public sealed class EffectResult
     public IReadOnlyList<IDomainEvent> Events { get; }
 
     public static EffectResult Success(IReadOnlyList<IDomainEvent> events) => new(null, events);
+
+    /// <summary>A shared success that raised no events, so a command that changed nothing allocates nothing.</summary>
+    internal static EffectResult NoChange { get; } = new(null, NoEvents);
 
     public static EffectResult Failure(EffectError error) => new(error, NoEvents);
 }

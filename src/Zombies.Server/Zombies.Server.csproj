@@ -12,4 +12,12 @@
     <ProjectReference Include="../Zombies.Persistence.Sqlite/Zombies.Persistence.Sqlite.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!--
+      Built first so its assembly is in mods/sample_code/assemblies, where the Server loads it from, even when this project is
+      built on its own. The game does not compile against the sample mod.
+    -->
+    <ProjectReference Include="../../mods/sample_code/source/SampleCodeMod.csproj" ReferenceOutputAssembly="false" />
+  </ItemGroup>
+
 </Project>

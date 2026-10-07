@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Zombies.Engine.Core;
 using Zombies.Engine.Platform;
 
 namespace Zombies.Engine.Ui;
@@ -17,6 +18,7 @@ public static class SettingsJson
             writer.WriteNumber("fieldOfViewDegrees", settings.FieldOfViewDegrees);
             writer.WriteBoolean("headBob", settings.HeadBob);
             writer.WriteString("palette", settings.Palette.ToString().ToLowerInvariant());
+            writer.WriteString("gore", settings.Gore.ToString().ToLowerInvariant());
             writer.WriteString("language", settings.Language);
             writer.WriteStartObject("keys");
             foreach (var action in Enum.GetValues<GameAction>())
@@ -61,6 +63,9 @@ public static class SettingsJson
                         break;
                     case "palette" when property.Value.ValueKind == JsonValueKind.String && Enum.TryParse<UiPaletteKind>(property.Value.GetString(), ignoreCase: true, out var palette) && !char.IsDigit(property.Value.GetString()![0]):
                         result = result with { Palette = palette };
+                        break;
+                    case "gore" when property.Value.ValueKind == JsonValueKind.String && Enum.TryParse<GoreLevel>(property.Value.GetString(), ignoreCase: true, out var gore) && !char.IsDigit(property.Value.GetString()![0]):
+                        result = result with { Gore = gore };
                         break;
                     case "language" when property.Value.ValueKind == JsonValueKind.String:
                         result = result with { Language = property.Value.GetString()! };

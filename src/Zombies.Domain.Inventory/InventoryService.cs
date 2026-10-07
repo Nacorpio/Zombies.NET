@@ -158,5 +158,91 @@ public sealed class InventoryService(IItemCatalog catalog, IContainerRepository 
         return InventoryResult.Success(new StacksMerged(containerId, target, source, resulting));
     }
 
+    /// <summary>
+    /// Takes one Item from a Stack and fits it to a single Item elsewhere, as when an Attachment is fitted to a weapon. The
+    /// caller decides the host's new state, which must hold exactly one more of the part; this checks only that the Stacks
+    /// exist and that the host's Container still has room. Nothing changes on a failure.
+    /// </summary>
+    public InventoryResult FitInto(ContainerId from, StackId part, ContainerId hostContainer, StackId host, ItemState hostState)
+    {
+        ArgumentNullException.ThrowIfNull(hostState);
+        if (!containers.TryGet(from, out var source) || !containers.TryGet(hostContainer, out var destination))
+        {
+            return InventoryResult.Failure(InventoryError.UnknownContainer);
+        }
+
+        if (source.Find(part) is not { } fitted || destination.Find(host) is not { } holder)
+        {
+            return InventoryResult.Failure(InventoryError.UnknownStack);
+        }
+
+        if (from == hostContainer && part == host)
+        {
+            return InventoryResult.Failure(InventoryError.SameStack);
+        }
+
+        if (holder.Count != 1)
+        {
+            return InventoryResult.Failure(InventoryError.InvalidCount);
+        }
+
+        // Attached Items carry no state of their own, so an Item with state cannot be fitted without losing it.
+        if (fitted.State is not null || AttachedCount(hostState, fitted.Item) != AttachedCount(holder.State, fitted.Item) + 1)
+        {
+            return InventoryResult.Failure(InventoryError.StateMismatch);
+        }
+
+        if (destination.CheckRestate(holder, hostState, leaving: from == hostContainer ? fitted.Item : null) is { } error)
+        {
+            return InventoryResult.Failure(error);
+        }
+
+        source.RemoveFromStack(part, 1);
+        destination.Restate(host, hostState);
+        return InventoryResult.Success(new ItemsRemoved(from, fitted.Item, 1), new StackStateChanged(hostContainer, host, holder.Item, hostState));
+    }
+
+    /// <summary>
+    /// Takes one Item out of a single Item's state and puts it in a Container, as when an Attachment is removed from a weapon.
+    /// The caller decides the host's new state, which must hold exactly one fewer of the part. Nothing changes on a failure.
+    /// </summary>
+    public InventoryResult TakeOutOf(ContainerId hostContainer, StackId host, ItemState? hostState, ItemId part, ContainerId to)
+    {
+        hostState = Normalized(hostState);
+        if (!containers.TryGet(hostContainer, out var source) || !containers.TryGet(to, out var destination))
+        {
+            return InventoryResult.Failure(InventoryError.UnknownContainer);
+        }
+
+        if (source.Find(host) is not { } holder)
+        {
+            return InventoryResult.Failure(InventoryError.UnknownStack);
+        }
+
+        if (holder.Count != 1)
+        {
+            return InventoryResult.Failure(InventoryError.InvalidCount);
+        }
+
+        if (AttachedCount(holder.State, part) != AttachedCount(hostState, part) + 1)
+        {
+            return InventoryResult.Failure(InventoryError.StateMismatch);
+        }
+
+        var error = to == hostContainer
+            ? source.CheckRestate(holder, hostState, arriving: part)
+            : source.CheckRestate(holder, hostState) ?? destination.CheckFits(part, 1);
+        if (error is not null)
+        {
+            return InventoryResult.Failure(error.Value);
+        }
+
+        source.Restate(host, hostState);
+        destination.Add(part, 1);
+        return InventoryResult.Success(new StackStateChanged(hostContainer, host, holder.Item, hostState), new ItemsAdded(to, part, 1));
+    }
+
+    private static int AttachedCount(ItemState? state, ItemId item) => state?.Attached.GetValueOrDefault(item) ?? 0;
+
     private static ItemState? Normalized(ItemState? state) => state is { IsEmpty: true } ? null : state;
 }

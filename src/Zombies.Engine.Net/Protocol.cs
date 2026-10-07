@@ -13,12 +13,18 @@ public enum MessageType : byte
     CommandRejected,
     Snapshot,
     SnapshotAck,
+
+    /// <summary>The Server's account of the receiving player's own Body and Held weapon, sent with each snapshot.</summary>
+    PlayerStatus,
+
+    /// <summary>The Status effects on the receiving player, sent to that player alone whenever they change.</summary>
+    StatusEffects,
 }
 
 public static class NetProtocol
 {
     /// <summary>Bump whenever any message layout changes, so old clients are refused instead of misreading.</summary>
-    public const ushort Version = 5;
+    public const ushort Version = 6;
 }
 
 /// <summary>Why the Server refused a join.</summary>

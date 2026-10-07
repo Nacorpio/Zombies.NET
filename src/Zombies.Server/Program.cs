@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Globalization;
+using Zombies.Domain.Combat;
 using Zombies.Domain.Death;
 using Zombies.Domain.Items;
 using Zombies.Domain.Mods;
@@ -158,7 +159,18 @@ if (savePath is not null)
 }
 
 var items = new ItemCatalog(mods.Registry.OfKind("item").Select(d => ItemDefinitionJson.Parse(d.Json)));
-var options = new ServerOptions(identity, seed) { MaxPlayers = maxPlayers, Items = items };
+var woundKinds = new WoundKindCatalog(mods.Registry.OfKind("wound_kind").Select(d => WoundKindJson.Parse(d.Json)));
+var options = new ServerOptions(identity, seed)
+{
+    MaxPlayers = maxPlayers,
+    Items = items,
+    Weapons = new WeaponCatalog(
+        mods.Registry.OfKind("weapon_category").Select(d => WeaponDefinitionJson.ParseCategory(d.Json)),
+        mods.Registry.OfKind("weapon").Select(d => WeaponDefinitionJson.ParseWeapon(d.Json)),
+        mods.Registry.OfKind("attachment").Select(d => WeaponDefinitionJson.ParseAttachment(d.Json))),
+    Treatments = new TreatmentCatalog(mods.Registry.OfKind("treatment").Select(d => TreatmentJson.Parse(d.Json)), woundKinds),
+    PlayerBody = new BodyConfig { WoundKinds = woundKinds },
+};
 
 // With a save, Corpses and their Containers and the Memorials are kept in it; without one they last as long as the process.
 var deathStores = save is null

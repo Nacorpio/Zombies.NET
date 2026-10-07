@@ -57,12 +57,14 @@ internal sealed class UiSession : IDisposable
     private readonly InventoryService _inventoryService;
     private readonly InMemoryContainerRepository _containers;
     private readonly ItemCatalog _catalog;
+    private readonly Outfit _outfit;
     private readonly StatusEffectCatalog _effects;
     private readonly KeyBindings _keys;
     private readonly SettingsEditor _editor;
     private readonly List<Dialog> _dialogs = [];
 
     private const int HudEffectSlots = 6;
+    private static readonly Key[] MenuKeys = [Key.Escape, Key.Up, Key.Down, Key.Enter];
 
     private UiScreen _screen;
     private UiRect _screenRect;
@@ -72,6 +74,8 @@ internal sealed class UiSession : IDisposable
     private float _mouseX;
     private float _mouseY;
     private StackId? _heldStack;
+    private (float X, float Y) _inspectAt;
+    private string? _pendingMenu;
 
     public UiSession(ClientOptions options, PlayerStatus status)
     {
@@ -119,8 +123,16 @@ internal sealed class UiSession : IDisposable
             mods.Registry.OfKind("weapon").Select(d => WeaponDefinitionJson.ParseWeapon(d.Json)),
             mods.Registry.OfKind("attachment").Select(d => WeaponDefinitionJson.ParseAttachment(d.Json)));
         var fitting = new WeaponFittingService(_inventoryService, _containers, new WeaponService(weapons));
-        _inventoryView = new InventoryView(_inventoryService, _containers, _catalog, _localizer, fitting);
-
+        // No wearable content ships yet, so nothing offers Equip until a mod defines some.
+        var wearables = new WearableCatalog([]);
+        _outfit = new Outfit(wearables);
+        var actions = new ItemActionService(
+            new ItemActionCatalog(mods.Registry.OfKind("item_action").Select(d => ItemActionJson.Parse(d.Json))),
+            _catalog,
+            wearables,
+            weapons);
+        _inventoryView = new InventoryView(_inventoryService, _containers, _catalog, _localizer, fitting, actions, _outfit);
+        _inventoryView.Used += used => Used?.Invoke(used);
         // A backpack and the ground, filled with a few things so the screen has something to show.
         var backpack = new ContainerId(1);
         var ground = new ContainerId(2);
@@ -128,6 +140,8 @@ internal sealed class UiSession : IDisposable
         _containers.TryAdd(new Container(ground, UnitsNet.Mass.FromKilograms(1000), UnitsNet.Volume.FromLiters(1000), _catalog));
         _inventoryView.AddTarget(backpack, "inv.backpack");
         _inventoryView.AddTarget(ground, "inv.ground");
+        _inventoryView.SetRole(backpack, new ContainerRole(IsOwn: true, IsReadOnly: false, DropInto: ground));
+        _inventoryView.SetRole(ground, new ContainerRole(IsOwn: false, IsReadOnly: false));
         Backpack = backpack;
         Ground = ground;
         SeedInventory();
@@ -141,12 +155,20 @@ internal sealed class UiSession : IDisposable
 
     public UiScreen Screen => _screen;
 
+    /// <summary>Raised after the player used an Item from the inventory and the Inventory command took it out. Whoever owns the authoritative inventory tells the Server.</summary>
+    public event Action<ItemUsed>? Used;
+
     /// <summary>Opens a screen by name, for a diagnostic run that wants to photograph it.</summary>
     public bool Open(string name)
     {
         switch (name)
         {
             case "inventory": _screen = UiScreen.Inventory; return true;
+            case "inventory-menu":
+            case "inventory-menu-ground":
+                _screen = UiScreen.Inventory;
+                _pendingMenu = name;
+                return true;
             case "body": _screen = UiScreen.Body; return true;
             case "options": _screen = UiScreen.Options; return true;
             case "dialog":
@@ -205,6 +227,18 @@ internal sealed class UiSession : IDisposable
                 }
             }
 
+            return true;
+        }
+
+        if (_screen != UiScreen.Inventory && _inventoryView.Menu.IsOpen)
+        {
+            _inventoryView.Menu.Close();
+        }
+
+        // Up, Down, Enter and Escape drive an open menu, and Escape closes just the menu rather than the whole screen.
+        if (_screen == UiScreen.Inventory && _inventoryView.Menu.IsOpen && MenuKey(input))
+        {
+            SyncHeldWeapon();
             return true;
         }
 
@@ -319,12 +353,20 @@ internal sealed class UiSession : IDisposable
         _mouseX = input.MouseX;
         _mouseY = input.MouseY;
 
-        // A right click on a weapon opens it to show its Mounts.
-        if (input.WasPressed(MouseButton.Right) && BackpackSlotAt(input.MouseX, input.MouseY) is { } opened)
+        _inventoryView.Menu.PointerMoved(input.MouseX, input.MouseY);
+
+        // A right click on a Stack, in the backpack or in a container being looted, opens the menu of what can be done with it.
+        // Empty space opens nothing, and a Stack that is being dragged is not interrupted.
+        if (input.WasPressed(MouseButton.Right))
         {
-            if (!_inventoryView.OpenWeapon(Backpack, opened))
+            _inventoryView.DismissInspection();
+            if (SlotAt(input.MouseX, input.MouseY) is { } target)
             {
-                _inventoryView.CloseWeapon();
+                _inventoryView.OpenMenu(target.Container, target.Stack, input.MouseX, input.MouseY, ScreenOrDefault(), _textScale);
+            }
+            else
+            {
+                _inventoryView.Menu.Close();
             }
 
             return;
@@ -332,6 +374,16 @@ internal sealed class UiSession : IDisposable
 
         if (input.WasPressed(MouseButton.Left))
         {
+            _inventoryView.DismissInspection();
+
+            // An open menu takes the click: it chooses an entry or closes, and nothing underneath is picked up.
+            if (_inventoryView.Menu.Click(input.MouseX, input.MouseY))
+            {
+                _inspectAt = (input.MouseX, input.MouseY);
+                SyncHeldWeapon();
+                return;
+            }
+
             _mouseWasDown = true;
             if (MountAt(input.MouseX, input.MouseY) is { } mount)
             {
@@ -374,10 +426,38 @@ internal sealed class UiSession : IDisposable
         }
     }
 
-    private StackId? BackpackSlotAt(float x, float y)
+    private StackId? BackpackSlotAt(float x, float y) => SlotIn(Backpack, "inv.backpack", x, y);
+
+    /// <summary>The Stack under a point in either the backpack or the container being looted, and which container it is in.</summary>
+    private (ContainerId Container, StackId Stack)? SlotAt(float x, float y)
     {
-        var panel = _inventoryView.Panel(Backpack);
-        var slots = _inventoryView.ArrangeSlots(Backpack, _inventoryLayout.Find("inv.backpack")!.Bounds, _textScale);
+        if (SlotIn(Backpack, "inv.backpack", x, y) is { } mine)
+        {
+            return (Backpack, mine);
+        }
+
+        return SlotIn(Ground, "inv.ground", x, y) is { } loot ? (Ground, loot) : null;
+    }
+
+    private bool MenuKey(InputState input)
+    {
+        foreach (var key in MenuKeys)
+        {
+            if (input.WasPressed(key))
+            {
+                return _inventoryView.Menu.KeyPressed(key);
+            }
+        }
+
+        return false;
+    }
+
+    private UiRect ScreenOrDefault() => _screenRect.Width > 0 ? _screenRect : new UiRect(0, 0, 1280, 720);
+
+    private StackId? SlotIn(ContainerId container, string panelId, float x, float y)
+    {
+        var panel = _inventoryView.Panel(container);
+        var slots = _inventoryView.ArrangeSlots(container, _inventoryLayout.Find(panelId)!.Bounds, _textScale);
         for (var i = 0; i < slots.Count && i < panel.Slots.Count; i++)
         {
             if (slots[i].Contains(x, y))
@@ -511,6 +591,50 @@ internal sealed class UiSession : IDisposable
         {
             sprites.DrawText(message, _screenRect.X + (8 * _textScale), _screenRect.Bottom - (24 * _textScale), _textScale, palette.Color(PaletteRole.Danger));
         }
+
+        OpenPendingMenu();
+        _inventoryView.Menu.Rearrange(_screenRect, _textScale);
+        if (_inventoryView.Inspection is { } inspection)
+        {
+            UiRenderer.DrawTooltip(sprites, inspection, palette, _inspectAt.X, _inspectAt.Y, _screenRect, _textScale);
+        }
+
+        UiRenderer.DrawContextMenu(sprites, _inventoryView.Menu, palette, _screenRect, _textScale);
+    }
+
+    /// <summary>
+    /// A diagnostic run asked for a menu to be open on the first frame, so a screenshot can show it. The layout is only known once it has been
+    /// arranged, so the menu opens here. The ground variant also highlights an entry that cannot run there, to show its reason.
+    /// </summary>
+    private void OpenPendingMenu()
+    {
+        if (_pendingMenu is not { } name)
+        {
+            return;
+        }
+
+        _pendingMenu = null;
+        var onGround = name == "inventory-menu-ground";
+        var container = onGround ? Ground : Backpack;
+        var panel = _inventoryView.Panel(container);
+        var rects = _inventoryView.ArrangeSlots(container, _inventoryLayout.Find(onGround ? "inv.ground" : "inv.backpack")!.Bounds, _textScale);
+
+        // A Stack of more than one, so Split shows too.
+        var index = panel.Slots.ToList().FindIndex(s => s.Count > 1);
+        index = Math.Max(0, index);
+        if (index >= panel.Slots.Count || index >= rects.Count)
+        {
+            return;
+        }
+
+        var rect = rects[index];
+        _mouseX = rect.X + (rect.Width / 2);
+        _mouseY = rect.Y + (rect.Height / 2);
+        if (_inventoryView.OpenMenu(container, panel.Slots[index].Stack, _mouseX, _mouseY, _screenRect, _textScale) && onGround)
+        {
+            _inventoryView.Menu.KeyPressed(Key.Down);
+            _inventoryView.Menu.KeyPressed(Key.Down);
+        }
     }
 
     private void DrawSlots(SpriteBatch sprites, UiPalette palette, ContainerId container, UiRect panel)
@@ -599,6 +723,14 @@ internal sealed class UiSession : IDisposable
             if (ItemId.TryParse(item, out var id) && _catalog.TryGet(id, out _))
             {
                 _inventoryService.AddItems(Backpack, id, count);
+            }
+        }
+
+        foreach (var (item, count) in new[] { ("base:item/bandage", 2), ("base:item/canned_beans", 2) })
+        {
+            if (ItemId.TryParse(item, out var id) && _catalog.TryGet(id, out _))
+            {
+                _inventoryService.AddItems(Ground, id, count);
             }
         }
 

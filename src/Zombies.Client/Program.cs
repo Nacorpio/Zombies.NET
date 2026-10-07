@@ -21,7 +21,7 @@ using Zombies.Engine.Ui;
 //   --shot f.png      load the world, wait until it settles, save a picture, quit
 //   --bench           fly a fixed path at 1080p and report frame times; exit code 1 if over --budget-ms (default 16.6)
 //   --session F       show a debug session badge (top right) that follows the JSON file F; F4 pins it open, hovering opens it
-//   --screen NAME     open a screen at startup (inventory, body, options, dialog) so a screenshot can show it
+//   --screen NAME     open a screen at startup (inventory, inventory-menu, inventory-menu-ground, body, options, dialog) so a screenshot can show it
 //   --smoke           scripted resize / minimize / restore / input check; exit code 0 means it all worked
 // Interactive: WASD fly, Space and Ctrl up and down, Shift fast, Tab mouse look, F1 overlay, F2 pause time, F3 day speed, Left/Right arrows change time.
 var options = ClientOptions.Parse(args);
@@ -56,7 +56,7 @@ var benchmark = options.Benchmark ? new BenchmarkRun() : null;
 using var ui = options.NoWorld ? null : new UiSession(options, new PlayerStatus());
 if (ui is not null && options.Screen is { } startScreen && !ui.Open(startScreen))
 {
-    throw new ArgumentException($"Unknown screen '{startScreen}'. Use inventory, body, options, dialog, or none.");
+    throw new ArgumentException($"Unknown screen '{startScreen}'. Use inventory, inventory-menu, inventory-menu-ground, body, options, dialog, or none.");
 }
 
 var dayLengths = new[] { 24f * 60f, 120f, 20f };

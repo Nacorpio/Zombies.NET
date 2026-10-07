@@ -1,2 +1,2 @@
-﻿{ "id": "base:item_action/inspect", "label": "action.inspect", "icon": "inspect", "group": "inspect", "order": 0 }
+{ "id": "base:item_action/inspect", "label": "menu.inspect", "icon": "inspect", "group": "inspect", "order": 0 }
 

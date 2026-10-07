@@ -4,7 +4,8 @@ namespace Zombies.Engine.Core.Modding;
 
 /// <summary>
 /// Reads mods from disk. Each sub-folder of the mods root is one mod: a <c>mod.json</c> manifest and
-/// definition files as <c>*.json</c> anywhere under <c>data/</c>, icons as <c>*.png</c> in <c>icons/</c>, string tables as <c>*.json</c> in <c>lang/</c>, and screen layouts as <c>*.json</c> in <c>ui/</c>, and rig files (skeletons, clips, and weapon rigs) as <c>*.json</c> in <c>rigs/</c>. The same loader handles every mod, the Base mod included.
+/// definition files as <c>*.json</c> anywhere under <c>data/</c>, icons as <c>*.png</c> in <c>icons/</c>, string tables as <c>*.json</c> in <c>lang/</c>, and screen layouts as <c>*.json</c> in <c>ui/</c>, and rig files (skeletons, clips, and weapon rigs) as <c>*.json</c> in <c>rigs/</c>.
+/// A Code mod's assemblies are <c>*.dll</c> in <c>assemblies/</c>. The same loader handles every mod, the Base mod included.
 /// </summary>
 public static class DirectoryModSource
 {
@@ -14,6 +15,7 @@ public static class DirectoryModSource
     public const string LanguageFolderName = "lang";
     public const string LayoutFolderName = "ui";
     public const string RigFolderName = "rigs";
+    public const string AssemblyFolderName = "assemblies";
 
     public static IReadOnlyList<ModPackage> Read(string modsRoot)
     {
@@ -26,36 +28,49 @@ public static class DirectoryModSource
         var packages = new List<ModPackage>();
         foreach (var directory in Directory.EnumerateDirectories(modsRoot).Order(StringComparer.Ordinal))
         {
-            var manifestPath = Path.Combine(directory, ManifestFileName);
-            if (!File.Exists(manifestPath))
+            if (File.Exists(Path.Combine(directory, ManifestFileName)))
             {
-                continue;
+                packages.Add(ReadOne(directory));
             }
-
-            var dataRoot = Path.Combine(directory, DataFolderName);
-            var files = new List<ModFile>();
-            if (Directory.Exists(dataRoot))
-            {
-                foreach (var path in Directory.EnumerateFiles(dataRoot, "*.json", SearchOption.AllDirectories))
-                {
-                    var relative = Path.GetRelativePath(directory, path).Replace('\\', '/');
-                    files.Add(new ModFile(relative, File.ReadAllText(path)));
-                }
-            }
-
-            packages.Add(new ModPackage(Path.GetFileName(directory), File.ReadAllText(manifestPath), files)
-            {
-                Assets =
-                [
-                    .. ReadAssets(directory, IconsFolderName, "*.png"),
-                    .. ReadAssets(directory, LanguageFolderName, "*.json"),
-                    .. ReadAssets(directory, LayoutFolderName, "*.json"),
-                    .. ReadAssets(directory, RigFolderName, "*.json"),
-                ],
-            });
         }
 
         return packages;
+    }
+
+    /// <summary>Reads the one mod in <paramref name="modDirectory"/>, which must hold a <c>mod.json</c>.</summary>
+    /// <exception cref="FileNotFoundException">The folder has no <c>mod.json</c>.</exception>
+    public static ModPackage ReadOne(string modDirectory)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(modDirectory);
+        var directory = Path.TrimEndingDirectorySeparator(Path.GetFullPath(modDirectory));
+        var manifestPath = Path.Combine(directory, ManifestFileName);
+        if (!File.Exists(manifestPath))
+        {
+            throw new FileNotFoundException($"'{modDirectory}' is not a mod: it has no {ManifestFileName}.", manifestPath);
+        }
+
+        var dataRoot = Path.Combine(directory, DataFolderName);
+        var files = new List<ModFile>();
+        if (Directory.Exists(dataRoot))
+        {
+            foreach (var path in Directory.EnumerateFiles(dataRoot, "*.json", SearchOption.AllDirectories))
+            {
+                var relative = Path.GetRelativePath(directory, path).Replace('\\', '/');
+                files.Add(new ModFile(relative, File.ReadAllText(path)));
+            }
+        }
+
+        return new ModPackage(Path.GetFileName(directory), File.ReadAllText(manifestPath), files)
+        {
+            Assets =
+            [
+                .. ReadAssets(directory, IconsFolderName, "*.png"),
+                .. ReadAssets(directory, LanguageFolderName, "*.json"),
+                .. ReadAssets(directory, LayoutFolderName, "*.json"),
+                .. ReadAssets(directory, RigFolderName, "*.json"),
+            ],
+            Assemblies = ReadAssets(directory, AssemblyFolderName, "*.dll"),
+        };
     }
 
     private static List<ModAsset> ReadAssets(string modDirectory, string folder, string pattern)

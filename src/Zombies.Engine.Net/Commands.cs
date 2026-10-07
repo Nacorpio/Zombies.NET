@@ -48,6 +48,9 @@ public readonly record struct CommandContext(GameServer Server, PlayerSession Pl
 /// <summary>Validates and applies one Domain command. Validation must come first: a rejected command changes nothing.</summary>
 public delegate CommandResult CommandHandler<TCommand>(in TCommand command, CommandContext context);
 
+/// <summary>Validates and applies one Domain command whose payload layout only the handler knows, such as a Code mod's message.</summary>
+public delegate CommandResult CommandPayloadHandler(ReadOnlySpan<byte> payload, CommandContext context);
+
 /// <summary>The Domain commands a Server accepts, by command id.</summary>
 public sealed class CommandRegistry
 {
@@ -62,9 +65,23 @@ public sealed class CommandRegistry
         where TCommand : INetCommand<TCommand>
     {
         ArgumentNullException.ThrowIfNull(handler);
-        if (!_handlers.TryAdd(TCommand.CommandId, new Entry<TCommand>(handler)))
+        Add(TCommand.CommandId, new Entry<TCommand>(handler));
+    }
+
+    /// <summary>Registers a command by an id known only at run time. The handler receives the whole payload.</summary>
+    public void Register(ushort commandId, CommandPayloadHandler handler)
+    {
+        ArgumentNullException.ThrowIfNull(handler);
+        Add(commandId, new PayloadEntry(handler));
+    }
+
+    public bool IsRegistered(ushort commandId) => _handlers.ContainsKey(commandId);
+
+    private void Add(ushort commandId, IEntry entry)
+    {
+        if (!_handlers.TryAdd(commandId, entry))
         {
-            throw new InvalidOperationException($"Command id {TCommand.CommandId} is already registered.");
+            throw new InvalidOperationException($"Command id {commandId} is already registered.");
         }
     }
 
@@ -94,6 +111,11 @@ public sealed class CommandRegistry
             payload.EnsureEnd();
             return handler(in command, context);
         }
+    }
+
+    private sealed class PayloadEntry(CommandPayloadHandler handler) : IEntry
+    {
+        public CommandResult Handle(ref NetReader payload, CommandContext context) => handler(payload.ReadToEnd(), context);
     }
 }
 

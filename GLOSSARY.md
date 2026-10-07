@@ -16,6 +16,10 @@ _Avoid_: Content pack, resource pack
 A mod that ships C# assemblies. Trusted, and warns the player on install.
 _Avoid_: Plugin, script
 
+**Mod message**:
+A Domain command that a Code mod defines through the modding API. Its number on the wire is never chosen by the mod: it is assigned when the mods load, from the list of mods the Server runs sorted by id, so a client and its Server always number it the same. A client-only mod cannot have one.
+_Avoid_: Packet, RPC, custom command
+
 **Content ID**:
 A namespaced identifier of the form `namespace:name` that uniquely names a definition.
 _Avoid_: Key, slug, internal name

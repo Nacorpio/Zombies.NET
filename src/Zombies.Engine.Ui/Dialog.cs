@@ -57,10 +57,12 @@ public sealed class Dialog
 
     public UiRect Bounds { get; private set; }
 
-    public static Dialog Create(Localizer localizer, string titleKey, string messageKey, string? captionKey, IReadOnlyList<DialogButton> buttons)
+    /// <param name="arguments">Values for <c>{0}</c> style placeholders in the title and the message, such as a mod's name.</param>
+    public static Dialog Create(Localizer localizer, string titleKey, string messageKey, string? captionKey, IReadOnlyList<DialogButton> buttons, params object[] arguments)
     {
         ArgumentNullException.ThrowIfNull(localizer);
-        return CreateText(localizer, localizer.Get(titleKey), localizer.Get(messageKey), captionKey is null ? null : localizer.Get(captionKey), buttons);
+        ArgumentNullException.ThrowIfNull(arguments);
+        return CreateText(localizer, localizer.Format(titleKey, arguments), localizer.Format(messageKey, arguments), captionKey is null ? null : localizer.Get(captionKey), buttons);
     }
 
     /// <summary>A dialog whose title, message, and caption are already localized, such as a message filled in with names and numbers.</summary>

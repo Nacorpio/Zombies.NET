@@ -12,6 +12,17 @@ using Zombies.Engine.Render;
 //   dotnet run --project tools/SimHarness physics [seed] [mods]   drop a player onto generated terrain with Jolt and step up a ledge
 //   dotnet run --project tools/SimHarness ui [mods]   load every string table and layout and check they fit the screen
 //   dotnet run --project tools/SimHarness ai [seed] [--ticks N] [--budget-ms N] [--zombies N]   time Server ticks with 4 players and 200 zombies thinking
+//   dotnet run --project tools/SimHarness codemods [mods]   run the Code mods as a Server, a client, and solo, and check sides and message numbers
+//   dotnet run --project tools/SimHarness install <mod> <mods-root> [--trust] [--lang CODE]   install a mod, showing a Code mod's trust warning
+if (args.Length > 0 && args[0] == "codemods")
+{
+    return CodeModReport.Run(args[1..]);
+}
+
+if (args.Length > 0 && args[0] == "install")
+{
+    return CodeModReport.Install(args[1..]);
+}
 if (args.Length > 0 && args[0] == "mods")
 {
     return LoadMods(args.Length > 1 ? args[1] : "mods");

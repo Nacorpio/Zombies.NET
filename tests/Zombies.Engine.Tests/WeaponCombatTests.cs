@@ -60,8 +60,7 @@ public sealed class WeaponCombatTests
             }
 
             Server = new GameServer(Network.CreateServer(), options);
-            var traits = new TraitRegistry();
-            BaseTraits.Register(traits);
+            var traits = RepositoryMods.Traits();
             Zombies = new ZombieSystem(Server.World, ZombieContentLoader.Load(registry), traits, RigTestData.BaseSkeleton("humanoid"), RigTestData.BaseClips("humanoid"));
             Server.Zombies = Zombies;
             Client = new GameClient(Network.Connect(), Identity, "alice");

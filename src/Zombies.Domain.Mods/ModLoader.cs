@@ -11,6 +11,9 @@ public static class ModLoader
 {
     public const string BaseModId = "base";
 
+    /// <summary>Where a Code mod's assemblies sit inside it, as the prefix of their <see cref="ModAsset.Path"/>.</summary>
+    public const string AssemblyFolder = "assemblies/";
+
     private sealed class Entry(JsonObject json, string definedBy)
     {
         public JsonObject Json { get; set; } = json;
@@ -36,6 +39,10 @@ public static class ModLoader
             else if (!mods.TryAdd(manifest.Id, (manifest, package)))
             {
                 errors.Add(new ModLoadError(ModLoadErrorKind.DuplicateModId, manifest.Id, "mod.json", $"Mod id '{manifest.Id}' is used by more than one mod ('{package.Source}')."));
+            }
+            else
+            {
+                CheckAssemblies(manifest, package, errors);
             }
         }
 
@@ -69,6 +76,24 @@ public static class ModLoader
     }
 
     private static ModLoadResult Failed(List<ModLoadError> errors) => new([], DefinitionRegistry.Empty, ContentIdMigrations.Empty, errors);
+
+    /// <summary>Every assembly a Code mod lists must have been shipped and read, or the mod set cannot load.</summary>
+    private static void CheckAssemblies(ModManifest manifest, ModPackage package, List<ModLoadError> errors)
+    {
+        foreach (var name in manifest.Assemblies)
+        {
+            var path = AssemblyFolder + name;
+            var shipped = package.Assemblies.FirstOrDefault(a => string.Equals(a.Path, path, StringComparison.Ordinal));
+            if (shipped is null)
+            {
+                errors.Add(new ModLoadError(ModLoadErrorKind.MissingAssembly, manifest.Id, "mod.json", $"Lists the assembly '{name}', but '{path}' is not in the mod. Build or reinstall the mod."));
+            }
+            else if (shipped.ReadError is not null)
+            {
+                errors.Add(new ModLoadError(ModLoadErrorKind.MissingAssembly, manifest.Id, path, $"Could not be read: {shipped.ReadError}"));
+            }
+        }
+    }
 
     private static void CheckDependencies(Dictionary<string, (ModManifest Manifest, ModPackage Package)> mods, List<ModLoadError> errors)
     {

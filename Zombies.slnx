@@ -32,6 +32,9 @@
     <Project Path="src/Zombies.Persistence.Sqlite/Zombies.Persistence.Sqlite.csproj" />
     <Project Path="src/Zombies.Server/Zombies.Server.csproj" />
   </Folder>
+  <Folder Name="/mods/">
+    <Project Path="mods/sample_code/source/SampleCodeMod.csproj" />
+  </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/Zombies.Domain.Tests/Zombies.Domain.Tests.csproj" />
     <Project Path="tests/Zombies.Engine.Tests/Zombies.Engine.Tests.csproj" />

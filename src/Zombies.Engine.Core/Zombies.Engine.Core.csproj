@@ -8,6 +8,7 @@
     <ProjectReference Include="../Zombies.Domain.StatusEffects/Zombies.Domain.StatusEffects.csproj" />
     <ProjectReference Include="../Zombies.Domain.World/Zombies.Domain.World.csproj" />
     <ProjectReference Include="../Zombies.Domain.Zombies/Zombies.Domain.Zombies.csproj" />
+    <ProjectReference Include="../Zombies.Modding.Api/Zombies.Modding.Api.csproj" />
   </ItemGroup>
 
 </Project>

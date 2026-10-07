@@ -34,4 +34,9 @@
     <ProjectReference Include="../../src/Zombies.Persistence.Sqlite/Zombies.Persistence.Sqlite.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- Built first so its assembly is in mods/sample_code/assemblies, where the tests load it from like the game does. -->
+    <ProjectReference Include="../../mods/sample_code/source/SampleCodeMod.csproj" ReferenceOutputAssembly="false" />
+  </ItemGroup>
+
 </Project>

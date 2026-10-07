@@ -20,6 +20,7 @@ public enum ModLoadErrorKind
     InvalidOperator,
     DuplicateMigration,
     MigrationCycle,
+    MissingAssembly,
 }
 
 /// <summary>A reason the mod set cannot load. <see cref="ModId"/> is the mod's id, or its source when no id could be read.</summary>

@@ -25,8 +25,7 @@ public sealed class ZombieReplicationTests
             Network.DropEveryNthUnreliable = dropEveryNthUnreliable;
             var transport = Network.CreateServer();
             Server = new GameServer(transport, new ServerOptions(Identity, WorldSeed: 5));
-            var traits = new TraitRegistry();
-            BaseTraits.Register(traits);
+            var traits = RepositoryMods.Traits();
             Zombies = new ZombieSystem(Server.World, Catalog, traits, RigTestData.BaseSkeleton("humanoid"), RigTestData.BaseClips("humanoid"));
         }
 

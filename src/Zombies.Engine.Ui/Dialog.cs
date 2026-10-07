@@ -61,17 +61,26 @@ public sealed class Dialog
     public static Dialog Create(Localizer localizer, string titleKey, string messageKey, string? captionKey, IReadOnlyList<DialogButton> buttons, params object[] arguments)
     {
         ArgumentNullException.ThrowIfNull(localizer);
-        ArgumentNullException.ThrowIfNull(buttons);
         ArgumentNullException.ThrowIfNull(arguments);
+        return CreateText(localizer, localizer.Format(titleKey, arguments), localizer.Format(messageKey, arguments), captionKey is null ? null : localizer.Get(captionKey), buttons);
+    }
+
+    /// <summary>A dialog whose title, message, and caption are already localized, such as a message filled in with names and numbers.</summary>
+    public static Dialog CreateText(Localizer localizer, string title, string message, string? caption, IReadOnlyList<DialogButton> buttons)
+    {
+        ArgumentNullException.ThrowIfNull(localizer);
+        ArgumentNullException.ThrowIfNull(title);
+        ArgumentNullException.ThrowIfNull(message);
+        ArgumentNullException.ThrowIfNull(buttons);
         if (buttons.Count == 0)
         {
             throw new ArgumentException("A dialog needs at least one button.", nameof(buttons));
         }
 
         return new Dialog(
-            TextWrap.Truncate(localizer.Format(titleKey, arguments), MaxCharsPerLine),
-            TextWrap.Wrap(localizer.Format(messageKey, arguments), MaxCharsPerLine, MaxMessageLines),
-            captionKey is null ? null : TextWrap.Truncate(localizer.Get(captionKey), MaxCharsPerLine),
+            TextWrap.Truncate(title, MaxCharsPerLine),
+            TextWrap.Wrap(message, MaxCharsPerLine, MaxMessageLines),
+            caption is null ? null : TextWrap.Truncate(caption, MaxCharsPerLine),
             [.. buttons.Select(b => new DialogButtonView(b.Id, localizer.Get(b.LabelKey), b.IsCancel))]);
     }
 

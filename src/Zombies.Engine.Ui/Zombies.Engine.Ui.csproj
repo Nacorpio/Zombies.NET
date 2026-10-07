@@ -7,6 +7,8 @@
     <ProjectReference Include="../Zombies.Domain.Items/Zombies.Domain.Items.csproj" />
     <ProjectReference Include="../Zombies.Domain.Inventory/Zombies.Domain.Inventory.csproj" />
     <ProjectReference Include="../Zombies.Domain.Combat/Zombies.Domain.Combat.csproj" />
+    <ProjectReference Include="../Zombies.Domain.Actions/Zombies.Domain.Actions.csproj" />
+    <ProjectReference Include="../Zombies.Domain.StatusEffects/Zombies.Domain.StatusEffects.csproj" />
     <ProjectReference Include="../Zombies.Domain.Survival/Zombies.Domain.Survival.csproj" />
     <ProjectReference Include="../Zombies.Domain.Mods/Zombies.Domain.Mods.csproj" />
   </ItemGroup>

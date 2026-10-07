@@ -10,14 +10,17 @@ namespace Zombies.Engine.Physics;
 /// per player. Terrain is a heightfield rather than a triangle mesh because a heightfield is far cheaper to build and to
 /// query, and the voxel world is a heightmap everywhere the player can walk.
 /// </summary>
-public sealed class PhysicsWorld : IDisposable, IPlayerCollisionSource
+public sealed partial class PhysicsWorld : IDisposable, IPlayerCollisionSource
 {
     /// <summary>Object layer for terrain. Players are on <see cref="PlayerLayer"/>.</summary>
     private const uint TerrainLayer = 0;
 
     private const uint PlayerLayer = 1;
 
-    private const int LayerCount = 2;
+    /// <summary>Object layer for ragdoll bodies. They hit terrain and each other, never players, so a corpse cannot push anyone around.</summary>
+    private const uint DebrisLayer = 2;
+
+    private const int LayerCount = 3;
 
     private readonly PhysicsSystem _system;
     private readonly JobSystemThreadPool _jobs;
@@ -41,10 +44,13 @@ public sealed class PhysicsWorld : IDisposable, IPlayerCollisionSource
         _objectLayerPairFilter = new ObjectLayerPairFilterTable(LayerCount);
         _objectLayerPairFilter.EnableCollision(TerrainLayer, PlayerLayer);
         _objectLayerPairFilter.EnableCollision(PlayerLayer, PlayerLayer);
+        _objectLayerPairFilter.EnableCollision(DebrisLayer, TerrainLayer);
+        _objectLayerPairFilter.EnableCollision(DebrisLayer, DebrisLayer);
 
         _broadPhaseLayers = new BroadPhaseLayerInterfaceTable(LayerCount, LayerCount);
         _broadPhaseLayers.MapObjectToBroadPhaseLayer(TerrainLayer, new BroadPhaseLayer(0));
         _broadPhaseLayers.MapObjectToBroadPhaseLayer(PlayerLayer, new BroadPhaseLayer(1));
+        _broadPhaseLayers.MapObjectToBroadPhaseLayer(DebrisLayer, new BroadPhaseLayer(1));
 
         _objectVsBroadPhase = new ObjectVsBroadPhaseLayerFilterTable(_broadPhaseLayers, LayerCount, _objectLayerPairFilter, LayerCount);
 
@@ -163,6 +169,7 @@ public sealed class PhysicsWorld : IDisposable, IPlayerCollisionSource
         }
 
         _characters.Clear();
+        ClearRagdolls();
         foreach (var id in _terrainOrder)
         {
             _system.BodyInterface.RemoveAndDestroyBody(id);

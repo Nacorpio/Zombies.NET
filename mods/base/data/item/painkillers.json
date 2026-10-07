@@ -1,0 +1,10 @@
+{
+  "id": "base:item/painkillers",
+  "mass": "20 g",
+  "volume": "60 ml",
+  "maxStack": 10,
+  "edible": true,
+  "onConsume": [
+    { "effect": "base:status_effect/painkiller" }
+  ]
+}

@@ -1,3 +1,5 @@
+using Zombies.Engine.Core;
+
 namespace Zombies.Engine.Ui;
 
 /// <summary>A value between a minimum and a maximum that snaps to a step. It maps to and from a 0 to 1 fraction, which is all a slider widget needs to draw the knob and to read a mouse drag.</summary>
@@ -78,6 +80,12 @@ public sealed class SettingsEditor
     {
         var kinds = Enum.GetValues<UiPaletteKind>();
         Apply(_settings with { Palette = kinds[(Array.IndexOf(kinds, _settings.Palette) + 1) % kinds.Length] });
+    }
+
+    public void NextGore()
+    {
+        var levels = Enum.GetValues<GoreLevel>();
+        Apply(_settings with { Gore = levels[(Array.IndexOf(levels, _settings.Gore) + 1) % levels.Length] });
     }
 
     public void SetLanguage(string language) => Apply(_settings with { Language = language });

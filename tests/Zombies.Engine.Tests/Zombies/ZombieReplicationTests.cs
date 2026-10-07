@@ -99,7 +99,7 @@ public sealed class ZombieReplicationTests
     private static ZombieAppearance Derive(ZombieCatalog catalog, in ZombieState state)
     {
         var type = catalog.At(state.Type);
-        return ZombieGenerator.Generate(type, new ZombieSpec(state.Seed, type.Id, state.Level));
+        return ZombieGenerator.Generate(type, new ZombieSpec(state.Seed, type.Id, state.Level), catalog.Weapons);
     }
 
     [Fact]

@@ -220,6 +220,18 @@ public sealed class HudTests
     }
 
     [Fact]
+    public void ConditionAndAmmo_StillShow_WhenAttachmentsAreFittedToTheWeapon()
+    {
+        var fitted = ItemState.Create([new("rounds", 5), new("condition", 50)], [new(new ItemId("base:item/suppressor"), 1)]);
+
+        var model = Model(new Body(new BodyId(1)), weapon: fitted);
+
+        Assert.Equal(5, model.Ammo);
+        Assert.Equal(0.5, model.ConditionFraction, 3);
+        Assert.Equal(PaletteRole.Warning, model.ConditionRole);
+    }
+
+    [Fact]
     public void BodyParts_AreListedWithTheirHealthAndState()
     {
         var body = new Body(new BodyId(1), missingAtSpawn: [BodyPart.LeftArm]);

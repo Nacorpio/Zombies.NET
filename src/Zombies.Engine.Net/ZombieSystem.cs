@@ -17,11 +17,44 @@ public sealed record ZombieOptions
     public int CorpseTicks { get; init; } = 30 * Simulation.TickRateHz;
 }
 
-/// <summary>A zombie died. <see cref="Drops"/> is what it was wearing, which falls where it died.</summary>
+/// <summary>A zombie died. <see cref="Drops"/> is what it was wearing and the melee weapon it still held, which fall where it died.</summary>
 public sealed record ZombieDied(uint Entity, ZombieSpec Spec, Vector3 Position, IReadOnlyList<ItemId> Drops);
+
+/// <summary>A zombie lost the arm holding its melee weapon and let go of it. The weapon falls where the zombie stands.</summary>
+public sealed record ZombieDroppedWeapon(uint Entity, ZombieSpec Spec, Vector3 Position, ItemId Weapon);
+
+/// <summary>
+/// What a zombie's attack does right now, as the Server works it out from the weapon it holds. The Server applies this to whatever
+/// the attack reaches: a client never says how far or how hard a zombie hits.
+/// </summary>
+public sealed record ZombieAttack(double Reach, double Damage, DamageType DamageType, ItemId? Weapon)
+{
+    /// <summary>How far a zombie with nothing in its hands reaches, in meters.</summary>
+    public const double UnarmedReach = 0.8;
+}
 
 /// <summary>What one hit on a zombie did.</summary>
 public sealed record ZombieHit(uint Entity, BodyPart Part, float Distance, Vector3 Point, bool Killed, bool LostPart, IReadOnlyList<IDomainEvent> Events);
+
+/// <summary>What a Cosmetic event on a zombie is about.</summary>
+public enum CosmeticKind : byte
+{
+    /// <summary>A hit landed: blood spray and a decal at the point.</summary>
+    Hit,
+
+    /// <summary>A Body part was shot off: it flies away as its own body.</summary>
+    PartLost,
+
+    /// <summary>The zombie died: it collapses as a ragdoll.</summary>
+    Death,
+}
+
+/// <summary>
+/// A Cosmetic event: the Server telling clients what to draw, never what happened to the world. <see cref="Seed"/> is derived from the
+/// zombie's seed and how many Cosmetic events it has had, so every client that plays it makes the same ragdoll, decals, and spray.
+/// <see cref="Direction"/> is the unit direction the hit travelled in. Nothing here is replicated state; the Server never reads it back.
+/// </summary>
+public sealed record ZombieCosmetic(uint Entity, CosmeticKind Kind, BodyPart Part, Vector3 Point, Vector3 Direction, float Damage, ulong Seed);
 
 public sealed record ZombieSpawnReport(IReadOnlyList<uint> Spawned, IReadOnlyList<string> Problems);
 
@@ -55,6 +88,12 @@ public sealed class ZombieSystem : ITickable
 
         /// <summary>How many Weakpoint effect chances this zombie has rolled, so each roll draws its own number.</summary>
         public int EffectRolls { get; set; }
+
+        /// <summary>How many Cosmetic events this zombie has raised, so each draws its own seed.</summary>
+        public int CosmeticCount { get; set; }
+
+        /// <summary>Whether the zombie has let go of its held weapon, by losing the arm that held it or by dying.</summary>
+        public bool WeaponDropped { get; set; }
 
         public Vector3 Scale { get; } = new(appearance.BuildScale, appearance.HeightScale, appearance.BuildScale);
     }
@@ -106,6 +145,12 @@ public sealed class ZombieSystem : ITickable
     /// <summary>Raised when a zombie dies from a hit.</summary>
     public event Action<ZombieDied>? Died;
 
+    /// <summary>Raised for each hit, severed part, and death, for clients to turn into visuals. Raising it changes nothing in the world.</summary>
+    public event Action<ZombieCosmetic>? Cosmetic;
+
+    /// <summary>Raised when a zombie that is still alive loses the arm holding its weapon. A zombie that dies drops it in <see cref="Died"/> instead.</summary>
+    public event Action<ZombieDroppedWeapon>? DroppedWeapon;
+
     public bool TryGetEntity(uint id, out Entity entity)
     {
         if (_zombies.TryGetValue(id, out var data))
@@ -115,6 +160,21 @@ public sealed class ZombieSystem : ITickable
         }
 
         entity = default;
+        return false;
+    }
+
+    /// <summary>The Zombie type and spec of a zombie, which decide its bite.</summary>
+    public bool TryGetType(uint id, out ZombieTypeDefinition type, out ZombieSpec spec)
+    {
+        if (_zombies.TryGetValue(id, out var data))
+        {
+            type = data.Type;
+            spec = data.Spec;
+            return true;
+        }
+
+        type = null!;
+        spec = default;
         return false;
     }
 
@@ -142,6 +202,52 @@ public sealed class ZombieSystem : ITickable
         return false;
     }
 
+    /// <summary>
+    /// What the zombie's attack does now. The weapon it holds sets the reach and the damage, the damage scaled by its Level like any
+    /// other damage of the type; with nothing in its hands, it hits at <see cref="ZombieAttack.UnarmedReach"/> with the damage of its type.
+    /// False for a zombie that is not here or is dead.
+    /// </summary>
+    public bool TryGetAttack(uint id, out ZombieAttack attack)
+    {
+        attack = null!;
+        if (!_zombies.TryGetValue(id, out var data) || !data.Body.IsAlive)
+        {
+            return false;
+        }
+
+        if (HeldWeaponOf(data) is { } held && Catalog.Weapons is { } weapons && weapons.TryGetWeapon(held.Item, out var weapon))
+        {
+            attack = new ZombieAttack(weapon.Reach, weapon.Damage * data.Type.LevelFactor(data.Spec.Level), weapon.DamageType, held.Item);
+        }
+        else
+        {
+            attack = new ZombieAttack(ZombieAttack.UnarmedReach, data.Type.DamageAt(data.Spec.Level), DamageType.Blunt, null);
+        }
+
+        return true;
+    }
+
+    /// <summary>
+    /// Where the zombie's held weapon is drawn: its grip on the attach point of the hand that holds it, on the zombie's current
+    /// pose. False when it holds nothing now, or the skeleton lacks the attach point. A renderer calls this each frame with the
+    /// rig of <paramref name="weapon"/>, whose Item the zombie's appearance names.
+    /// </summary>
+    public bool TryGetHeldWeaponPlacement(uint id, WeaponRig weapon, out HeldWeaponPlacement placement)
+    {
+        ArgumentNullException.ThrowIfNull(weapon);
+        placement = null!;
+        if (!_zombies.TryGetValue(id, out var data) || HeldWeaponOf(data) is not { } held)
+        {
+            return false;
+        }
+
+        var elapsed = (_tick - data.PoseTick) / (float)Simulation.TickRateHz;
+        data.PoseTick = _tick;
+        data.Animator.Update(elapsed, new AnimationInput(0f, 0f, 0f, MissingParts.From(data.Body.MissingParts)));
+        var hand = held.Arm == BodyPart.RightArm ? Animation.HeldWeapon.RightHand : Animation.HeldWeapon.LeftHand;
+        return Animation.HeldWeapon.TryPlace(data.Animator.Pose, hand, weapon, [], out placement);
+    }
+
     /// <summary>Spawns a zombie from its spec. False, with the reason, when the spec names an unknown type or a Level out of its range.</summary>
     public bool TrySpawn(ZombieSpec spec, Vector3 position, float yaw, out uint id, out string? problem)
     {
@@ -164,7 +270,7 @@ public sealed class ZombieSystem : ITickable
             return false;
         }
 
-        var appearance = ZombieGenerator.Generate(type, spec);
+        var appearance = ZombieGenerator.Generate(type, spec, Catalog.Weapons);
         var missing = MissingParts.From(appearance.MissingParts);
         id = _world.SpawnZombie(position, yaw, new ZombieState(spec.Seed, (ushort)Catalog.IndexOf(type.Id), (byte)spec.Level, (byte)missing, Dead: false));
 
@@ -256,7 +362,7 @@ public sealed class ZombieSystem : ITickable
             }
         }
 
-        return nearestZombie is null ? null : Apply(nearestZombie, nearest, type, damage, attack);
+        return nearestZombie is null ? null : Apply(nearestZombie, nearest, direction, type, damage, attack);
     }
 
     public void Tick(long tick)
@@ -268,7 +374,7 @@ public sealed class ZombieSystem : ITickable
         }
     }
 
-    private ZombieHit? Apply(ZombieData data, PartHit hit, DamageType type, double damage, AttackKind attack)
+    private ZombieHit? Apply(ZombieData data, PartHit hit, Vector3 direction, DamageType type, double damage, AttackKind attack)
     {
         var weakpoint = Catalog.WeakpointsOf(data.Type)?.Find(hit.Part, hit.BoxOrigin, hit.BoxDirection, attack);
         var dealt = weakpoint is null ? damage : damage * weakpoint.CriticalMultiplier;
@@ -293,14 +399,46 @@ public sealed class ZombieSystem : ITickable
             _world.UpdateZombie(data.Id, state.Zombie with { Missing = missing, Dead = !data.Body.IsAlive });
         }
 
+        ItemId? dropped = null;
+        if (!data.WeaponDropped && data.Appearance.HeldWeapon is { } held && (killed || !held.IsHeldWith(data.Body.MissingParts)))
+        {
+            data.WeaponDropped = true;
+            dropped = held.Item;
+        }
+
         if (killed)
         {
             _world.TryGet(data.Id, out var state);
             _corpses.Enqueue((data.Id, _tick + _options.CorpseTicks));
-            Died?.Invoke(new ZombieDied(data.Id, data.Spec, state.Position, data.Appearance.WornItems));
+            IReadOnlyList<ItemId> drops = dropped is { } weapon ? [.. data.Appearance.WornItems, weapon] : data.Appearance.WornItems;
+            Died?.Invoke(new ZombieDied(data.Id, data.Spec, state.Position, drops));
+        }
+        else if (dropped is { } fallen)
+        {
+            _world.TryGet(data.Id, out var state);
+            DroppedWeapon?.Invoke(new ZombieDroppedWeapon(data.Id, data.Spec, state.Position, fallen));
+        }
+
+        RaiseCosmetic(data, CosmeticKind.Hit, hit.Part, hit.Point, direction, dealt);
+        if (lost)
+        {
+            var part = result.Events.OfType<BodyPartLost>().First().Part;
+            RaiseCosmetic(data, CosmeticKind.PartLost, part, hit.Point, direction, dealt);
+        }
+
+        if (killed)
+        {
+            RaiseCosmetic(data, CosmeticKind.Death, hit.Part, hit.Point, direction, dealt);
         }
 
         return new ZombieHit(data.Id, hit.Part, hit.Distance, hit.Point, killed, lost, events);
+    }
+
+    private void RaiseCosmetic(ZombieData data, CosmeticKind kind, BodyPart part, Vector3 point, Vector3 direction, double damage)
+    {
+        var seed = DeterministicRandom.Combine(data.Spec.Seed, (ulong)data.CosmeticCount++);
+        var unit = direction.LengthSquared() > 0f ? Vector3.Normalize(direction) : Vector3.UnitZ;
+        Cosmetic?.Invoke(new ZombieCosmetic(data.Id, kind, part, point, unit, (float)damage, seed));
     }
 
     /// <summary>
@@ -317,6 +455,10 @@ public sealed class ZombieSystem : ITickable
         var random = new DeterministicRandom(DeterministicRandom.Combine(data.Spec.Seed, (ulong)data.EffectRolls++));
         return (int)random.NextBelow(ZombieTypeDefinition.BasisPoints) < weakpoint.EffectChanceBasis ? weakpoint.Effect : null;
     }
+
+    /// <summary>The weapon the zombie holds right now: the one it spawned with, unless it has let go of it.</summary>
+    private static ZombieHeldWeapon? HeldWeaponOf(ZombieData data) =>
+        !data.WeaponDropped && data.Appearance.HeldWeapon is { } held && held.IsHeldWith(data.Body.MissingParts) ? held : null;
 
     private void Remove(uint id)
     {

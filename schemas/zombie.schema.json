@@ -193,6 +193,24 @@
       ],
       "pattern": "^[a-z0-9_]+:[a-z0-9_]+(/[a-z0-9_]+)*$"
     },
+    "heldWeapons": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "item": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "pattern": "^[a-z0-9_]+:[a-z0-9_]+(/[a-z0-9_]+)*$"
+          },
+          "weight": {
+            "type": "integer"
+          }
+        }
+      }
+    },
     "upgrade": {
       "type": [
         "object",
@@ -210,6 +228,24 @@
       "required": [
         "zombieType",
         "afterDays"
+      ]
+    },
+    "bite": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "properties": {
+        "effect": {
+          "type": "string"
+        },
+        "chance": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "effect",
+        "chance"
       ]
     }
   },

@@ -1,7 +1,9 @@
+using Zombies.Domain.Actions;
 using Zombies.Domain.Combat;
 using Zombies.Domain.Inventory;
 using Zombies.Domain.Items;
 using Zombies.Domain.Mods;
+using Zombies.Domain.StatusEffects;
 using Zombies.Domain.Survival;
 using Zombies.Engine.Core.Modding;
 using Zombies.Engine.Platform;
@@ -32,6 +34,9 @@ internal sealed class PlayerStatus
     public ItemId? Weapon { get; set; }
 
     public ItemState? WeaponState { get; set; }
+
+    /// <summary>The Status effects the Server last told this client about. Only the affected player is ever told.</summary>
+    public IReadOnlyList<ActiveEffect> Effects { get; set; } = [];
 }
 
 /// <summary>
@@ -52,15 +57,21 @@ internal sealed class UiSession : IDisposable
     private readonly InventoryService _inventoryService;
     private readonly InMemoryContainerRepository _containers;
     private readonly ItemCatalog _catalog;
+    private readonly StatusEffectCatalog _effects;
     private readonly KeyBindings _keys;
     private readonly SettingsEditor _editor;
     private readonly List<Dialog> _dialogs = [];
+
+    private const int HudEffectSlots = 6;
 
     private UiScreen _screen;
     private UiRect _screenRect;
     private UiContext _context = new(new Localizer([]), 1f, 1);
     private int _textScale = 1;
     private bool _mouseWasDown;
+    private float _mouseX;
+    private float _mouseY;
+    private StackId? _heldStack;
 
     public UiSession(ClientOptions options, PlayerStatus status)
     {
@@ -100,9 +111,15 @@ internal sealed class UiSession : IDisposable
         _status = status;
 
         _catalog = new ItemCatalog(mods.Registry.OfKind("item").Select(d => ItemDefinitionJson.Parse(d.Json)));
+        _effects = StatusEffectContentLoader.Load(mods.Registry);
         _containers = new InMemoryContainerRepository();
         _inventoryService = new InventoryService(_catalog, _containers);
-        _inventoryView = new InventoryView(_inventoryService, _containers, _catalog, _localizer);
+        var weapons = new WeaponCatalog(
+            mods.Registry.OfKind("weapon_category").Select(d => WeaponDefinitionJson.ParseCategory(d.Json)),
+            mods.Registry.OfKind("weapon").Select(d => WeaponDefinitionJson.ParseWeapon(d.Json)),
+            mods.Registry.OfKind("attachment").Select(d => WeaponDefinitionJson.ParseAttachment(d.Json)));
+        var fitting = new WeaponFittingService(_inventoryService, _containers, new WeaponService(weapons));
+        _inventoryView = new InventoryView(_inventoryService, _containers, _catalog, _localizer, fitting);
 
         // A backpack and the ground, filled with a few things so the screen has something to show.
         var backpack = new ContainerId(1);
@@ -153,6 +170,8 @@ internal sealed class UiSession : IDisposable
     /// <summary>Handles the keys and clicks the screens use. Returns true when the screens took the input, so the world should not also act on it.</summary>
     public bool Update(InputState input, float seconds)
     {
+        _mouseX = input.MouseX;
+        _mouseY = input.MouseY;
         if (_dialogs.Count > 0)
         {
             var dialog = _dialogs[^1];
@@ -256,6 +275,28 @@ internal sealed class UiSession : IDisposable
         {
             UiRenderer.DrawDialog(sprites, dialog, palette, _textScale);
         }
+
+        if (_screen == UiScreen.None && _dialogs.Count == 0 && EffectTooltipAt(_mouseX, _mouseY) is { } tooltip)
+        {
+            UiRenderer.DrawTooltip(sprites, tooltip, palette, _mouseX, _mouseY, _screenRect, _textScale);
+        }
+    }
+
+    /// <summary>Tells the HUD which Status effects the Server last replicated to this client.</summary>
+    public void SetEffects(IReadOnlyList<ActiveEffect> effects) => _status.Effects = effects;
+
+    private HudModel Hud() => new(_status.Body, _status.Needs, _status.Weapon, _status.WeaponState, _localizer, effects: _status.Effects, effectCatalog: _effects);
+
+    private Tooltip? EffectTooltipAt(float x, float y)
+    {
+        var slot = _hud.HitTest(x, y)?.Id;
+        if (slot is null || !slot.StartsWith("hud.effect.", StringComparison.Ordinal) || !int.TryParse(slot.AsSpan("hud.effect.".Length), out var index))
+        {
+            return null;
+        }
+
+        var effects = Hud().StatusEffects;
+        return index >= 0 && index < effects.Count ? effects[index].Tooltip : null;
     }
 
     /// <summary>Asks a question and waits for the answer. The dialog takes every click until it closes.</summary>
@@ -275,18 +316,33 @@ internal sealed class UiSession : IDisposable
             return;
         }
 
+        _mouseX = input.MouseX;
+        _mouseY = input.MouseY;
+
+        // A right click on a weapon opens it to show its Mounts.
+        if (input.WasPressed(MouseButton.Right) && BackpackSlotAt(input.MouseX, input.MouseY) is { } opened)
+        {
+            if (!_inventoryView.OpenWeapon(Backpack, opened))
+            {
+                _inventoryView.CloseWeapon();
+            }
+
+            return;
+        }
+
         if (input.WasPressed(MouseButton.Left))
         {
             _mouseWasDown = true;
-            var panel = _inventoryView.Panel(Backpack);
-            var slots = _inventoryView.ArrangeSlots(Backpack, _inventoryLayout.Find("inv.backpack")!.Bounds, _textScale);
-            for (var i = 0; i < slots.Count && i < panel.Slots.Count; i++)
+            if (MountAt(input.MouseX, input.MouseY) is { } mount)
             {
-                if (slots[i].Contains(input.MouseX, input.MouseY))
-                {
-                    _inventoryView.BeginDrag(Backpack, panel.Slots[i].Stack);
-                    return;
-                }
+                _inventoryView.BeginDragFromMount(mount);
+                return;
+            }
+
+            if (BackpackSlotAt(input.MouseX, input.MouseY) is { } stack)
+            {
+                _inventoryView.BeginDrag(Backpack, stack);
+                return;
             }
         }
 
@@ -296,9 +352,64 @@ internal sealed class UiSession : IDisposable
             _mouseWasDown = false;
             if (_inventoryView.Dragging is not null)
             {
-                var ground = _inventoryLayout.Find("inv.ground")!.Bounds;
-                _inventoryView.DropOn(ground.Contains(input.MouseX, input.MouseY) ? Ground : Backpack);
+                if (MountAt(input.MouseX, input.MouseY) is { } mount)
+                {
+                    _inventoryView.DropOnMount(mount);
+                }
+                else
+                {
+                    var ground = _inventoryLayout.Find("inv.ground")!.Bounds;
+                    _inventoryView.DropOn(ground.Contains(input.MouseX, input.MouseY) ? Ground : Backpack);
+                }
+
+                if (_inventoryView.Refusal is { } refusal)
+                {
+                    refusal.Arrange(_screenRect.Width > 0 ? _screenRect : new UiRect(0, 0, 1280, 720), _textScale);
+                    _dialogs.Add(refusal);
+                    _inventoryView.DismissRefusal();
+                }
+
+                SyncHeldWeapon();
             }
+        }
+    }
+
+    private StackId? BackpackSlotAt(float x, float y)
+    {
+        var panel = _inventoryView.Panel(Backpack);
+        var slots = _inventoryView.ArrangeSlots(Backpack, _inventoryLayout.Find("inv.backpack")!.Bounds, _textScale);
+        for (var i = 0; i < slots.Count && i < panel.Slots.Count; i++)
+        {
+            if (slots[i].Contains(x, y))
+            {
+                return panel.Slots[i].Stack;
+            }
+        }
+
+        return null;
+    }
+
+    private string? MountAt(float x, float y)
+    {
+        var mounts = _inventoryView.Mounts;
+        var rects = _inventoryView.ArrangeMounts(_inventoryLayout.Find("inv.mounts")!.Bounds, _textScale);
+        for (var i = 0; i < rects.Count && i < mounts.Count; i++)
+        {
+            if (rects[i].Contains(x, y))
+            {
+                return mounts[i].Mount;
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>The HUD reads the held weapon's state, so it follows the Stack when an Attachment is fitted or taken off.</summary>
+    private void SyncHeldWeapon()
+    {
+        if (_heldStack is { } held && _containers.TryGet(Backpack, out var backpack) && backpack.Stacks.FirstOrDefault(s => s.Id == held) is { } stack)
+        {
+            _status.WeaponState = stack.State;
         }
     }
 
@@ -337,6 +448,11 @@ internal sealed class UiSession : IDisposable
             _editor.NextPalette();
         }
 
+        if (input.WasPressed(Key.G))
+        {
+            _editor.NextGore();
+        }
+
         if (input.WasPressed(Key.L))
         {
             var languages = _localizer.Languages;
@@ -352,7 +468,16 @@ internal sealed class UiSession : IDisposable
 
     private void FillHudValues()
     {
-        var hud = new HudModel(_status.Body, _status.Needs, _status.Weapon, _status.WeaponState, _localizer);
+        var hud = Hud();
+        var effects = hud.StatusEffects;
+        for (var i = 0; i < HudEffectSlots; i++)
+        {
+            var id = $"hud.effect.{i}";
+            _values.SetVisible(id, i < effects.Count);
+            _values.SetText(id, i < effects.Count ? effects[i].Label : string.Empty);
+            _values.SetRole(id, i < effects.Count ? effects[i].Role : PaletteRole.Muted);
+        }
+
         _values.SetFraction("hud.health", (float)hud.HealthFraction);
         _values.SetRole("hud.health", hud.HealthRole);
         _values.SetFraction("hud.blood", (float)hud.BloodFraction);
@@ -380,6 +505,7 @@ internal sealed class UiSession : IDisposable
 
         DrawSlots(sprites, palette, Backpack, _inventoryLayout.Find("inv.backpack")!.Bounds);
         DrawSlots(sprites, palette, Ground, _inventoryLayout.Find("inv.ground")!.Bounds);
+        DrawMounts(sprites, palette, _inventoryLayout.Find("inv.mounts")!.Bounds);
 
         if (_inventoryView.Message is { } message)
         {
@@ -399,6 +525,35 @@ internal sealed class UiSession : IDisposable
             sprites.FillRect(rect.X, rect.Y, rect.Width, rect.Height, palette.Color(dragging ? PaletteRole.Info : PaletteRole.Muted));
             var label = slot.Count > 1 ? $"{slot.Label} x{slot.Count}" : slot.Label;
             sprites.DrawText(label, rect.X + (2 * _textScale), rect.Y + (2 * _textScale), _textScale, palette.Color(PaletteRole.Text));
+        }
+    }
+
+    /// <summary>Draws the opened weapon's Mounts, each with its Attachment, and the tooltip of the Mount under the pointer.</summary>
+    private void DrawMounts(SpriteBatch sprites, UiPalette palette, UiRect panel)
+    {
+        var mounts = _inventoryView.Mounts;
+        var rects = _inventoryView.ArrangeMounts(panel, _textScale);
+        string? hovered = null;
+        for (var i = 0; i < rects.Count && i < mounts.Count; i++)
+        {
+            var mount = mounts[i];
+            var rect = rects[i];
+            sprites.FillRect(rect.X, rect.Y, rect.Width, rect.Height, palette.Color(mount.Fitted is null ? PaletteRole.Muted : PaletteRole.Info));
+            sprites.DrawText(mount.Label, rect.X + (2 * _textScale), rect.Y + (2 * _textScale), _textScale, palette.Color(PaletteRole.Text));
+            if (mount.FittedLabel is { } fitted)
+            {
+                sprites.DrawText(fitted, rect.X + (2 * _textScale), rect.Y + (11 * _textScale), _textScale, palette.Color(PaletteRole.Text));
+            }
+
+            if (rect.Contains(_mouseX, _mouseY))
+            {
+                hovered = mount.Mount;
+            }
+        }
+
+        if (hovered is not null)
+        {
+            UiRenderer.DrawTooltip(sprites, _inventoryView.MountTooltip(hovered), palette, _mouseX, _mouseY, _screenRect, _textScale);
         }
     }
 
@@ -424,6 +579,7 @@ internal sealed class UiSession : IDisposable
         _values.SetText("options.field_of_view", $"{_localizer.Get("options.field_of_view")}: {Settings.FieldOfViewDegrees:0}");
         _values.SetText("options.head_bob", $"{_localizer.Get("options.head_bob")}: {_localizer.Get(Settings.HeadBob ? "options.on" : "options.off")}");
         _values.SetText("options.palette", $"{_localizer.Get("options.palette")}: {_localizer.Get($"options.palette.{Settings.Palette.ToString().ToLowerInvariant()}")}");
+        _values.SetText("options.gore", $"{_localizer.Get("options.gore")}: {_localizer.Get($"options.gore.{Settings.Gore.ToString().ToLowerInvariant()}")}");
         _values.SetText("options.keys", $"{_localizer.Get("options.keys")}: {_keys.KeyFor(GameAction.Inventory)}");
         UiRenderer.Draw(sprites, _options, _values, _context, palette);
     }
@@ -436,6 +592,8 @@ internal sealed class UiSession : IDisposable
             ("base:item/bandage", 4),
             ("base:item/water_bottle", 1),
             ("base:item/crowbar", 1),
+            ("base:item/suppressor", 1),
+            ("base:item/red_dot_sight", 1),
         })
         {
             if (ItemId.TryParse(item, out var id) && _catalog.TryGet(id, out _))
@@ -450,6 +608,7 @@ internal sealed class UiSession : IDisposable
             _inventoryService.AddItems(Backpack, pistol, 1, state);
             _status.Weapon = pistol;
             _status.WeaponState = state;
+            _heldStack = _inventoryView.Slots(Backpack).LastOrDefault(s => s.Item == pistol)?.Stack;
         }
     }
 

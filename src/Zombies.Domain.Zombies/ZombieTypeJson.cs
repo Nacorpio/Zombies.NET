@@ -23,6 +23,15 @@ public sealed record WeightedWearableDto
     public int Weight { get; init; } = 1;
 }
 
+public sealed record WeightedHeldWeaponDto
+{
+    /// <summary>Content ID of the melee weapon Item held, such as <c>base:item/crowbar</c>. Leave out for a chance of holding nothing.</summary>
+    public string? Item { get; init; }
+
+    /// <summary>Chance of this entry relative to the others. Defaults to 1.</summary>
+    public int Weight { get; init; } = 1;
+}
+
 public sealed record CountRangeDto
 {
     public required int Min { get; init; }
@@ -108,6 +117,15 @@ public sealed record UpgradeDto
     public required int AfterDays { get; init; }
 }
 
+public sealed record BiteDto
+{
+    /// <summary>Content ID of the Status effect a bite may cause, such as <c>base:status_effect/infection</c>.</summary>
+    public required string Effect { get; init; }
+
+    /// <summary>Chance from 0 to 1 that a bite that lands causes the effect.</summary>
+    public required double Chance { get; init; }
+}
+
 /// <summary>
 /// JSON shape of a Zombie type definition. This type is the source of the generated JSON Schema,
 /// so keep it in step with <see cref="ZombieTypeJson"/>.
@@ -132,8 +150,14 @@ public sealed record ZombieTypeDto
     /// <summary>Content ID of the Weakpoint set, such as <c>base:weakpoint_set/humanoid</c>. Leave out for a zombie with no weak spots.</summary>
     public string? WeakpointSet { get; init; }
 
+    /// <summary>Melee weapons a zombie of this type may spawn holding, by weight. Leave out for a type that never holds one.</summary>
+    public IReadOnlyList<WeightedHeldWeaponDto> HeldWeapons { get; init; } = [];
+
     /// <summary>What the zombies of this type become as the world ages. Leave out for a type that never changes.</summary>
     public UpgradeDto? Upgrade { get; init; }
+
+    /// <summary>The Status effect a bite of this zombie may cause. Leave out for a zombie whose bites only wound.</summary>
+    public BiteDto? Bite { get; init; }
 }
 
 /// <summary>Parses a Zombie type definition from JSON.</summary>
@@ -181,7 +205,9 @@ public static class ZombieTypeJson
                     dto.Outfit.Backpacks.Select(ToWearable).ToList()),
                 dto.MissingParts.Select(m => new MissingPartChance(ParsePart(m.Part), Basis(m.Chance))),
                 dto.WeakpointSet,
-                dto.Upgrade is null ? null : new ZombieUpgrade(dto.Upgrade.ZombieType, dto.Upgrade.AfterDays));
+                dto.Upgrade is null ? null : new ZombieUpgrade(dto.Upgrade.ZombieType, dto.Upgrade.AfterDays),
+                dto.HeldWeapons.Select(ToHeldWeapon).ToList(),
+                dto.Bite is null ? null : new ZombieBite(dto.Bite.Effect, Basis(dto.Bite.Chance)));
         }
         catch (ArgumentException ex)
         {
@@ -205,6 +231,9 @@ public static class ZombieTypeJson
             : throw new ArgumentException("A chance must be between 0 and 1.");
 
     private static WeightedWearable ToWearable(WeightedWearableDto dto) =>
+        new(dto.Item is null ? null : ItemId.TryParse(dto.Item, out var id) ? id : throw new ArgumentException($"'{dto.Item}' is not a valid Content ID."), dto.Weight);
+
+    private static WeightedHeldWeapon ToHeldWeapon(WeightedHeldWeaponDto dto) =>
         new(dto.Item is null ? null : ItemId.TryParse(dto.Item, out var id) ? id : throw new ArgumentException($"'{dto.Item}' is not a valid Content ID."), dto.Weight);
 
     private static uint ParseColor(string text)

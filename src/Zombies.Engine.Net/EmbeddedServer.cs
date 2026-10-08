@@ -13,13 +13,21 @@ public sealed class EmbeddedServer : IDisposable
     private readonly FixedStepClock _clock = new();
     private long _tick;
 
-    /// <summary>Starts the Server and joins it. Throws when the join is refused, which only a bug can cause here.</summary>
-    public EmbeddedServer(ServerOptions options, string playerName)
+    /// <summary>
+    /// Starts the Server and joins it. Throws when the join is refused, which only a bug can cause here. A player's collision
+    /// is fixed when they join, so <paramref name="collision"/> must be given here rather than set on the Server afterwards.
+    /// </summary>
+    public EmbeddedServer(ServerOptions options, string playerName, IPlayerCollisionSource? collision = null)
     {
         ArgumentNullException.ThrowIfNull(options);
         var network = new InMemoryNetwork();
         _serverTransport = network.CreateServer();
         Server = new GameServer(_serverTransport, options);
+        if (collision is not null)
+        {
+            Server.Collision = collision;
+        }
+
         _clientTransport = network.Connect();
         Client = new GameClient(_clientTransport, options.Identity, playerName);
 

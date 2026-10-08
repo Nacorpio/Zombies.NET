@@ -42,11 +42,23 @@ internal static class AiReport
             }
         }
 
-        var packages = DirectoryModSource.Read(modsDirectory);
+        // Loaded as a Server loads them, so a Code mod's zombies and Traits are in play just as they are in the game.
+        var packages = ModSides.ForRole(DirectoryModSource.Read(modsDirectory), ProcessRole.Server);
         var mods = ModLoader.Load(packages);
         if (!mods.IsSuccess)
         {
             Console.Error.WriteLine("SimHarness ai: the mods did not load.");
+            return 1;
+        }
+
+        var codeMods = CodeModLoader.Load(packages, mods, ProcessRole.Server);
+        if (!codeMods.IsSuccess)
+        {
+            foreach (var problem in codeMods.Problems)
+            {
+                Console.Error.WriteLine($"SimHarness ai: {problem}");
+            }
+
             return 1;
         }
 
@@ -74,6 +86,7 @@ internal static class AiReport
         var server = new GameServer(serverTransport, new ServerOptions(identity, seed));
         var traits = new TraitRegistry();
         BaseTraits.Register(traits);
+        CodeModTraits.Register(traits, codeMods);
         var catalog = ZombieContentLoader.Load(mods.Registry);
         var zombies = new ZombieSystem(server.World, catalog, traits, skeleton, clips);
         var ai = new ZombieAi(server.World, zombies, terrain);

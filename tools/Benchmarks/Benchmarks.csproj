@@ -1,0 +1,27 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <RootNamespace>Zombies.Benchmarks</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="BenchmarkDotNet" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../../src/Zombies.Domain.World/Zombies.Domain.World.csproj" />
+    <ProjectReference Include="../../src/Zombies.Engine.Core/Zombies.Engine.Core.csproj" />
+    <ProjectReference Include="../../src/Zombies.Engine.Ecs/Zombies.Engine.Ecs.csproj" />
+    <ProjectReference Include="../../src/Zombies.Engine.Voxel/Zombies.Engine.Voxel.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Benchmarks.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="thresholds.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+</Project>

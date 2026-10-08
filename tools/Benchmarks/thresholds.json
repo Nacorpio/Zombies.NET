@@ -1,0 +1,17 @@
+{
+  // Limits for the benchmarks CI runs. A limit is the most a benchmark may take, so a run over it fails CI.
+  //
+  // Times are absolute, not relative to an earlier run, because CI machines differ from one another and from the developer's. Each is set at a
+  // level a real regression crosses and normal machine-to-machine noise does not. Measured on the recommended-tier rig
+  // (i5-7400, GTX 1060): 17.7 ms, 1.2 us, 4.7 us, 12.7 us, 46.7 us, as recorded in docs/performance.md.
+  //
+  // One chunk's budget is 2 ms on a worker, so 25 chunks may take 50 ms: the limit below is the budget itself.
+  "ChunkBenchmarks.LightAndMeshPatchOf25Chunks": { "maxMeanMicroseconds": 50000, "maxAllocatedBytes": 6100000 },
+
+  // Walking every entity with a component, as a system does each tick: the 200 zombies of the slice, and ten times as many.
+  // Allocations are deterministic, so these are tight. The 64 bytes are the query's enumerator.
+  "EcsBenchmarks.QueryOneComponent(Entities=200)": { "maxMeanMicroseconds": 10, "maxAllocatedBytes": 64 },
+  "EcsBenchmarks.QueryOneComponent(Entities=2000)": { "maxMeanMicroseconds": 100, "maxAllocatedBytes": 64 },
+  "EcsBenchmarks.QueryAndLookUpAnother(Entities=200)": { "maxMeanMicroseconds": 40, "maxAllocatedBytes": 64 },
+  "EcsBenchmarks.QueryAndLookUpAnother(Entities=2000)": { "maxMeanMicroseconds": 400, "maxAllocatedBytes": 64 }
+}

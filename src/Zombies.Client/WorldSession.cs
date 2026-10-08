@@ -41,7 +41,10 @@ internal sealed class WorldSession : IDisposable
             Items = new ItemCatalog(mods.Registry.OfKind("item").Select(d => ItemDefinitionJson.Parse(d.Json))),
             Effects = StatusEffectContentLoader.Load(mods.Registry),
         };
-        Solo = new EmbeddedServer(solo, string.IsNullOrEmpty(Environment.UserName) ? "player" : Environment.UserName);
+        // The player walks on Jolt terrain, and the Server moves them with the same character controller. The Server fixes a
+        // player's collision when they join, so the physics world has to exist before the embedded join.
+        _physics = new PhysicsWorld();
+        Solo = new EmbeddedServer(solo, string.IsNullOrEmpty(Environment.UserName) ? "player" : Environment.UserName, _physics);
         CodeModMessages.Register(Solo.Server.Commands, codeMods);
         ModMessages = codeMods.Messages;
 
@@ -50,9 +53,6 @@ internal sealed class WorldSession : IDisposable
         Manager = new ChunkRenderManager(_pipeline, renderer, new ChunkStreamer(options.ViewDistance));
         ViewDistance = options.ViewDistance;
 
-        // The player walks on Jolt terrain, and the Server moves them with the same character controller.
-        _physics = new PhysicsWorld();
-        Solo.Server.Collision = _physics;
         Solo.Client.Collision = _physics.Create(Solo.Client.Local.State.Position, PlayerMovement.StandingHeight);
     }
 

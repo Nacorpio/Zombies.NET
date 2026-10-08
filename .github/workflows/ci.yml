@@ -27,6 +27,8 @@ jobs:
         run: git diff --exit-code -- src/Zombies.Engine.Render.Vulkan/Shaders/compiled
       - name: Test
         run: dotnet test --solution Zombies.slnx --configuration Release --no-build
+      - name: Benchmarks stay inside their limits
+        run: dotnet run --project tools/Benchmarks --configuration Release --no-build
       - name: SimHarness
         run: dotnet run --project tools/SimHarness --configuration Release --no-build
       - name: SimHarness loads the repository mods

@@ -36,12 +36,14 @@
     <Project Path="mods/sample_code/source/SampleCodeMod.csproj" />
   </Folder>
   <Folder Name="/tests/">
+    <Project Path="tests/Benchmarks.Tests/Benchmarks.Tests.csproj" />
     <Project Path="tests/ContentJudge.Tests/ContentJudge.Tests.csproj" />
     <Project Path="tests/Zombies.Domain.Tests/Zombies.Domain.Tests.csproj" />
     <Project Path="tests/Zombies.Engine.Tests/Zombies.Engine.Tests.csproj" />
     <Project Path="tests/Zombies.Persistence.Tests/Zombies.Persistence.Tests.csproj" />
   </Folder>
   <Folder Name="/tools/">
+    <Project Path="tools/Benchmarks/Benchmarks.csproj" />
     <Project Path="tools/ContentJudge/ContentJudge.csproj" />
     <Project Path="tools/SimHarness/SimHarness.csproj" />
   </Folder>

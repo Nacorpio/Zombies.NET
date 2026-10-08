@@ -8,6 +8,7 @@
     <PackageVersion Include="xunit.v3" Version="4.0.1" />
     <PackageVersion Include="xunit.runner.visualstudio" Version="4.0.0" />
     <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="18.10.1" />
+    <PackageVersion Include="BenchmarkDotNet" Version="0.15.8" />
     <PackageVersion Include="UnitsNet" Version="5.75.1" />
     <PackageVersion Include="ppy.SDL3-CS" Version="2026.1002.1" />
     <PackageVersion Include="Silk.NET.Vulkan" Version="2.23.0" />

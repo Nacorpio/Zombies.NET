@@ -1,0 +1,22 @@
+{
+  // The Debug session badge for the slice demo (docs/demo-script.md). Run the client with --session docs/demo/session.json and edit this
+  // file as the demo goes: the badge follows it. Set a step's state to running, done, or failed, and fill in "outcome" at the end.
+  "title": "Slice demo",
+  "reason": "Showing the vertical slice end to end",
+  "startedBy": "demo script",
+  "durationSeconds": 600,
+  "progress": 0.3,
+  "steps": [
+    { "title": "Open the inventory and a weapon's Mounts", "state": "done" },
+    { "title": "Fit a suppressor and a red dot sight", "state": "done" },
+    { "title": "Right-click a stack: the context menu", "state": "running" },
+    { "title": "Loot a house: contents match the room", "state": "pending" },
+    { "title": "A zombie holds a weapon", "state": "pending" },
+    { "title": "Get bitten: infection, then the cure", "state": "pending" },
+    { "title": "Bleed, then bandage the wound", "state": "pending" }
+  ],
+  "facts": [
+    { "label": "Build", "value": "Debug session file" },
+    { "label": "Players", "value": "1 (solo)" }
+  ]
+}

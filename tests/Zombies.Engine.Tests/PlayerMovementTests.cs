@@ -298,14 +298,14 @@ public sealed class PhysicsTests
             }
         }
 
-        // Drop onto the first column near the middle with no trunk standing on it; canopies are not solid, so leaves are fine.
+        // Drop onto the first column near the middle with no tree in it, since a trunk or a canopy is a different surface.
         var origin = generator.Generate(new ChunkCoord(0, 0));
         var dropX = 8;
         var dropZ = 8;
-        for (var column = 0; column < 64 && HasLog(origin, dropX, dropZ); column++)
+        for (var column = 0; column < 144 && HasLog(origin, dropX, dropZ); column++)
         {
-            dropX = 4 + (column % 8);
-            dropZ = 4 + (column / 8);
+            dropX = column % 12;
+            dropZ = column / 12;
         }
 
         var start = new Vector3(dropX + 0.5f, 80f, dropZ + 0.5f);
@@ -431,7 +431,7 @@ public sealed class PhysicsTests
     {
         for (var y = 0; y < ChunkConstants.Height; y++)
         {
-            if (chunk.Get(x, y, z) == Blocks.Log)
+            if (chunk.Get(x, y, z) is Blocks.Log or Blocks.Leaves)
             {
                 return true;
             }
@@ -533,6 +533,62 @@ public sealed class PhysicsTests
 
         Assert.True(lowest > 63f, $"the player fell to {lowest} under a canopy.");
         Assert.True(state.OnGround, $"the player is not standing on anything at {state.Position}.");
+    }
+
+    [Fact]
+    public void Leaves_BlockAPlayerWalkingIntoThem()
+    {
+        using var world = new PhysicsWorld();
+        var chunk = FlatChunk(new ChunkCoord(0, 0), groundY: 64);
+        for (var z = 0; z < ChunkConstants.Size; z++)
+        {
+            chunk.Set(10, 65, z, Blocks.Leaves);
+            chunk.Set(10, 66, z, Blocks.Leaves);
+        }
+
+        chunk.RecomputeHeights();
+        world.AddTerrain(chunk);
+        var start = new Vector3(4.5f, 65f, 8.5f);
+        var collision = world.Create(start, PlayerMovement.StandingHeight);
+        var state = PlayerMoveState.At(start);
+        var input = new PlayerInput(0f, 1f, 0f, 0f, false, false, false, false, false);
+        for (var i = 0; i < 90; i++)
+        {
+            state = PlayerMovement.Step(state, input, PlayerMovement.StepSeconds, collision);
+            world.Step(PlayerMovement.StepSeconds);
+        }
+
+        Assert.True(state.Position.X < 10f, $"the player walked through leaves to x {state.Position.X}.");
+    }
+
+    [Fact]
+    public void Leaves_BlockAPlayerJumpingUpIntoThem()
+    {
+        using var world = new PhysicsWorld();
+        var chunk = FlatChunk(new ChunkCoord(0, 0), groundY: 64);
+        for (var z = 4; z < 12; z++)
+        {
+            for (var x = 4; x < 12; x++)
+            {
+                chunk.Set(x, 67, z, Blocks.Leaves);
+            }
+        }
+
+        chunk.RecomputeHeights();
+        world.AddTerrain(chunk);
+        var start = new Vector3(8.5f, 65f, 8.5f);
+        var collision = world.Create(start, PlayerMovement.StandingHeight);
+        var state = PlayerMoveState.At(start);
+        var highest = state.Position.Y;
+        for (var i = 0; i < 120; i++)
+        {
+            var input = new PlayerInput(0f, 0f, 0f, 0f, false, false, false, false, true);
+            state = PlayerMovement.Step(state, input, PlayerMovement.StepSeconds, collision);
+            world.Step(PlayerMovement.StepSeconds);
+            highest = MathF.Max(highest, state.Position.Y);
+        }
+
+        Assert.True(highest < 65.6f, $"the player jumped up through leaves to {highest}.");
     }
 
     [Fact]

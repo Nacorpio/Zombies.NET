@@ -160,10 +160,16 @@ public sealed partial class PhysicsWorld : IDisposable, IPlayerCollisionSource
         return y;
     }
 
-    /// <summary>Gives every run of logs in a chunk a solid box, so a trunk is a wall the player stops at and not a cone in the ground.</summary>
+    /// <summary>True for the blocks of a tree. They are solid to the body, but the ground heightfield leaves them out.</summary>
+    private static bool IsTree(ushort block) => block is Blocks.Log or Blocks.Leaves;
+
+    /// <summary>
+    /// Gives every vertical run of logs and leaves in a chunk a solid box, all in one compound body, so a trunk is a wall and a
+    /// canopy blocks the player's body without the heightfield turning it into a slab with no floor under it.
+    /// </summary>
     private void AddTrunks(Chunk chunk)
     {
-        List<BodyID>? bodies = null;
+        StaticCompoundShapeSettings? compound = null;
         for (var z = 0; z < ChunkConstants.Size; z++)
         {
             for (var x = 0; x < ChunkConstants.Size; x++)
@@ -171,32 +177,37 @@ public sealed partial class PhysicsWorld : IDisposable, IPlayerCollisionSource
                 var y = chunk.TopOpaque(x, z);
                 while (y >= 0)
                 {
-                    if (chunk.Get(x, y, z) != Blocks.Log)
+                    if (!IsTree(chunk.Get(x, y, z)))
                     {
                         y--;
                         continue;
                     }
 
                     var top = y;
-                    while (y >= 0 && chunk.Get(x, y, z) == Blocks.Log)
+                    while (y >= 0 && IsTree(chunk.Get(x, y, z)))
                     {
                         y--;
                     }
 
                     var height = top - y;
-                    var shape = new BoxShape(new Vector3(0.5f, height / 2f, 0.5f));
-                    _shapes.Add(shape);
-                    var centre = new Vector3(chunk.Coord.WorldX + x + 0.5f, y + 1 + (height / 2f), chunk.Coord.WorldZ + z + 0.5f);
-                    var settings = new BodyCreationSettings(shape, centre, Quaternion.Identity, MotionType.Static, new ObjectLayer(TerrainLayer));
-                    (bodies ??= []).Add(_system.BodyInterface.CreateAndAddBody(settings, Activation.DontActivate));
+                    compound ??= new StaticCompoundShapeSettings();
+                    compound.AddShape(
+                        new Vector3(x + 0.5f, y + 1 + (height / 2f), z + 0.5f),
+                        Quaternion.Identity,
+                        new BoxShapeSettings(new Vector3(0.5f, height / 2f, 0.5f)));
                 }
             }
         }
 
-        if (bodies is not null)
+        if (compound is null)
         {
-            _trunks[chunk.Coord] = bodies;
+            return;
         }
+
+        var shape = compound.Create();
+        _shapes.Add(shape);
+        var settings = new BodyCreationSettings(shape, new Vector3(chunk.Coord.WorldX, 0, chunk.Coord.WorldZ), Quaternion.Identity, MotionType.Static, new ObjectLayer(TerrainLayer));
+        _trunks[chunk.Coord] = [_system.BodyInterface.CreateAndAddBody(settings, Activation.DontActivate)];
     }
 
     /// <summary>Removes a chunk's terrain. Players standing on it fall.</summary>

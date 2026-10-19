@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Globalization;
 using System.Numerics;
 using Zombies.Client;
+using Zombies.Domain.Zombies;
 using Zombies.Engine.Core.Debugging;
 using Zombies.Engine.Net;
 using Zombies.Engine.Platform;
@@ -32,7 +33,19 @@ IconSetup.Install(options);
 
 using var window = new SdlWindow("Zombies.NET", width, height);
 using var renderer = new VulkanRenderer(window, new RendererOptions(!options.NoVSync, options.ShadowCascades, options.ShadowResolution));
-using var world = options.NoWorld ? null : new WorldSession(options, renderer);
+WorldSession? world;
+try
+{
+    world = options.NoWorld ? null : new WorldSession(options, renderer);
+}
+catch (JoinRefusedException refused)
+{
+    // A refused join is shown to the player, not just logged, so they know why they cannot play.
+    Console.Error.WriteLine($"Zombies.Client: {refused.Message}");
+    return 3;
+}
+
+using var worldScope = world;
 
 var camera = new Camera { Position = new Vector3(8, 84, 8), Yaw = 0.5f, Pitch = -0.38f, Far = (options.ViewDistance * 16f) + 64f };
 if (options.CameraPose is { } pose)
@@ -59,10 +72,33 @@ if (ui is not null && options.Screen is { } startScreen && !ui.Open(startScreen)
     throw new ArgumentException($"Unknown screen '{startScreen}'. Use inventory, inventory-menu, inventory-menu-ground, body, options, dialog, or none.");
 }
 
+// The inventory screen's changes go to the Server as commands; the Server's answer comes back as a new Container view.
+if (ui is not null && world is not null)
+{
+    ui.Used += used => world.Client.Send(new UseItem(used.Item));
+    ui.MoveRequested += (from, stack, to, count) => world.Client.Send(new MoveStackCommand(from, stack, to, count));
+    ui.SplitRequested += (container, stack, count) => world.Client.Send(new SplitStackCommand(container, stack, count));
+    ui.DropRequested += (container, stack, count) => world.Client.Send(new DropStackCommand(container, stack, count));
+    ui.OpenRequested += (x, y, z) => world.Client.Send(new OpenContainer(x, y, z));
+    ui.HoldRequested += item => world.Client.Send(new HoldWeapon(item));
+    ui.TreatRequested += (part, treatment) => world.Client.Send(new TreatWounds(part, treatment));
+}
+
+var inputClock = new Zombies.Engine.Core.FixedStepClock();
 var dayLengths = new[] { 24f * 60f, 120f, 20f };
 var dayLength = 0;
 var showOverlay = true;
-var mouseCaptured = false;
+
+// Playing starts with the mouse looking around, so the player does not have to find Tab first; a screenshot, benchmark or smoke run keeps the cursor free.
+var mouseCaptured = world is not null && smoke is null && benchmark is null && options.ShotPath is null && !(ui?.IsOpen ?? false);
+if (mouseCaptured)
+{
+    window.SetRelativeMouse(true);
+}
+
+// Where the player is looking. Mouse movement lands here, not on the camera, because the camera is placed at the predicted
+// player every frame and a frame that owes no input command would otherwise throw the turn away.
+var aim = new PlayerAim(world?.Client.Local.State.Yaw ?? camera.Yaw, world?.Client.Local.State.Pitch ?? camera.Pitch);
 
 var clockStart = Stopwatch.GetTimestamp();
 var runStart = clockStart;
@@ -133,6 +169,43 @@ while (!window.CloseRequested)
         clock.Paused = !clock.Paused;
     }
 
+    // Interact: open the world Container the player is looking at, if the Server has any.
+    if (world is not null && ui is not null && !ui.IsOpen && input.WasPressed(Key.F))
+    {
+        var eye = PlayerMovement.EyePosition(world.Client.Local.State);
+        var yaw = world.Client.Local.State.Yaw;
+        var pitch = world.Client.Local.State.Pitch;
+        var direction = new Vector3(MathF.Sin(yaw) * MathF.Cos(pitch), MathF.Sin(pitch), -MathF.Cos(yaw) * MathF.Cos(pitch));
+        if (world.TargetedContainer(eye, direction) is { } target)
+        {
+            ui.RequestOpen(target.X, target.Y, target.Z);
+        }
+    }
+
+    // Combat: the mouse fires the Held weapon, R reloads it, H holds the first weapon the Server says the player carries, B bandages.
+    if (world is not null && ui is not null && !ui.IsOpen && mouseCaptured)
+    {
+        if (input.WasPressed(MouseButton.Left))
+        {
+            world.Client.Send(new UseWeapon());
+        }
+
+        if (input.WasPressed(Key.R))
+        {
+            world.Client.Send(new LoadWeapon());
+        }
+
+        if (input.WasPressed(Key.H))
+        {
+            ui.RequestHoldFirstWeapon();
+        }
+
+        if (input.WasPressed(Key.B))
+        {
+            ui.RequestBandage();
+        }
+    }
+
     if (input.WasPressed(Key.F3))
     {
         dayLength = (dayLength + 1) % dayLengths.Length;
@@ -169,15 +242,22 @@ while (!window.CloseRequested)
         {
             if (mouseCaptured)
             {
-                camera.Look(input.MouseDeltaX, input.MouseDeltaY);
+                aim.Turn(input.MouseDeltaX, input.MouseDeltaY);
             }
 
-            var playerInput = PlayerController.Read(input, camera.Yaw, camera.Pitch, mouseCaptured);
-            world.Solo.Client.SendInput(playerInput);
+            var playerInput = PlayerController.Read(input, aim.Yaw, aim.Pitch, mouseCaptured);
+            // One input command is one Server tick of movement, so send one per tick owed, not one per frame; at 144 fps a
+            // command per frame would walk the player more than twice as fast as the Server's tick rate allows.
+            for (var owed = inputClock.Advance(TimeSpan.FromSeconds(seconds)); owed > 0; owed--)
+            {
+                world.Client.SendInput(playerInput);
+            }
         }
 
-        world.Solo.Advance(TimeSpan.FromSeconds(seconds));
-        ui?.SetEffects(world.Solo.Client.Effects);
+        world.Advance(TimeSpan.FromSeconds(seconds));
+        ui?.SetEffects(world.Client.Effects);
+        ui?.SetStatus(world.Client.Status);
+        ui?.SetContainers(world.Client.Containers);
         world.StepPhysics(TimeSpan.FromSeconds(seconds));
 
         var updateStart = Stopwatch.GetTimestamp();
@@ -192,7 +272,8 @@ while (!window.CloseRequested)
 
         if (benchmark is null)
         {
-            PlayerController.ApplyToCamera(camera, world.Solo.Client.Local.State, world.Solo.Client.Local.Lean);
+            PlayerController.ApplyToCamera(camera, world.Client.Local.State, world.Client.Local.Lean);
+            camera.Face(aim);
         }
 
         scene = new WorldScene(
@@ -227,7 +308,7 @@ while (!window.CloseRequested)
                 2,
                 new Rgba(235, 235, 235));
             sprites.FillRect(8, renderer.Height - 32, 1130, 24, new Rgba(0, 0, 0, 150));
-            sprites.DrawText("WASD FLY  SPACE/CTRL UP/DOWN  SHIFT FAST  TAB MOUSE  F1 HUD  F2 TIME  F3 SPEED  ARROWS TIME", 16, renderer.Height - 24, 2, new Rgba(200, 200, 200, 200));
+            sprites.DrawText(world is null ? "WASD FLY  SPACE/CTRL UP/DOWN  SHIFT FAST  TAB MOUSE  F1 HUD  F2 TIME  F3 SPEED  ARROWS TIME" : "WASD WALK  SPACE JUMP  SHIFT SPRINT  CTRL CROUCH  TAB MOUSE  I BAG  F USE  F1 HUD  F2 TIME  F3 SPEED", 16, renderer.Height - 24, 2, new Rgba(200, 200, 200, 200));
         }
     }
 
@@ -348,16 +429,25 @@ if (smoke is not null)
 
 return options.ShotPath is not null && shotRequestedAt < 0 ? 1 : 0;
 
-/// <summary>The other players in the replicated world, as bodies to draw. The local player is left out; the camera is their body.</summary>
+/// <summary>The other players and the zombies in the replicated world, as bodies to draw. The local player is left out; the camera is their body.</summary>
 static IReadOnlyList<BodyInstance> RemoteBodies(WorldSession world, ClientOptions options, Camera camera)
 {
-    var client = world.Solo.Client;
+    var client = world.Client;
     var bodies = new List<BodyInstance>();
     foreach (ref readonly var entity in client.World.Entities)
     {
-        if (entity.Id != client.PlayerEntityId && entity.Kind == EntityKind.Player)
+        if (entity.Id == client.PlayerEntityId)
+        {
+            continue;
+        }
+
+        if (entity.Kind == EntityKind.Player)
         {
             bodies.Add(new BodyInstance(entity.Position, entity.Yaw, false));
+        }
+        else if (entity.Kind == EntityKind.Zombie)
+        {
+            bodies.Add(ZombieBody(world, entity));
         }
     }
 
@@ -371,4 +461,13 @@ static IReadOnlyList<BodyInstance> RemoteBodies(WorldSession world, ClientOption
     }
 
     return bodies;
+}
+
+/// <summary>
+/// A zombie as a body to draw. Its look is derived from the replicated spec, exactly as the Server derived it, so every client
+/// draws the same zombie without the Server sending more than the spec, the missing parts, and whether it is dead.
+/// </summary>
+static BodyInstance ZombieBody(WorldSession world, in EntityState entity)
+{
+    return new BodyInstance(entity.Position, entity.Yaw, false);
 }

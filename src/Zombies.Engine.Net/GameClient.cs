@@ -246,6 +246,9 @@ public sealed class GameClient : ITickable
     /// </summary>
     public IReadOnlyList<ActiveEffect> Effects { get; private set; } = [];
 
+    /// <summary>The Containers the Server says this player can see: the one they carry and any world Container they have open.</summary>
+    public ContainerView Containers { get; private set; } = ContainerView.Empty;
+
     public CommandRejected? LastRejection { get; private set; }
 
     public int RejectionCount { get; private set; }
@@ -372,6 +375,9 @@ public sealed class GameClient : ITickable
                     break;
                 case MessageType.StatusEffects when State == ClientState.Joined:
                     Effects = StatusEffectMessages.Read(ref reader);
+                    break;
+                case MessageType.ContainerView when State == ClientState.Joined:
+                    Containers = ContainerViewCodec.Read(ref reader);
                     break;
                 case MessageType.Snapshot when State == ClientState.Joined:
                     if (World.Apply(ref reader))

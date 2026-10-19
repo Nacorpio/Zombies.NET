@@ -19,6 +19,8 @@
 struct Push
 {
     float4 bodyOrigin;   // xyz: world position of the feet, w: yaw in radians
+    float4 bodyScale;    // xyz: per-axis scale, w: unused
+    float4 bodyTint;     // rgb: tint multiplied into the vertex colour
 };
 
 [[vk::push_constant]] Push push;
@@ -45,21 +47,25 @@ VertexOutput main(VertexInput input)
     float s = sin(push.bodyOrigin.w);
     float c = cos(push.bodyOrigin.w);
 
+    // Scale first, so a zombie's proportions are its own, then yaw.
+    float3 scaled = input.position * push.bodyScale.xyz;
+    float3 scaledNormal = input.normal / max(push.bodyScale.xyz, 1e-4);
+
     // Yaw 0 faces north (-Z), matching the camera, so a positive yaw turns right.
     float3 rotated = float3(
-        (input.position.x * c) + (input.position.z * s),
-        input.position.y,
-        (-input.position.x * s) + (input.position.z * c));
+        (scaled.x * c) + (scaled.z * s),
+        scaled.y,
+        (-scaled.x * s) + (scaled.z * c));
     float3 normal = float3(
-        (input.normal.x * c) + (input.normal.z * s),
-        input.normal.y,
-        (-input.normal.x * s) + (input.normal.z * c));
+        (scaledNormal.x * c) + (scaledNormal.z * s),
+        scaledNormal.y,
+        (-scaledNormal.x * s) + (scaledNormal.z * c));
 
     float3 world = rotated + push.bodyOrigin.xyz;
     output.position = mul(float4(world, 1.0), viewProjection);
     output.world = world;
     output.normal = normal;
-    output.color = float4(input.color) / 255.0;
+    output.color = float4(input.color) / 255.0 * float4(push.bodyTint.rgb, 1.0);
     output.viewDepth = output.position.w;
     return output;
 }

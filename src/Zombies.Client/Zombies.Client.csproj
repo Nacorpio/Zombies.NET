@@ -6,6 +6,7 @@
 
   <ItemGroup>
     <ProjectReference Include="../Zombies.Engine.Core/Zombies.Engine.Core.csproj" />
+    <ProjectReference Include="../Zombies.Engine.Ai/Zombies.Engine.Ai.csproj" />
     <ProjectReference Include="../Zombies.Engine.Render/Zombies.Engine.Render.csproj" />
     <ProjectReference Include="../Zombies.Engine.Render.Vulkan/Zombies.Engine.Render.Vulkan.csproj" />
     <ProjectReference Include="../Zombies.Engine.Platform/Zombies.Engine.Platform.csproj" />

@@ -1,10 +1,13 @@
 using System.Diagnostics;
 using System.Globalization;
 using Zombies.Domain.Combat;
+using Zombies.Domain.Crafting;
 using Zombies.Domain.Death;
 using Zombies.Domain.Items;
 using Zombies.Domain.Mods;
 using Zombies.Domain.StatusEffects;
+using Zombies.Domain.World;
+using Zombies.Engine.Ai;
 using Zombies.Engine.Core;
 using Zombies.Engine.Core.Modding;
 using Zombies.Engine.Net;
@@ -210,7 +213,39 @@ var deathStores = save is null
 using var transport = LiteNetTransport.Listen(port, key, maxPlayers + 2);
 var server = new GameServer(transport, options, deathStores);
 CodeModMessages.Register(server.Commands, codeMods);
-var simulation = new Simulation(server);
+
+// The world's zombies: the same content, Traits, rig, and AI the client's embedded Server builds, so solo and co-op match.
+var biomes = new BiomeCatalog(mods.Registry.OfKind("biome").Select(d => BiomeJson.Parse(d.Json)));
+var generator = new WorldGenerator(seed, biomes, SettlementContentLoader.Load(mods.Registry));
+var zombies = ServerZombies.Build(server.World, packages, mods, codeMods);
+server.Zombies = zombies.System;
+zombies.Ai.PlayerAttacked += attack =>
+{
+    if (server.TryGetPlayer(new ConnectionId((int)attack.Player), out var bitten))
+    {
+        server.Bite(bitten, zombies.System, attack.Zombie, attack.Part);
+    }
+};
+
+// The zombies of the settlements around the spawn point, so a player who joins meets them.
+var spawn = server.Options.SpawnPoint;
+var spawnChunk = new ChunkCoord((int)spawn.X >> 4, (int)spawn.Z >> 4);
+var spawnReport = zombies.Populate(generator, spawnChunk, radius: 4);
+foreach (var problem in spawnReport.Problems)
+{
+    Console.Error.WriteLine($"Zombies.Server: {problem}");
+}
+
+// The world's Containers, filled from each room's Area type the first time a player opens one.
+var areas = new AreaTypeCatalog(mods.Registry.OfKind("area_type").Select(d => AreaTypeJson.Parse(d.Json)));
+var areaLoot = new AreaLootService(areas, new LootService(new LootTableCatalog(mods.Registry.OfKind("loot").Select(d => LootTableJson.Parse(d.Json)))));
+ServerZombies.WireContainers(server, generator, spawnChunk, radius: 4, areaLoot, items);
+
+Console.WriteLine(string.Create(
+    CultureInfo.InvariantCulture,
+    $"Zombies.Server: {spawnReport.Spawned.Count} zombies spawned around {spawnChunk}"));
+
+var simulation = new Simulation(server, zombies.System, zombies.Ai);
 
 using var stop = new CancellationTokenSource();
 Console.CancelKeyPress += (_, e) =>
@@ -245,5 +280,5 @@ while (!stop.IsCancellationRequested && (stopAfter is null || simulation.Current
 }
 
 save?.Dispose();
-Console.WriteLine(string.Create(CultureInfo.InvariantCulture, $"Zombies.Server: stopped at tick {simulation.CurrentTick}"));
+Console.WriteLine(string.Create(CultureInfo.InvariantCulture, $"Zombies.Server: stopped at tick {simulation.CurrentTick}, {zombies.System.Count} zombies"));
 return 0;

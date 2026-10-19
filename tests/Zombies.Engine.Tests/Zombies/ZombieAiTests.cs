@@ -1,4 +1,5 @@
 using System.Numerics;
+using Zombies.Domain.Items;
 using Zombies.Domain.Mods;
 using Zombies.Domain.Zombies;
 using Zombies.Engine.Ai;
@@ -184,6 +185,43 @@ public sealed class ZombieAiTests
     private static Vector3 At(float x, float z) => new(x, Floor, z);
 
     private static float Flat(Vector3 a, Vector3 b) => new Vector2(a.X - b.X, a.Z - b.Z).Length();
+
+    [Fact]
+    public void AZombieThatCatchesAPlayer_LandsABlow_AndTheServerAppliesIt()
+    {
+        var rig = new Rig();
+        var zombie = rig.Spawn(At(10.5f, 10.5f));
+
+        // The zombie faces -Z, so the player stands ahead of it, in its sight.
+        rig.Place(0, At(10.5f, 0.5f));
+
+        var attacks = new List<ZombiePlayerAttack>();
+        rig.Ai.PlayerAttacked += attacks.Add;
+
+        // The zombie sees the player 10 m ahead and closes; it lands a blow once it is within its reach.
+        rig.Run(10 * Simulation.TickRateHz);
+
+        Assert.NotEmpty(attacks);
+        Assert.All(attacks, a => Assert.Equal(zombie, a.Zombie));
+        Assert.All(attacks, a => Assert.Equal(rig.Player(0).EntityId, a.Player));
+        Assert.All(attacks, a => Assert.Equal(BodyPart.Torso, a.Part));
+    }
+
+    [Fact]
+    public void AZombieThatCannotReachAPlayer_LandsNoBlow()
+    {
+        var rig = new Rig();
+        rig.Spawn(At(10.5f, 10.5f));
+        rig.Place(0, At(10.5f, 0.5f));
+
+        var attacks = new List<ZombiePlayerAttack>();
+        rig.Ai.PlayerAttacked += attacks.Add;
+
+        // One tick: the zombie notices the player but is 10 m away, far past its reach.
+        rig.Run(1);
+
+        Assert.Empty(attacks);
+    }
 
     [Fact]
     public void ASound_DrawsTheZombiesThatHearIt_AndNotThoseOutOfEarshot()

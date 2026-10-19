@@ -32,6 +32,18 @@ public sealed partial class InventoryView
     /// <summary>Raised when an action with no built-in Domain command was chosen.</summary>
     public event Action<ItemActionChosen>? ActionChosen;
 
+    /// <summary>
+    /// Raised when the player chose Split or Drop, which the Server must apply. The host sends the matching command; the screen
+    /// follows the Server's answer rather than changing its own copy.
+    /// </summary>
+    public event Action<string, ContainerId, StackId, int>? ServerActionRequested;
+
+    /// <summary>
+    /// Whether Split and Drop are applied to the local Containers. True for a standalone screen that owns them; false when a
+    /// Server owns them, where the action is raised through <see cref="ServerActionRequested"/> instead.
+    /// </summary>
+    public bool AppliesActionsLocally { get; set; } = true;
+
     /// <summary>Says how Item actions treat a container. A container with no role is not the player's own and can be changed.</summary>
     public void SetRole(ContainerId container, ContainerRole role)
     {
@@ -40,6 +52,24 @@ public sealed partial class InventoryView
     }
 
     public void DismissInspection() => Inspection = null;
+
+    /// <summary>
+    /// Re-reads the Containers after the Server sent a new view. The screen holds no state of its own beyond the drag and the
+    /// open menu, so this only drops a drag or a menu whose Stack is gone.
+    /// </summary>
+    public void Refresh()
+    {
+        if (Dragging is { } dragged && (!TryContainer(dragged.From, out var from) || Stack(from, dragged.Stack) is null))
+        {
+            Dragging = null;
+        }
+
+        if (_menuTarget is { } target && (!TryContainer(target.Container, out var container) || Stack(container, target.Stack) is null))
+        {
+            Menu.Close();
+            _menuTarget = null;
+        }
+    }
 
     /// <summary>
     /// Opens the menu for a Stack at the pointer, listing exactly the Item actions the Domain says it offers, in the Domain's order and
@@ -101,9 +131,21 @@ public sealed partial class InventoryView
             case ItemActionIds.Equip:
                 return Equip(container, item);
             case ItemActionIds.Drop:
-                return Drop(container, item);
+                if (AppliesActionsLocally)
+                {
+                    return Drop(container, item);
+                }
+
+                ServerActionRequested?.Invoke(ItemActionIds.Drop, container, item.Id, item.Count);
+                return true;
             case ItemActionIds.Split:
-                return Succeeded(inventory.SplitStack(container, item.Id, item.Count / 2));
+                if (AppliesActionsLocally)
+                {
+                    return Succeeded(inventory.SplitStack(container, item.Id, item.Count / 2));
+                }
+
+                ServerActionRequested?.Invoke(ItemActionIds.Split, container, item.Id, item.Count / 2);
+                return true;
             case ItemActionIds.Inspect:
                 return Inspect(container, item);
             default:

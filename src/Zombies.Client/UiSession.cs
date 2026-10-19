@@ -6,6 +6,7 @@ using Zombies.Domain.Mods;
 using Zombies.Domain.StatusEffects;
 using Zombies.Domain.Survival;
 using Zombies.Engine.Core.Modding;
+using Zombies.Engine.Net;
 using Zombies.Engine.Platform;
 using Zombies.Engine.Render;
 using Zombies.Engine.Ui;
@@ -27,7 +28,7 @@ internal enum UiScreen
 /// </summary>
 internal sealed class PlayerStatus
 {
-    public Body Body { get; } = new(new BodyId(1));
+    public Body Body { get; set; } = new(new BodyId(1));
 
     public Needs Needs { get; } = new();
 
@@ -55,8 +56,9 @@ internal sealed class UiSession : IDisposable
     private readonly InventoryView _inventoryView;
     private readonly PlayerStatus _status;
     private readonly InventoryService _inventoryService;
-    private readonly InMemoryContainerRepository _containers;
+    private readonly ReplicatedContainerRepository _containers;
     private readonly ItemCatalog _catalog;
+    private readonly WeaponCatalog _weapons;
     private readonly Outfit _outfit;
     private readonly StatusEffectCatalog _effects;
     private readonly KeyBindings _keys;
@@ -76,6 +78,9 @@ internal sealed class UiSession : IDisposable
     private StackId? _heldStack;
     private (float X, float Y) _inspectAt;
     private string? _pendingMenu;
+
+    /// <summary>The Stack the HUD's held weapon follows, set when the Server's view shows the player holding one.</summary>
+    public void SetHeldStack(StackId? stack) => _heldStack = stack;
 
     public UiSession(ClientOptions options, PlayerStatus status)
     {
@@ -116,12 +121,13 @@ internal sealed class UiSession : IDisposable
 
         _catalog = new ItemCatalog(mods.Registry.OfKind("item").Select(d => ItemDefinitionJson.Parse(d.Json)));
         _effects = StatusEffectContentLoader.Load(mods.Registry);
-        _containers = new InMemoryContainerRepository();
+        _containers = new ReplicatedContainerRepository(_catalog);
         _inventoryService = new InventoryService(_catalog, _containers);
         var weapons = new WeaponCatalog(
             mods.Registry.OfKind("weapon_category").Select(d => WeaponDefinitionJson.ParseCategory(d.Json)),
             mods.Registry.OfKind("weapon").Select(d => WeaponDefinitionJson.ParseWeapon(d.Json)),
             mods.Registry.OfKind("attachment").Select(d => WeaponDefinitionJson.ParseAttachment(d.Json)));
+        _weapons = weapons;
         var fitting = new WeaponFittingService(_inventoryService, _containers, new WeaponService(weapons));
         // No wearable content ships yet, so nothing offers Equip until a mod defines some.
         var wearables = new WearableCatalog([]);
@@ -132,19 +138,35 @@ internal sealed class UiSession : IDisposable
             wearables,
             weapons);
         _inventoryView = new InventoryView(_inventoryService, _containers, _catalog, _localizer, fitting, actions, _outfit);
+        _inventoryView.AppliesActionsLocally = false;
         _inventoryView.Used += used => Used?.Invoke(used);
-        // A backpack and the ground, filled with a few things so the screen has something to show.
-        var backpack = new ContainerId(1);
-        var ground = new ContainerId(2);
-        _containers.TryAdd(new Container(backpack, UnitsNet.Mass.FromKilograms(20), UnitsNet.Volume.FromLiters(30), _catalog));
-        _containers.TryAdd(new Container(ground, UnitsNet.Mass.FromKilograms(1000), UnitsNet.Volume.FromLiters(1000), _catalog));
-        _inventoryView.AddTarget(backpack, "inv.backpack");
-        _inventoryView.AddTarget(ground, "inv.ground");
-        _inventoryView.SetRole(backpack, new ContainerRole(IsOwn: true, IsReadOnly: false, DropInto: ground));
-        _inventoryView.SetRole(ground, new ContainerRole(IsOwn: false, IsReadOnly: false));
-        Backpack = backpack;
-        Ground = ground;
-        SeedInventory();
+        _inventoryView.ServerActionRequested += (action, container, stack, count) =>
+        {
+            if (action == ItemActionIds.Drop)
+            {
+                DropRequested?.Invoke(container, stack, count);
+            }
+            else if (action == ItemActionIds.Split)
+            {
+                SplitRequested?.Invoke(container, stack, count);
+            }
+        };
+
+        // The backpack is the Container the Server gives this player; the ground is the world Container they have open, if any.
+        Backpack = new ContainerId(1);
+        Ground = new ContainerId(2);
+        _inventoryView.AddTarget(Backpack, "inv.backpack");
+        _inventoryView.AddTarget(Ground, "inv.ground");
+        _inventoryView.SetRole(Backpack, new ContainerRole(IsOwn: true, IsReadOnly: false, DropInto: Ground));
+        _inventoryView.SetRole(Ground, new ContainerRole(IsOwn: false, IsReadOnly: false));
+    }
+
+    /// <summary>Rebuilds the inventory screen from the Server's view of the Containers this player can see.</summary>
+    public void SetContainers(ContainerView view)
+    {
+        ArgumentNullException.ThrowIfNull(view);
+        _containers.Apply(view);
+        _inventoryView.Refresh();
     }
 
     public GameSettings Settings { get; private set; }
@@ -157,6 +179,50 @@ internal sealed class UiSession : IDisposable
 
     /// <summary>Raised after the player used an Item from the inventory and the Inventory command took it out. Whoever owns the authoritative inventory tells the Server.</summary>
     public event Action<ItemUsed>? Used;
+
+    /// <summary>Raised when the player asks to open the world Container they are looking at, with the block's coordinates.</summary>
+    public event Action<int, int, int>? OpenRequested;
+
+    /// <summary>Raised when the player asks to move a Stack between Containers, so the Server can validate and apply it.</summary>
+    public event Action<ContainerId, StackId, ContainerId, int>? MoveRequested;
+
+    /// <summary>Raised when the player asks to split a Stack.</summary>
+    public event Action<ContainerId, StackId, int>? SplitRequested;
+
+    /// <summary>Raised when the player asks to drop a Stack.</summary>
+    public event Action<ContainerId, StackId, int>? DropRequested;
+
+    /// <summary>Asks to open the world Container at a block, raising <see cref="OpenRequested"/>.</summary>
+    public void RequestOpen(int x, int y, int z) => OpenRequested?.Invoke(x, y, z);
+
+    /// <summary>Asks to hold the first weapon in the backpack, raising <see cref="HoldRequested"/>.</summary>
+    public void RequestHoldFirstWeapon()
+    {
+        foreach (var slot in _inventoryView.Slots(Backpack))
+        {
+            if (_weapons.TryGetWeapon(slot.Item, out _))
+            {
+                HoldRequested?.Invoke(slot.Item);
+                return;
+            }
+        }
+    }
+
+    /// <summary>Asks to bandage the first wounded part, raising <see cref="TreatRequested"/>.</summary>
+    public void RequestBandage()
+    {
+        foreach (var part in _status.Body.Wounds.Select(w => w.Part).Distinct())
+        {
+            TreatRequested?.Invoke(part, "base:treatment/bandage");
+            return;
+        }
+    }
+
+    /// <summary>Raised when the player asks to hold a weapon, or to empty their hands with a null Item.</summary>
+    public event Action<ItemId?>? HoldRequested;
+
+    /// <summary>Raised when the player asks to bandage a body part.</summary>
+    public event Action<BodyPart, string>? TreatRequested;
 
     /// <summary>Opens a screen by name, for a diagnostic run that wants to photograph it.</summary>
     public bool Open(string name)
@@ -271,6 +337,11 @@ internal sealed class UiSession : IDisposable
             UpdateInventory(input);
             return true;
         }
+        if (_screen == UiScreen.Body)
+        {
+            UpdateBody(input);
+            return true;
+        }
         if (_screen == UiScreen.Options)
         {
             UpdateOptions(input);
@@ -278,6 +349,21 @@ internal sealed class UiSession : IDisposable
         }
 
         return IsOpen;
+    }
+
+    /// <summary>On the Body screen, B bandages the first wounded part the Server says can be treated.</summary>
+    private void UpdateBody(InputState input)
+    {
+        if (!input.WasPressed(Key.B))
+        {
+            return;
+        }
+
+        foreach (var part in _status.Body.Wounds.Select(w => w.Part).Distinct())
+        {
+            TreatRequested?.Invoke(part, "base:treatment/bandage");
+            return;
+        }
     }
 
     /// <summary>Draws the HUD and, when one is open, the screen over it.</summary>
@@ -318,6 +404,18 @@ internal sealed class UiSession : IDisposable
 
     /// <summary>Tells the HUD which Status effects the Server last replicated to this client.</summary>
     public void SetEffects(IReadOnlyList<ActiveEffect> effects) => _status.Effects = effects;
+
+    /// <summary>
+    /// Tells the HUD the Server's account of this player's Body and Held weapon, so health, bleeding, ammo and condition follow
+    /// the Server rather than a local guess.
+    /// </summary>
+    public void SetStatus(ReplicatedStatus status)
+    {
+        ArgumentNullException.ThrowIfNull(status);
+        _status.Body = status.Body;
+        _status.Weapon = status.Weapon;
+        _status.WeaponState = status.WeaponState;
+    }
 
     private HudModel Hud() => new(_status.Body, _status.Needs, _status.Weapon, _status.WeaponState, _localizer, effects: _status.Effects, effectCatalog: _effects);
 
@@ -402,7 +500,7 @@ internal sealed class UiSession : IDisposable
         if (_mouseWasDown && !input.IsDown(MouseButton.Left))
         {
             _mouseWasDown = false;
-            if (_inventoryView.Dragging is not null)
+            if (_inventoryView.Dragging is { } dragged)
             {
                 if (MountAt(input.MouseX, input.MouseY) is { } mount)
                 {
@@ -411,7 +509,13 @@ internal sealed class UiSession : IDisposable
                 else
                 {
                     var ground = _inventoryLayout.Find("inv.ground")!.Bounds;
-                    _inventoryView.DropOn(ground.Contains(input.MouseX, input.MouseY) ? Ground : Backpack);
+                    var to = ground.Contains(input.MouseX, input.MouseY) ? Ground : Backpack;
+                    if (to != dragged.From)
+                    {
+                        MoveRequested?.Invoke(dragged.From, dragged.Stack, to, dragged.Count);
+                    }
+
+                    _inventoryView.CancelDrag();
                 }
 
                 if (_inventoryView.Refusal is { } refusal)
@@ -498,8 +602,7 @@ internal sealed class UiSession : IDisposable
     {
         foreach (var slot in _inventoryView.Slots(Backpack))
         {
-            _inventoryView.BeginDrag(Backpack, slot.Stack);
-            _inventoryView.DropOn(Ground);
+            DropRequested?.Invoke(Backpack, slot.Stack, slot.Count);
         }
     }
 
@@ -706,42 +809,6 @@ internal sealed class UiSession : IDisposable
         _values.SetText("options.gore", $"{_localizer.Get("options.gore")}: {_localizer.Get($"options.gore.{Settings.Gore.ToString().ToLowerInvariant()}")}");
         _values.SetText("options.keys", $"{_localizer.Get("options.keys")}: {_keys.KeyFor(GameAction.Inventory)}");
         UiRenderer.Draw(sprites, _options, _values, _context, palette);
-    }
-
-    private void SeedInventory()
-    {
-        foreach (var (item, count) in new[]
-        {
-            ("base:item/canned_beans", 3),
-            ("base:item/bandage", 4),
-            ("base:item/water_bottle", 1),
-            ("base:item/crowbar", 1),
-            ("base:item/suppressor", 1),
-            ("base:item/red_dot_sight", 1),
-        })
-        {
-            if (ItemId.TryParse(item, out var id) && _catalog.TryGet(id, out _))
-            {
-                _inventoryService.AddItems(Backpack, id, count);
-            }
-        }
-
-        foreach (var (item, count) in new[] { ("base:item/bandage", 2), ("base:item/canned_beans", 2) })
-        {
-            if (ItemId.TryParse(item, out var id) && _catalog.TryGet(id, out _))
-            {
-                _inventoryService.AddItems(Ground, id, count);
-            }
-        }
-
-        if (ItemId.TryParse("base:item/pistol_9mm", out var pistol) && _catalog.TryGet(pistol, out _))
-        {
-            var state = ItemState.Create([new(WeaponService.ConditionValue, 72), new(WeaponService.RoundsValue, 9)]);
-            _inventoryService.AddItems(Backpack, pistol, 1, state);
-            _status.Weapon = pistol;
-            _status.WeaponState = state;
-            _heldStack = _inventoryView.Slots(Backpack).LastOrDefault(s => s.Item == pistol)?.Stack;
-        }
     }
 
     private static string Snake(string name)

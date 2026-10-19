@@ -52,7 +52,13 @@ public sealed record ServerOptions(GameIdentity Identity, ulong WorldSeed)
 
     /// <summary>Tuning for each player's Body, including the Wound kinds their hits cause. Defaults to a healthy adult with unkinded Wounds.</summary>
     public BodyConfig? PlayerBody { get; init; }
+
+    /// <summary>What every player starts with in the Container they carry, so a fresh world has something to use.</summary>
+    public IReadOnlyList<StartingItem> StartingItems { get; init; } = [];
 }
+
+/// <summary>One Stack a player starts with: the Item, how many, and any Item state such as a weapon's Condition and rounds.</summary>
+public sealed record StartingItem(ItemId Item, int Count, ItemState? State = null);
 
 /// <summary>One connection to the Server, from connect to disconnect, and its player once it has joined.</summary>
 public sealed class PlayerSession
@@ -145,6 +151,7 @@ public sealed partial class GameServer : ITickable
 
     private readonly ITransport _transport;
     private readonly Dictionary<int, PlayerSession> _sessions = [];
+    private IPlayerCollisionSource _collision = FlatFloorCollision.Instance;
     private readonly List<PlayerSession> _closing = [];
     private readonly NetWriter _writer = new(4096);
     private readonly Handler _handler;
@@ -188,6 +195,11 @@ public sealed partial class GameServer : ITickable
         Commands.Register<UseWeapon>(UseWeapon.Handle);
         Commands.Register<LoadWeapon>(LoadWeapon.Handle);
         Commands.Register<TreatWounds>(TreatWounds.Handle);
+        Commands.Register<OpenContainer>(OpenContainer.Handle);
+        Commands.Register<MoveStackCommand>(MoveStackCommand.Handle);
+        Commands.Register<SplitStackCommand>(SplitStackCommand.Handle);
+        Commands.Register<DropStackCommand>(DropStackCommand.Handle);
+        Commands.Register<CloseContainer>(CloseContainer.Handle);
         _weapons = options.Weapons is null ? null : new WeaponService(options.Weapons);
         foreach (var corpse in stores.Corpses.All())
         {
@@ -203,7 +215,24 @@ public sealed partial class GameServer : ITickable
     public event Action<PlayerSession, IReadOnlyList<IDomainEvent>>? EffectEvents;
 
     /// <summary>Resolves player moves against the world. Defaults to a flat floor; a Server with terrain passes a Jolt world.</summary>
-    public IPlayerCollisionSource Collision { get; set; } = FlatFloorCollision.Instance;
+    public IPlayerCollisionSource Collision
+    {
+        get => _collision;
+        set
+        {
+            _collision = value;
+
+            // A player who joined before the source was swapped (the embedded Server's own player does) would keep the old
+            // floor and fall through the real terrain, so give every joined player a collision from the new source.
+            foreach (var session in _sessions.Values)
+            {
+                if (session.IsJoined)
+                {
+                    session.Collision = value.Create(session.Movement.Position, PlayerMovement.StandingHeight);
+                }
+            }
+        }
+    }
 
     public CommandRegistry Commands { get; } = new();
 
@@ -425,6 +454,7 @@ public sealed partial class GameServer : ITickable
         }
 
         AdvanceEffects();
+        SendContainerViews();
         _snapshotAccumulator += Options.SnapshotRateHz;
         if (_snapshotAccumulator >= Simulation.TickRateHz)
         {
@@ -570,9 +600,15 @@ public sealed partial class GameServer : ITickable
         session.Effects = new CreatureEffects(new CreatureId(session.EntityId), Options.Effects);
         session.Outfit = new Outfit(Options.Wearables);
         session.Carried = new Container(_death.NextContainerId(), Options.CarryMass, Options.CarryVolume, Options.Items);
-        session.Inventory = new InventoryService(Options.Items, new SingleContainerRepository(session.Carried));
+        session.Inventory = new InventoryService(Options.Items, new SessionContainers(session, this));
+        foreach (var starting in Options.StartingItems)
+        {
+            session.Carried.TryAdd(starting.Item, starting.Count, starting.State);
+        }
+
         session.LifeStartTick = _tick;
         session.StatusDirty = true;
+        _containersDirty.Add(session.Connection.Value);
         PlayerCount++;
 
         _writer.WriteByte((byte)MessageType.JoinAccepted);

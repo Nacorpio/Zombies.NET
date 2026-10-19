@@ -7,6 +7,7 @@ using Zombies.Engine.Tests.Rigs;
 namespace Zombies.Engine.Tests;
 
 /// <summary>Checks that ragdoll shapes are freed with their group, so the body cap also bounds shape memory. Runs Jolt natively.</summary>
+[Collection("Jolt")]
 public sealed class RagdollShapeTests
 {
     [Fact]

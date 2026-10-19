@@ -244,7 +244,10 @@ public sealed partial class InventoryView(
         return name.Length == 0 ? item.Value : char.ToUpperInvariant(name[0]) + name[1..];
     }
 
-    private Container Container(ContainerId id) => TryContainer(id, out var found) ? found : throw new ArgumentException($"Unknown container '{id}'.", nameof(id));
+    private Container Container(ContainerId id) => TryContainer(id, out var found) ? found : Empty(id);
+
+    /// <summary>An empty stand-in for a Container the repository does not have, so a panel with nothing in it still draws.</summary>
+    private Container Empty(ContainerId id) => new(id, UnitsNet.Mass.Zero, UnitsNet.Volume.Zero, catalog);
 
     private static ItemStack? Stack(Container container, StackId id) => container.Stacks.FirstOrDefault(s => s.Id == id);
 

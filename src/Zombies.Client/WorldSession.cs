@@ -1,7 +1,10 @@
 using System.Numerics;
+using Zombies.Domain.Combat;
+using Zombies.Domain.Crafting;
 using Zombies.Domain.Items;
 using Zombies.Domain.Mods;
 using Zombies.Domain.World;
+using Zombies.Engine.Ai;
 using Zombies.Engine.Core;
 using Zombies.Engine.Core.Modding;
 using Zombies.Engine.Net;
@@ -12,12 +15,14 @@ using Zombies.Engine.Voxel;
 
 namespace Zombies.Client;
 
-/// <summary>Everything the client needs to show the world: the loaded mods, the embedded Server, the generator, worker threads, and the manager that streams chunks to the GPU.</summary>
+/// <summary>Everything the client needs to show the world: the loaded mods, the Server it is joined to, the generator, worker threads, and the manager that streams chunks to the GPU.</summary>
 internal sealed class WorldSession : IDisposable
 {
     private readonly ChunkPipeline _pipeline;
     private readonly PhysicsWorld _physics;
     private readonly HashSet<ChunkCoord> _physicsChunks = [];
+    private readonly WorldGenerator _generator;
+    private readonly LiteNetTransport? _remoteTransport;
 
     public WorldSession(ClientOptions options, IWorldRenderer renderer)
     {
@@ -28,35 +33,104 @@ internal sealed class WorldSession : IDisposable
             throw new InvalidOperationException("The mods could not be loaded:" + Environment.NewLine + string.Join(Environment.NewLine, mods.Errors));
         }
 
-        // Solo play runs the client and the Server in one process, so every Code mod's code runs here.
-        var codeMods = CodeModLoader.Load(packages, mods, ProcessRole.Solo);
+        // Solo play runs the client and the Server in one process, so every Code mod's code runs here. A client of a dedicated
+        // Server runs only the client-side mods, exactly as the Server ran only the server-side ones.
+        var role = options.Connect is null ? ProcessRole.Solo : ProcessRole.Client;
+        var codeMods = CodeModLoader.Load(packages, mods, role);
         if (!codeMods.IsSuccess)
         {
             throw new InvalidOperationException("The code mods could not be loaded:" + Environment.NewLine + string.Join(Environment.NewLine, codeMods.Problems));
         }
 
-        // Solo play: join an embedded Server and take the world seed from it, as a client of a dedicated server would.
-        var solo = new ServerOptions(GameIdentity.From(mods, WorldGenerator.GeneratorVersion), options.Seed)
+        var identity = GameIdentity.From(mods, WorldGenerator.GeneratorVersion, new WorldOptions(WorldOptionCatalog.From(mods.Registry), []));
+        var playerName = string.IsNullOrEmpty(options.PlayerName)
+            ? (string.IsNullOrEmpty(Environment.UserName) ? "player" : Environment.UserName)
+            : options.PlayerName;
+
+        if (options.Connect is { } address)
         {
-            Items = new ItemCatalog(mods.Registry.OfKind("item").Select(d => ItemDefinitionJson.Parse(d.Json))),
-            Effects = StatusEffectContentLoader.Load(mods.Registry),
-        };
-        Solo = new EmbeddedServer(solo, string.IsNullOrEmpty(Environment.UserName) ? "player" : Environment.UserName);
-        CodeModMessages.Register(Solo.Server.Commands, codeMods);
+            // Join a dedicated Server: the seed and the mod verification come from it, as the solo path takes them from the embedded one.
+            var (host, port) = ParseAddress(address);
+            _remoteTransport = LiteNetTransport.Connect(host, port, options.ConnectionKey);
+            Client = new GameClient(_remoteTransport, identity, playerName);
+            for (var i = 0; i < 600 && Client.State == ClientState.Connecting; i++)
+            {
+                Client.Poll();
+                Thread.Sleep(5);
+            }
+
+            if (Client.State != ClientState.Joined)
+            {
+                throw new JoinRefusedException(Client.Refusal, Client.RefusalDetail);
+            }
+        }
+        else
+        {
+            // Solo play: join an embedded Server and take the world seed from it, as a client of a dedicated server would.
+            var solo = new ServerOptions(identity, options.Seed)
+            {
+                Items = new ItemCatalog(mods.Registry.OfKind("item").Select(d => ItemDefinitionJson.Parse(d.Json))),
+                Effects = StatusEffectContentLoader.Load(mods.Registry),
+                StartingItems = StartingItems(mods),
+            };
+
+            Solo = new EmbeddedServer(solo, playerName);
+            CodeModMessages.Register(Solo.Server.Commands, codeMods);
+            Client = Solo.Client;
+
+            // The world's zombies, built the same way the dedicated Server builds them, so solo and co-op match. They live in the
+            // Server's own world, so the AI moves the entities the Server replicates.
+            Zombies = ServerZombies.Build(Solo.Server.World, packages, mods, codeMods);
+            Solo.Server.Zombies = Zombies.System;
+            Solo.Add(Zombies.System);
+            Solo.Add(Zombies.Ai);
+            Zombies.Ai.PlayerAttacked += attack =>
+            {
+                if (Solo.Server.TryGetPlayer(new ConnectionId((int)attack.Player), out var bitten))
+                {
+                    Solo.Server.Bite(bitten, Zombies.System, attack.Zombie, attack.Part);
+                }
+            };
+        }
+
         ModMessages = codeMods.Messages;
 
         var biomes = new BiomeCatalog(mods.Registry.OfKind("biome").Select(d => BiomeJson.Parse(d.Json)));
-        _pipeline = new ChunkPipeline(new WorldGenerator(Solo.Client.WorldSeed, biomes, SettlementContentLoader.Load(mods.Registry)));
+        _generator = new WorldGenerator(Client.WorldSeed, biomes, SettlementContentLoader.Load(mods.Registry));
+        _pipeline = new ChunkPipeline(_generator);
         Manager = new ChunkRenderManager(_pipeline, renderer, new ChunkStreamer(options.ViewDistance));
         ViewDistance = options.ViewDistance;
 
+        if (Solo is not null)
+        {
+            var spawn = Solo.Server.Options.SpawnPoint;
+            var spawnChunk = new ChunkCoord((int)spawn.X >> 4, (int)spawn.Z >> 4);
+            Zombies!.Populate(_generator, spawnChunk, radius: 4);
+
+            // The world's Containers, filled from each room's Area type the first time a player opens one.
+            var areas = new AreaTypeCatalog(mods.Registry.OfKind("area_type").Select(d => AreaTypeJson.Parse(d.Json)));
+            var areaLoot = new AreaLootService(areas, new LootService(new LootTableCatalog(mods.Registry.OfKind("loot").Select(d => LootTableJson.Parse(d.Json)))));
+            ServerZombies.WireContainers(Solo.Server, _generator, spawnChunk, radius: 4, areaLoot, Solo.Server.Options.Items);
+        }
+
         // The player walks on Jolt terrain, and the Server moves them with the same character controller.
         _physics = new PhysicsWorld();
-        Solo.Server.Collision = _physics;
-        Solo.Client.Collision = _physics.Create(Solo.Client.Local.State.Position, PlayerMovement.StandingHeight);
+        if (Solo is not null)
+        {
+            Solo.Server.Collision = _physics;
+        }
+
+        Client.Collision = _physics.Create(Client.Local.State.Position, PlayerMovement.StandingHeight);
     }
 
-    public EmbeddedServer Solo { get; }
+    /// <summary>The embedded Server, or null when this client joined a dedicated Server.</summary>
+    public EmbeddedServer? Solo { get; }
+
+    /// <summary>The client, over the embedded Server's in-memory transport or a dedicated Server's UDP socket.</summary>
+    public GameClient Client { get; }
+
+    /// <summary>The world's zombies, which the Server ticks and the client draws. Null when joined to a dedicated Server, which owns them.</summary>
+    public ServerZombies? Zombies { get; }
 
     /// <summary>The numbers of the Code mods' messages, for sending one with <see cref="GameClient.Send{TMessage}(ModMessageTable, in TMessage)"/>.</summary>
     public ModMessageTable ModMessages { get; }
@@ -69,6 +143,74 @@ internal sealed class WorldSession : IDisposable
 
     /// <summary>Chunks whose terrain is in the physics world.</summary>
     public int PhysicsChunkCount => _physics.TerrainChunkCount;
+
+    /// <summary>Runs the Server ticks that <paramref name="elapsed"/> real time owes, then lets the client read what they sent.</summary>
+    public void Advance(TimeSpan elapsed)
+    {
+        if (Solo is not null)
+        {
+            Solo.Advance(elapsed);
+        }
+        else
+        {
+            Client.Poll();
+        }
+    }
+
+    /// <summary>
+    /// The world Container the player is looking at, from the Server's own world, so the client can show a prompt and ask to
+    /// open it. Null when this client joined a dedicated Server, which owns the Containers and answers the open command itself.
+    /// </summary>
+    public WorldContainer? TargetedContainer(Vector3 eye, Vector3 direction)
+    {
+        if (Solo is null)
+        {
+            return null;
+        }
+
+        var near = Solo.Server.WorldContainers.Near(eye, ContainerTargeting.DefaultReach + 1f);
+        return ContainerTargeting.Find(near, eye, direction, Solo.Server.ContainerReach);
+    }
+
+    private static (string Host, int Port) ParseAddress(string address)
+    {
+        var colon = address.LastIndexOf(':');
+        if (colon <= 0 || !int.TryParse(address[(colon + 1)..], System.Globalization.NumberStyles.Integer, System.Globalization.CultureInfo.InvariantCulture, out var port))
+        {
+            throw new ArgumentException($"--connect needs HOST:PORT, not '{address}'.");
+        }
+
+        return (address[..colon], port);
+    }
+
+    /// <summary>The items every player starts with, so a fresh world has something to use and a weapon to hold.</summary>
+    private static List<StartingItem> StartingItems(ModLoadResult mods)
+    {
+        var catalog = new ItemCatalog(mods.Registry.OfKind("item").Select(d => ItemDefinitionJson.Parse(d.Json)));
+        var items = new List<StartingItem>();
+        foreach (var (id, count) in new[]
+        {
+            ("base:item/canned_beans", 3),
+            ("base:item/bandage", 4),
+            ("base:item/water_bottle", 1),
+            ("base:item/crowbar", 1),
+            ("base:item/suppressor", 1),
+            ("base:item/red_dot_sight", 1),
+        })
+        {
+            if (ItemId.TryParse(id, out var item) && catalog.TryGet(item, out _))
+            {
+                items.Add(new StartingItem(item, count));
+            }
+        }
+
+        if (ItemId.TryParse("base:item/pistol_9mm", out var pistol) && catalog.TryGet(pistol, out _))
+        {
+            items.Add(new StartingItem(pistol, 1, ItemState.Create([new(WeaponService.ConditionValue, 72), new(WeaponService.RoundsValue, 9)])));
+        }
+
+        return items;
+    }
 
     /// <summary>
     /// Adds the terrain of every loaded chunk to the physics world and drops the terrain of chunks that streamed out, so
@@ -115,8 +257,18 @@ internal sealed class WorldSession : IDisposable
     {
         _physics.Dispose();
         _pipeline.Dispose();
-        Solo.Dispose();
+        Solo?.Dispose();
+        _remoteTransport?.Dispose();
     }
+}
+
+/// <summary>A dedicated Server refused the join, with the reason it gave, so the client can say why instead of just logging it.</summary>
+internal sealed class JoinRefusedException(JoinRefusal? reason, string? detail)
+    : Exception($"The Server refused the join: {reason} {detail}".Trim())
+{
+    public JoinRefusal? Reason { get; } = reason;
+
+    public string? Detail { get; } = detail;
 }
 
 /// <summary>

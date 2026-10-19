@@ -38,7 +38,7 @@ public sealed class KeyBindings
         [GameAction.LeanLeft] = Key.Q,
         [GameAction.LeanRight] = Key.E,
         [GameAction.Inventory] = Key.I,
-        [GameAction.BodyScreen] = Key.H,
+        [GameAction.BodyScreen] = Key.X,
         [GameAction.ToggleMouse] = Key.Tab,
         [GameAction.Interact] = Key.F,
     };

@@ -19,12 +19,15 @@ public enum MessageType : byte
 
     /// <summary>The Status effects on the receiving player, sent to that player alone whenever they change.</summary>
     StatusEffects,
+
+    /// <summary>The Containers the receiving player can see: the one they carry and any world Container they have open.</summary>
+    ContainerView,
 }
 
 public static class NetProtocol
 {
     /// <summary>Bump whenever any message layout changes, so old clients are refused instead of misreading.</summary>
-    public const ushort Version = 6;
+    public const ushort Version = 7;
 }
 
 /// <summary>Why the Server refused a join.</summary>

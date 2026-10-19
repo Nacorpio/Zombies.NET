@@ -144,6 +144,7 @@ public sealed class PlayerMovementTests
 }
 
 /// <summary>Checks that Jolt drives the character against real terrain, including a one-block ledge.</summary>
+[Collection("Jolt")]
 public sealed class PhysicsTests
 {
     private static Chunk FlatChunk(ChunkCoord coord, int groundY)
@@ -297,7 +298,17 @@ public sealed class PhysicsTests
             }
         }
 
-        var start = new Vector3(8f, 80f, 8f);
+        // Drop onto the first column near the middle with no tree in it, since a trunk or a canopy is a different surface.
+        var origin = generator.Generate(new ChunkCoord(0, 0));
+        var dropX = 8;
+        var dropZ = 8;
+        for (var column = 0; column < 144 && HasLog(origin, dropX, dropZ); column++)
+        {
+            dropX = column % 12;
+            dropZ = column / 12;
+        }
+
+        var start = new Vector3(dropX + 0.5f, 80f, dropZ + 0.5f);
         var collision = world.Create(start, PlayerMovement.StandingHeight);
         var state = PlayerMoveState.At(start);
         for (var i = 0; i < 600; i++)
@@ -309,10 +320,14 @@ public sealed class PhysicsTests
         var chunk = generator.Generate(new ChunkCoord(0, 0));
         var x = (int)MathF.Floor(state.Position.X);
         var z = (int)MathF.Floor(state.Position.Z);
-        var surface = chunk.TopOpaque(x, z) + 1;
+
+        // The ground, not a tree: the player stands on the terrain under a canopy, and a heightfield slopes between its column
+        // corners, so the surface may be as high as the highest neighbouring column.
+        var surface = GroundTop(chunk, x, z);
+        var highest = Math.Max(Math.Max(surface, GroundTop(chunk, Math.Min(x + 1, 15), z)), Math.Max(GroundTop(chunk, x, Math.Min(z + 1, 15)), GroundTop(chunk, Math.Min(x + 1, 15), Math.Min(z + 1, 15))));
 
         Assert.True(state.OnGround, "the player should have landed on the generated terrain.");
-        Assert.True(Math.Abs(state.Position.Y - surface) < 1f, $"the player should rest on the surface at {surface}, but is at {state.Position.Y}.");
+        Assert.True(state.Position.Y > surface - 1f && state.Position.Y < highest + 1f, $"the player should rest on the ground at {surface} to {highest}, but is at {state.Position} (dropped at {dropX},{dropZ}).");
 
         // Standing still must not creep: the character keeps its contacts between steps.
         var landed = state.Position;
@@ -323,5 +338,276 @@ public sealed class PhysicsTests
         }
 
         Assert.Equal(landed, state.Position);
+    }
+
+    [Theory]
+    [InlineData(15.5f)]
+    [InlineData(15.9f)]
+    [InlineData(31.5f)]
+    [InlineData(-0.5f)]
+    public void APlayer_StandingOverAChunkSeam_DoesNotFallThrough(float x)
+    {
+        var biomes = new BiomeCatalog([new Biome("base:biome/temperate_forest", ["forest"], (0, 100), (0, 100), 52, 14, 50)]);
+        var generator = new WorldGenerator(12345, biomes);
+        using var world = new PhysicsWorld();
+        for (var cz = -1; cz <= 1; cz++)
+        {
+            for (var cx = -2; cx <= 2; cx++)
+            {
+                world.AddTerrain(generator.Generate(new ChunkCoord(cx, cz)));
+            }
+        }
+
+        var start = new Vector3(x, 90f, 8.5f);
+        var collision = world.Create(start, PlayerMovement.StandingHeight);
+        var state = PlayerMoveState.At(start);
+        for (var i = 0; i < 600; i++)
+        {
+            state = PlayerMovement.Step(state, default, PlayerMovement.StepSeconds, collision);
+            world.Step(PlayerMovement.StepSeconds);
+        }
+
+        Assert.True(state.OnGround, $"the player over x={x} should have landed.");
+        Assert.True(state.Position.Y > 40f, $"the player over x={x} fell through the seam to {state.Position.Y}.");
+    }
+
+    /// <summary>A tree as the generator grows one: a log trunk with a canopy of leaves over its top.</summary>
+    private static void GrowTree(Chunk chunk, int treeX, int treeZ, int groundY, int trunkHeight)
+    {
+        var top = groundY + trunkHeight;
+        for (var y = top - 2; y <= top + 1; y++)
+        {
+            var radius = y >= top ? 1 : 2;
+            for (var ox = -radius; ox <= radius; ox++)
+            {
+                for (var oz = -radius; oz <= radius; oz++)
+                {
+                    if (!(Math.Abs(ox) == 2 && Math.Abs(oz) == 2))
+                    {
+                        chunk.Set(treeX + ox, y, treeZ + oz, Blocks.Leaves);
+                    }
+                }
+            }
+        }
+
+        for (var y = groundY + 1; y <= top; y++)
+        {
+            chunk.Set(treeX, y, treeZ, Blocks.Log);
+        }
+    }
+
+    [Theory]
+    [InlineData(1f, 0f)]
+    [InlineData(-1f, 0f)]
+    [InlineData(0f, 1f)]
+    [InlineData(0f, -1f)]
+    public void APlayer_WalkingIntoATree_StaysOnTheGround(float directionX, float directionZ)
+    {
+        using var world = new PhysicsWorld();
+        var chunk = FlatChunk(new ChunkCoord(0, 0), groundY: 64);
+        GrowTree(chunk, 8, 8, groundY: 64, trunkHeight: 5);
+        chunk.RecomputeHeights();
+        world.AddTerrain(chunk);
+
+        // Start on the ground a few blocks out, outside the canopy, and walk straight at the trunk.
+        var start = new Vector3(8.5f - (directionX * 5f), 65f, 8.5f - (directionZ * 5f));
+        var collision = world.Create(start, PlayerMovement.StandingHeight);
+        var state = PlayerMoveState.At(start);
+        var yaw = MathF.Atan2(directionX, -directionZ);
+        var input = new PlayerInput(1f, 0f, yaw, 0f, false, false, false, false, false);
+        var lowest = state.Position.Y;
+        for (var i = 0; i < 300; i++)
+        {
+            state = PlayerMovement.Step(state, input, PlayerMovement.StepSeconds, collision);
+            world.Step(PlayerMovement.StepSeconds);
+            lowest = MathF.Min(lowest, state.Position.Y);
+        }
+
+        Assert.True(lowest > 63f, $"the player fell to {lowest} walking into a tree.");
+        Assert.True(state.Position.Y < 67f, $"the player ended at {state.Position} walking into a tree (lowest {lowest}).");
+    }
+
+    private static bool HasLog(Chunk chunk, int x, int z)
+    {
+        for (var y = 0; y < ChunkConstants.Height; y++)
+        {
+            if (chunk.Get(x, y, z) is Blocks.Log or Blocks.Leaves)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /// <summary>Y of the top block of a column that is neither a log nor leaves, so the ground under a tree.</summary>
+    private static int GroundTop(Chunk chunk, int x, int z)
+    {
+        for (var y = ChunkConstants.Height - 1; y >= 0; y--)
+        {
+            var block = chunk.Get(x, y, z);
+            if (block != Blocks.Air && block != Blocks.Log && block != Blocks.Leaves)
+            {
+                return y + 1;
+            }
+        }
+
+        return 0;
+    }
+
+    [Fact]
+    public void APlayer_RunningAndJumpingAmongGeneratedTrees_NeverFallsThrough()
+    {
+        var biomes = new BiomeCatalog([new Biome("base:biome/temperate_forest", ["forest"], (0, 100), (0, 100), 52, 14, 200)]);
+        var generator = new WorldGenerator(777, biomes);
+        using var world = new PhysicsWorld();
+        var chunks = new Dictionary<ChunkCoord, Chunk>();
+        for (var cz = -3; cz <= 3; cz++)
+        {
+            for (var cx = -3; cx <= 3; cx++)
+            {
+                var chunk = generator.Generate(new ChunkCoord(cx, cz));
+                chunks[chunk.Coord] = chunk;
+                world.AddTerrain(chunk);
+            }
+        }
+
+        var failures = new List<string>();
+        var random = new Random(5);
+        for (var attempt = 0; attempt < 300; attempt++)
+        {
+            var wx = random.Next(-30, 30);
+            var wz = random.Next(-30, 30);
+            var chunk = chunks[new ChunkCoord(wx >> 4, wz >> 4)];
+            var groundY = chunk.TopOpaque(wx & 15, wz & 15) + 1;
+            var start = new Vector3(wx + 0.5f, groundY + 3f, wz + 0.5f);
+            var collision = world.Create(start, PlayerMovement.StandingHeight);
+            var state = PlayerMoveState.At(start);
+            var yaw = (float)(random.NextDouble() * Math.PI * 2);
+            for (var i = 0; i < 1200; i++)
+            {
+                if (i % 40 == 0)
+                {
+                    yaw = (float)(random.NextDouble() * Math.PI * 2);
+                }
+
+                var input = new PlayerInput(1f, random.Next(3) - 1f, yaw, 0f, true, random.Next(6) == 0, false, false, i % 25 == 0);
+                state = PlayerMovement.Step(state, input, PlayerMovement.StepSeconds, collision);
+                world.Step(PlayerMovement.StepSeconds);
+                var px = (int)MathF.Floor(state.Position.X);
+                var pz = (int)MathF.Floor(state.Position.Z);
+                if (chunks.TryGetValue(new ChunkCoord(px >> 4, pz >> 4), out var under) && state.Position.Y < GroundTop(under, px & 15, pz & 15) - 2f)
+                {
+                    failures.Add($"attempt {attempt} fell to {state.Position} at tick {i} (ground {GroundTop(under, px & 15, pz & 15)}, start {start}).");
+                    break;
+                }
+            }
+        }
+
+        Assert.True(failures.Count == 0, string.Join(Environment.NewLine, failures));
+    }
+
+    [Theory]
+    [InlineData(1.5f, 0f)]
+    [InlineData(0f, 1.5f)]
+    [InlineData(-1.5f, 1f)]
+    [InlineData(0.6f, 0.6f)]
+    public void APlayer_UnderACanopy_IsNotLeftFallingOrStuckBelowIt(float offsetX, float offsetZ)
+    {
+        using var world = new PhysicsWorld();
+        var chunk = FlatChunk(new ChunkCoord(0, 0), groundY: 64);
+        GrowTree(chunk, 8, 8, groundY: 64, trunkHeight: 5);
+        chunk.RecomputeHeights();
+        world.AddTerrain(chunk);
+
+        var start = new Vector3(8.5f + offsetX, 65f, 8.5f + offsetZ);
+        var collision = world.Create(start, PlayerMovement.StandingHeight);
+        var state = PlayerMoveState.At(start);
+        var lowest = state.Position.Y;
+        for (var i = 0; i < 300; i++)
+        {
+            state = PlayerMovement.Step(state, default, PlayerMovement.StepSeconds, collision);
+            world.Step(PlayerMovement.StepSeconds);
+            lowest = MathF.Min(lowest, state.Position.Y);
+        }
+
+        Assert.True(lowest > 63f, $"the player fell to {lowest} under a canopy.");
+        Assert.True(state.OnGround, $"the player is not standing on anything at {state.Position}.");
+    }
+
+    [Fact]
+    public void Leaves_BlockAPlayerWalkingIntoThem()
+    {
+        using var world = new PhysicsWorld();
+        var chunk = FlatChunk(new ChunkCoord(0, 0), groundY: 64);
+        for (var z = 0; z < ChunkConstants.Size; z++)
+        {
+            chunk.Set(10, 65, z, Blocks.Leaves);
+            chunk.Set(10, 66, z, Blocks.Leaves);
+        }
+
+        chunk.RecomputeHeights();
+        world.AddTerrain(chunk);
+        var start = new Vector3(4.5f, 65f, 8.5f);
+        var collision = world.Create(start, PlayerMovement.StandingHeight);
+        var state = PlayerMoveState.At(start);
+        var input = new PlayerInput(0f, 1f, 0f, 0f, false, false, false, false, false);
+        for (var i = 0; i < 90; i++)
+        {
+            state = PlayerMovement.Step(state, input, PlayerMovement.StepSeconds, collision);
+            world.Step(PlayerMovement.StepSeconds);
+        }
+
+        Assert.True(state.Position.X < 10f, $"the player walked through leaves to x {state.Position.X}.");
+    }
+
+    [Fact]
+    public void Leaves_BlockAPlayerJumpingUpIntoThem()
+    {
+        using var world = new PhysicsWorld();
+        var chunk = FlatChunk(new ChunkCoord(0, 0), groundY: 64);
+        for (var z = 4; z < 12; z++)
+        {
+            for (var x = 4; x < 12; x++)
+            {
+                chunk.Set(x, 67, z, Blocks.Leaves);
+            }
+        }
+
+        chunk.RecomputeHeights();
+        world.AddTerrain(chunk);
+        var start = new Vector3(8.5f, 65f, 8.5f);
+        var collision = world.Create(start, PlayerMovement.StandingHeight);
+        var state = PlayerMoveState.At(start);
+        var highest = state.Position.Y;
+        for (var i = 0; i < 120; i++)
+        {
+            var input = new PlayerInput(0f, 0f, 0f, 0f, false, false, false, false, true);
+            state = PlayerMovement.Step(state, input, PlayerMovement.StepSeconds, collision);
+            world.Step(PlayerMovement.StepSeconds);
+            highest = MathF.Max(highest, state.Position.Y);
+        }
+
+        Assert.True(highest < 65.6f, $"the player jumped up through leaves to {highest}.");
+    }
+
+    [Fact]
+    public void APlayer_PushedUnderTheTerrain_IsStoodBackOnTopOfIt()
+    {
+        using var world = new PhysicsWorld();
+        world.AddTerrain(FlatChunk(new ChunkCoord(0, 0), groundY: 64));
+
+        // Start well under the surface, as a reconcile teleport beside a steep step could leave a player.
+        var start = new Vector3(8f, 40f, 8f);
+        var collision = world.Create(start, PlayerMovement.StandingHeight);
+        var state = PlayerMoveState.At(start);
+        for (var i = 0; i < 120; i++)
+        {
+            state = PlayerMovement.Step(state, default, PlayerMovement.StepSeconds, collision);
+            world.Step(PlayerMovement.StepSeconds);
+        }
+
+        Assert.True(state.OnGround);
+        Assert.True(state.Position.Y > 63f, $"the player should be back on the surface, but is at {state.Position.Y}.");
     }
 }

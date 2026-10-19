@@ -36,6 +36,9 @@ public sealed record ZombieAttack(double Reach, double Damage, DamageType Damage
 /// <summary>What one hit on a zombie did.</summary>
 public sealed record ZombieHit(uint Entity, BodyPart Part, float Distance, Vector3 Point, bool Killed, bool LostPart, IReadOnlyList<IDomainEvent> Events);
 
+/// <summary>A zombie's attack reach, damage, and whether it bites, without the allocation of <see cref="ZombieAttack"/>.</summary>
+public readonly record struct ZombieAttackInfo(double Reach, double Damage, bool Bites);
+
 /// <summary>What a Cosmetic event on a zombie is about.</summary>
 public enum CosmeticKind : byte
 {
@@ -222,6 +225,30 @@ public sealed class ZombieSystem : ITickable
         else
         {
             attack = new ZombieAttack(ZombieAttack.UnarmedReach, data.Type.DamageAt(data.Spec.Level), DamageType.Blunt, null);
+        }
+
+        return true;
+    }
+
+    /// <summary>
+    /// What the zombie's attack does now, without allocating, for a hot path such as the AI's per-tick reach check.
+    /// False for a zombie that is not here or is dead.
+    /// </summary>
+    public bool TryGetAttackInfo(uint id, out ZombieAttackInfo info)
+    {
+        info = default;
+        if (!_zombies.TryGetValue(id, out var data) || !data.Body.IsAlive)
+        {
+            return false;
+        }
+
+        if (HeldWeaponOf(data) is { } held && Catalog.Weapons is { } weapons && weapons.TryGetWeapon(held.Item, out var weapon))
+        {
+            info = new ZombieAttackInfo(weapon.Reach, weapon.Damage * data.Type.LevelFactor(data.Spec.Level), data.Type.Bite is not null);
+        }
+        else
+        {
+            info = new ZombieAttackInfo(ZombieAttack.UnarmedReach, data.Type.DamageAt(data.Spec.Level), data.Type.Bite is not null);
         }
 
         return true;
@@ -456,9 +483,24 @@ public sealed class ZombieSystem : ITickable
         return (int)random.NextBelow(ZombieTypeDefinition.BasisPoints) < weakpoint.EffectChanceBasis ? weakpoint.Effect : null;
     }
 
-    /// <summary>The weapon the zombie holds right now: the one it spawned with, unless it has let go of it.</summary>
-    private static ZombieHeldWeapon? HeldWeaponOf(ZombieData data) =>
-        !data.WeaponDropped && data.Appearance.HeldWeapon is { } held && held.IsHeldWith(data.Body.MissingParts) ? held : null;
+    /// <summary>
+    /// The weapon the zombie holds right now: the one it spawned with, unless it has let go of it. Checks the missing parts one
+    /// by one rather than through <see cref="Body.MissingParts"/>, which builds a list, because the AI asks this every tick.
+    /// </summary>
+    private static ZombieHeldWeapon? HeldWeaponOf(ZombieData data)
+    {
+        if (data.WeaponDropped || data.Appearance.HeldWeapon is not { } held)
+        {
+            return null;
+        }
+
+        if (data.Body.IsMissing(held.Arm) || (held.HandsNeeded >= 2 && data.Body.IsMissing(BodyPart.LeftArm)))
+        {
+            return null;
+        }
+
+        return held;
+    }
 
     private void Remove(uint id)
     {

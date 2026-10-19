@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Numerics;
 using System.Runtime.InteropServices;
+using Zombies.Domain.Items;
 using Zombies.Domain.Zombies;
 using Zombies.Engine.Animation;
 using Zombies.Engine.Core;
@@ -53,6 +54,12 @@ public sealed record ZombieAiOptions
     /// <summary>Ticks between a zombie's blows on a door.</summary>
     public int AttackIntervalTicks { get; init; } = Simulation.TickRateHz;
 
+    /// <summary>Ticks between a zombie's blows on a player it has caught.</summary>
+    public int PlayerAttackIntervalTicks { get; init; } = Simulation.TickRateHz;
+
+    /// <summary>How far past its reach a zombie still lands a blow, so a player who is nearly in reach is hit.</summary>
+    public float AttackReachSlack { get; init; } = 0.4f;
+
     /// <summary>How far the sound of a blow on a door carries.</summary>
     public float DoorHitSoundMeters { get; init; } = 16f;
 
@@ -84,6 +91,9 @@ public enum ZombieMindState
     /// <summary>Hits a closed door that stands in its way.</summary>
     BreakingDoor,
 }
+
+/// <summary>What one zombie's blow on a player did, for the Server to apply. The AI decides when and whom; the Server decides what it costs.</summary>
+public readonly record struct ZombiePlayerAttack(uint Zombie, uint Player, BodyPart Part, double Damage, bool Bite);
 
 /// <summary>What one zombie is doing, for tests, the debug overlay, and the harness.</summary>
 public readonly record struct ZombieMindView(ZombieMindState State, DetailLevel Detail, Vector3 Goal, uint TargetPlayer, bool FollowsFlowField);
@@ -153,6 +163,12 @@ public sealed class ZombieAi : ITickable
     public DoorMap Doors => Navigation.Doors;
 
     public ZombieAiOptions Options => _options;
+
+    /// <summary>
+    /// Raised when a zombie lands a blow on a player it has caught. The AI decides when and whom; the Server applies the damage
+    /// and, for a bite, the chance of a Status effect. Nothing is applied here, so the AI stays free of the Server's rules.
+    /// </summary>
+    public event Action<ZombiePlayerAttack>? PlayerAttacked;
 
     /// <summary>How long the last tick took, searching included.</summary>
     public TimeSpan LastTickTime { get; private set; }
@@ -545,6 +561,11 @@ public sealed class ZombieAi : ITickable
             return;
         }
 
+        if (TryAttackPlayer(mind))
+        {
+            return;
+        }
+
         var speed = mind.Speed * (mind.Crawling ? _options.CrawlSpeedFactor : 1f);
         var remaining = speed * seconds;
         var position = mind.Position;
@@ -605,6 +626,35 @@ public sealed class ZombieAi : ITickable
             mind.Yaw = yaw;
             _world.Move(mind.Id, position, yaw);
         }
+    }
+
+    /// <summary>
+    /// A zombie that has caught the player it was chasing lands a blow, at most once per <see cref="ZombieAiOptions.PlayerAttackIntervalTicks"/>.
+    /// The reach and damage come from the weapon the zombie holds, so an armed zombie hits harder and farther than an unarmed one.
+    /// The Server applies the blow; the AI only decides when and whom.
+    /// </summary>
+    private bool TryAttackPlayer(Mind mind)
+    {
+        if (mind.State != ZombieMindState.Chasing || mind.TargetPlayer == 0 || _tick < mind.NextAttackTick)
+        {
+            return false;
+        }
+
+        if (!_world.TryGet(mind.TargetPlayer, out var player) || player.Player.Dead)
+        {
+            return false;
+        }
+
+        var reach = _zombies.TryGetAttackInfo(mind.Id, out var attack) ? attack.Reach : ZombieAttack.UnarmedReach;
+        var offset = player.Position - mind.Position;
+        if (new Vector2(offset.X, offset.Z).Length() > reach + _options.AttackReachSlack || MathF.Abs(offset.Y) > 2.5f)
+        {
+            return false;
+        }
+
+        mind.NextAttackTick = _tick + _options.PlayerAttackIntervalTicks;
+        PlayerAttacked?.Invoke(new ZombiePlayerAttack(mind.Id, mind.TargetPlayer, BodyPart.Torso, mind.Damage, attack.Bites));
+        return true;
     }
 
     private bool FindDoor(NavCell cell, out Door door)
@@ -724,6 +774,8 @@ public sealed class ZombieAi : ITickable
         public Door? Door { get; set; }
 
         public long NextHitTick { get; set; }
+
+        public long NextAttackTick { get; set; }
 
         public Vector3 Position { get; set; }
 

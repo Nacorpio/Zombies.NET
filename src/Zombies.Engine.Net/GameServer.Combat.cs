@@ -7,24 +7,6 @@ using Zombies.Engine.Core;
 
 namespace Zombies.Engine.Net;
 
-/// <summary>A <see cref="IContainerRepository"/> over the one Container a player carries, so Inventory commands can change it in place.</summary>
-internal sealed class SingleContainerRepository(Container container) : IContainerRepository
-{
-    public bool TryGet(ContainerId id, out Container found)
-    {
-        found = container;
-        return id == container.Id;
-    }
-
-    public bool TryAdd(Container added) => false;
-
-    public void Save(Container saved)
-    {
-    }
-
-    public IReadOnlyList<ContainerId> Ids() => [container.Id];
-}
-
 public sealed partial class GameServer
 {
     /// <summary>The zombies a player's weapon can hit. Null on a Server with none, where a weapon hits nothing.</summary>

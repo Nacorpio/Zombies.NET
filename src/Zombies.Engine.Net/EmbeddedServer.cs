@@ -11,6 +11,7 @@ public sealed class EmbeddedServer : IDisposable
     private readonly ITransport _serverTransport;
     private readonly ITransport _clientTransport;
     private readonly FixedStepClock _clock = new();
+    private readonly List<ITickable> _extra = [];
     private long _tick;
 
     /// <summary>Starts the Server and joins it. Throws when the join is refused, which only a bug can cause here.</summary>
@@ -38,6 +39,16 @@ public sealed class EmbeddedServer : IDisposable
 
     public GameClient Client { get; }
 
+    /// <summary>
+    /// Adds a system the Server ticks alongside itself, such as the world's zombies and their AI. Add it before the first
+    /// <see cref="Advance"/>; a system added later starts from the tick it was added.
+    /// </summary>
+    public void Add(ITickable tickable)
+    {
+        ArgumentNullException.ThrowIfNull(tickable);
+        _extra.Add(tickable);
+    }
+
     /// <summary>Runs the Server ticks that <paramref name="elapsed"/> real time owes, then lets the client read what they sent.</summary>
     public void Advance(TimeSpan elapsed)
     {
@@ -55,7 +66,13 @@ public sealed class EmbeddedServer : IDisposable
 
     private void Step()
     {
-        Server.Tick(_tick++);
+        Server.Tick(_tick);
+        for (var i = 0; i < _extra.Count; i++)
+        {
+            _extra[i].Tick(_tick);
+        }
+
+        _tick++;
         Client.Poll();
     }
 }

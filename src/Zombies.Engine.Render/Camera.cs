@@ -8,7 +8,7 @@ namespace Zombies.Engine.Render;
 /// </summary>
 public sealed class Camera
 {
-    private const float MaxPitch = 89f * MathF.PI / 180f;
+    internal const float MaxPitch = 89f * MathF.PI / 180f;
 
     public Vector3 Position { get; set; }
 
@@ -56,6 +56,14 @@ public sealed class Camera
     {
         Yaw += deltaX * radiansPerPixel;
         Pitch -= deltaY * radiansPerPixel;
+    }
+
+    /// <summary>Points the camera where <paramref name="aim"/> looks.</summary>
+    public void Face(PlayerAim aim)
+    {
+        ArgumentNullException.ThrowIfNull(aim);
+        Yaw = aim.Yaw;
+        Pitch = aim.Pitch;
     }
 
     /// <summary>Flies relative to where the camera looks: x right, y up, z forward, in blocks.</summary>

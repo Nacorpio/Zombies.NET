@@ -63,6 +63,15 @@ internal sealed class ClientOptions
     /// <summary>Diagnostic: open this screen at startup, so a screenshot can show it.</summary>
     public string? Screen { get; private set; }
 
+    /// <summary>Host:port of a dedicated Server to join. Null runs an embedded Server for solo play.</summary>
+    public string? Connect { get; private set; }
+
+    /// <summary>The connection key a dedicated Server expects.</summary>
+    public string ConnectionKey { get; private set; } = "zombies";
+
+    /// <summary>The player name shown to others.</summary>
+    public string PlayerName { get; private set; } = string.Empty;
+
     public static ClientOptions Parse(string[] args)
     {
         var options = new ClientOptions();
@@ -150,6 +159,15 @@ internal sealed class ClientOptions
                     break;
                 case "--screen":
                     options.Screen = next();
+                    break;
+                case "--connect":
+                    options.Connect = next();
+                    break;
+                case "--key":
+                    options.ConnectionKey = next();
+                    break;
+                case "--name":
+                    options.PlayerName = next();
                     break;
                 default:
                     throw new ArgumentException($"Unknown argument '{args[i]}'.");
